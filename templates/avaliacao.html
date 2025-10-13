@@ -27,7 +27,7 @@
         <input id="fileAvatarInput" type="file" accept="image/*" style="display:none" aria-hidden="true">
       </div>
       <div>
-        <p id="username">Sérgio França de Oliveira</p>
+        <p id="username">{{ session.get('user_name', '') }}</p>
       </div>
     </div>
     <!-- LADO DIREITO: notificações + avatar -->
@@ -36,7 +36,7 @@
       <div class="notif-wrap" style="position:relative">
         <button id="btnNotifications" class="notif-btn" aria-haspopup="true" aria-expanded="false" aria-label="Notificações">
           <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
-          <span id="notifBadge" class="notif-badge" aria-hidden="true">3</span>
+          <span id="notifBadge" class="notif-badge" aria-hidden="true" style="display:none"></span>
         </button>
         <div id="notificationsDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
           <div class="dropdown-item">Você não tem novas notificações</div>

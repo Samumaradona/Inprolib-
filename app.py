@@ -4,7 +4,7 @@ from psycopg.rows import dict_row
 import os
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import secrets
 import re
@@ -13,6 +13,8 @@ import time
 import random
 import io
 import sys
+import smtplib
+from email.message import EmailMessage
 
 load_dotenv()
 
@@ -20,6 +22,10 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 app.secret_key = os.getenv('SECRET_KEY', 'inprolib_secret_key_2024')
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
+ADMIN_SETUP_TOKEN = os.getenv('ADMIN_SETUP_TOKEN', 'setup_admin_2024')
+ADMIN_TEMP_PASSWORD = os.getenv('ADMIN_TEMP_PASSWORD', 'Adm@2025!')
+# Expiração do token de recuperação em segundos (padrão: 8 segundos)
+RESET_TOKEN_EXP_SECONDS = int(os.getenv('RESET_TOKEN_EXP_SECONDS', '8'))
 
 # Configuração do banco de dados PostgreSQL (via variáveis de ambiente)
 DB_CONFIG = {
@@ -56,6 +62,49 @@ def audit_log(event: str, details: dict):
             f.write(f"{ts}\t{ip}\tuser={user}\t{event}\t{details}\n")
     except Exception:
         pass
+
+def send_reset_email(to_email: str, reset_url: str) -> bool:
+    host = os.getenv('SMTP_HOST')
+    port = int(os.getenv('SMTP_PORT', '587'))
+    user = os.getenv('SMTP_USER')
+    password = os.getenv('SMTP_PASSWORD')
+    sender = os.getenv('SMTP_FROM', user or '')
+    use_ssl = os.getenv('SMTP_USE_SSL', '0').lower() in {'1','true','yes'}
+
+    if not host or not user or not password or not sender:
+        print('[SMTP] Configuração incompleta. Não foi possível enviar e-mail.')
+        print('[SMTP] Link de redefinição:', reset_url)
+        return False
+
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = 'INPROLIB - Redefinição de senha'
+        msg['From'] = sender
+        msg['To'] = to_email
+        msg.set_content(
+            (
+                'Olá,\n\nVocê solicitou a redefinição de senha no INPROLIB.\n'
+                f'Acesse o link abaixo para criar uma nova senha (expira em {RESET_TOKEN_EXP_SECONDS} segundos):\n\n{reset_url}\n\n'
+                'Se você não solicitou, ignore este e-mail.'
+            )
+        )
+
+        if use_ssl:
+            with smtplib.SMTP_SSL(host, port) as smtp:
+                smtp.login(user, password)
+                smtp.send_message(msg)
+        else:
+            with smtplib.SMTP(host, port) as smtp:
+                smtp.ehlo()
+                smtp.starttls()
+                smtp.ehlo()
+                smtp.login(user, password)
+                smtp.send_message(msg)
+        return True
+    except Exception as e:
+        print('[SMTP] Erro ao enviar e-mail:', e)
+        print('[SMTP] Link de redefinição:', reset_url)
+        return False
 
 def validar_cpf(cpf: str) -> bool:
     if not cpf:
@@ -116,10 +165,68 @@ def login_required(f):
 # Rota principal -> redireciona para Home
 @app.route('/')
 def index():
-    return redirect(url_for('home'))
+    return redirect(url_for('login'))
+
+# Rota segura para cadastrar/atualizar usuário administrador
+@app.route('/setup_admin', methods=['GET'])
+def setup_admin():
+    try:
+        token = (request.args.get('token') or '').strip()
+        if token != ADMIN_SETUP_TOKEN:
+            return make_response(jsonify({'error': 'Unauthorized'}), 403)
+
+        # Dados padrão do admin (podem ser sobrepostos via querystring)
+        nome = (request.args.get('nome') or 'Samuel Edgar').strip()
+        email = (request.args.get('email') or 'samuel.edgar@gmail.com').strip()
+        cpf = (request.args.get('cpf') or '000.000.000-00').strip()
+        temp_password = ADMIN_TEMP_PASSWORD
+        senha_hash = generate_password_hash(temp_password)
+
+        conn = get_db_connection()
+        if not conn:
+            return make_response(jsonify({'error': 'Falha ao conectar ao banco.'}), 500)
+        try:
+            cur = conn.cursor(row_factory=dict_row)
+            cur.execute("SELECT id_usuario, tipo FROM usuario WHERE email = %s", (email,))
+            user = cur.fetchone()
+
+            if user:
+                cur2 = conn.cursor()
+                cur2.execute(
+                    "UPDATE usuario SET nome = %s, cpf = %s, senha = %s, tipo = %s WHERE id_usuario = %s",
+                    (nome, cpf, senha_hash, 'Funcionário', user['id_usuario'])
+                )
+                conn.commit()
+                cur2.close()
+                status = 'updated'
+            else:
+                cur2 = conn.cursor()
+                cur2.execute(
+                    "INSERT INTO usuario (nome, email, cpf, senha, tipo, curso_usuario) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (nome, email, cpf, senha_hash, 'Funcionário', None)
+                )
+                conn.commit()
+                cur2.close()
+                status = 'created'
+
+            cur.close()
+            conn.close()
+            audit_log('setup_admin_ok', {'email': email, 'status': status})
+            return jsonify({'ok': True, 'status': status, 'email': email, 'temp_password': temp_password})
+        except Exception as e:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            audit_log('setup_admin_error', {'error': str(e)})
+            return make_response(jsonify({'error': str(e)}), 500)
+    except Exception as e:
+        audit_log('setup_admin_error_outer', {'error': str(e)})
+        return make_response(jsonify({'error': str(e)}), 500)
 
 # Rota para a página inicial após login
 @app.route('/home')
+@login_required
 def home():
     conn = get_db_connection()
     publicacoes = []
@@ -144,6 +251,177 @@ def home():
             flash(f'Erro ao buscar publicações: {e}', 'error')
     
     return render_template('home.html', publicacoes=publicacoes)
+
+# (Removida) Rota de cadastro de login
+
+# Tela de Login
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        key = f"{request.remote_addr}:login"
+        if not check_rate_limit(key, limit=30, window=60):
+            flash('Muitas tentativas. Tente novamente em instantes.', 'error')
+            audit_log('rate_limit', {'route': 'login'})
+            return redirect(url_for('login'))
+
+        email = (request.form.get('email') or '').strip()
+        senha = (request.form.get('senha') or '').strip()
+        if not email or not senha:
+            flash('Informe e-mail e senha.', 'error')
+            return redirect(url_for('login'))
+
+        conn = get_db_connection()
+        if not conn:
+            flash('Falha ao conectar ao banco.', 'error')
+            return redirect(url_for('login'))
+        try:
+            cur = conn.cursor(row_factory=dict_row)
+            cur.execute("SELECT id_usuario, nome, email, senha, tipo FROM usuario WHERE email = %s", (email,))
+            user = cur.fetchone()
+            cur.close()
+            conn.close()
+            if not user:
+                flash('Usuário não encontrado.', 'error')
+                return redirect(url_for('login'))
+            senha_hash = user['senha'] if isinstance(user['senha'], str) else (user['senha'].decode() if user['senha'] else '')
+            if not senha_hash or not check_password_hash(senha_hash, senha):
+                flash('Senha incorreta.', 'error')
+                return redirect(url_for('login'))
+            # Autentica
+            session['user_id'] = user['id_usuario']
+            session['user_name'] = user['nome']
+            session['user_tipo'] = user['tipo']
+            audit_log('login_ok', {'email': email})
+            return redirect(url_for('home'))
+        except Exception as e:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            flash(f'Erro no login: {e}', 'error')
+            audit_log('login_error', {'error': str(e)})
+            return redirect(url_for('login'))
+
+    return render_template('login.html')
+
+# Esqueci a senha: solicitar token
+@app.route('/esqueci_senha', methods=['GET', 'POST'])
+def esqueci_senha():
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip()
+        if not email:
+            flash('Informe seu e-mail.', 'error')
+            return redirect(url_for('esqueci_senha'))
+
+        conn = get_db_connection()
+        if not conn:
+            flash('Falha ao conectar ao banco.', 'error')
+            return redirect(url_for('esqueci_senha'))
+        try:
+            cur = conn.cursor()
+            # Verifica se usuário existe
+            cur.execute("SELECT 1 FROM usuario WHERE email = %s", (email,))
+            if not cur.fetchone():
+                flash('E-mail não cadastrado.', 'error')
+                cur.close()
+                conn.close()
+                return redirect(url_for('esqueci_senha'))
+            # Expira tokens anteriores
+            cur.execute("UPDATE esqueci_senha SET status = 'Expirado' WHERE email = %s AND status = 'Ativo'", (email,))
+            # Gera novo token
+            token = secrets.token_urlsafe(32)
+            cur.execute(
+                "INSERT INTO esqueci_senha (email, token, data_solicitacao, status) VALUES (%s, %s, %s, %s)",
+                (email, token, datetime.utcnow(), 'Ativo')
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+            reset_url = url_for('resetar_senha', token=token, email=email, _external=True)
+            if send_reset_email(email, reset_url):
+                flash('Solicitação registrada. Verifique seu e-mail para criar uma nova senha.', 'success')
+            else:
+                # Não exibir o link na interface; manter registro em log via send_reset_email
+                flash('Solicitação registrada. Verifique seu e-mail para criar uma nova senha.', 'success')
+            audit_log('forgot_ok', {'email': email})
+            return redirect(url_for('esqueci_senha'))
+        except Exception as e:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            flash(f'Erro ao gerar token: {e}', 'error')
+            audit_log('forgot_error', {'error': str(e)})
+            return redirect(url_for('esqueci_senha'))
+
+    return render_template('esqueci_senha.html')
+
+# Resetar senha via token
+@app.route('/resetar_senha', methods=['GET', 'POST'])
+def resetar_senha():
+    token = request.args.get('token') or request.form.get('token')
+    email = request.args.get('email') or request.form.get('email')
+    if request.method == 'POST':
+        nova = (request.form.get('nova_senha') or '').strip()
+        confirmar = (request.form.get('confirmar_senha') or '').strip()
+        if not nova or not confirmar or nova != confirmar:
+            flash('As senhas devem coincidir e não podem ser vazias.', 'error')
+            return redirect(url_for('resetar_senha', token=token, email=email))
+        conn = get_db_connection()
+        if not conn:
+            flash('Falha ao conectar ao banco.', 'error')
+            return redirect(url_for('resetar_senha', token=token, email=email))
+        try:
+            cur = conn.cursor(row_factory=dict_row)
+            cur.execute("SELECT * FROM esqueci_senha WHERE email = %s AND token = %s AND status = 'Ativo'", (email, token))
+            req = cur.fetchone()
+            if not req:
+                flash('Token inválido ou expirado.', 'error')
+                cur.close()
+                conn.close()
+                return redirect(url_for('esqueci_senha'))
+            # Validade configurável (padrão: 8 segundos)
+            requested_at = req['data_solicitacao']
+            if isinstance(requested_at, datetime):
+                age_seconds = (datetime.utcnow() - requested_at).total_seconds()
+                if age_seconds > RESET_TOKEN_EXP_SECONDS:
+                    # expira
+                    cur2 = conn.cursor()
+                    cur2.execute("UPDATE esqueci_senha SET status = 'Expirado' WHERE id_solicitacao = %s", (req['id_solicitacao'],))
+                    conn.commit()
+                    cur2.close()
+                    cur.close()
+                    conn.close()
+                    flash('Token expirado. Solicite um novo.', 'error')
+                    return redirect(url_for('esqueci_senha'))
+            # Atualiza senha do usuário
+            nova_hash = generate_password_hash(nova)
+            cur2 = conn.cursor()
+            cur2.execute("UPDATE usuario SET senha = %s WHERE email = %s", (nova_hash, email))
+            # Expira e remove o token imediatamente após redefinir a senha
+            cur2.execute("UPDATE esqueci_senha SET status = 'Expirado' WHERE id_solicitacao = %s", (req['id_solicitacao'],))
+            cur2.execute("DELETE FROM esqueci_senha WHERE id_solicitacao = %s", (req['id_solicitacao'],))
+            conn.commit()
+            cur2.close()
+            cur.close()
+            conn.close()
+            flash('Senha redefinida com sucesso. Faça login.', 'success')
+            audit_log('reset_ok', {'email': email})
+            return redirect(url_for('login'))
+        except Exception as e:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            flash(f'Erro ao redefinir senha: {e}', 'error')
+            audit_log('reset_error', {'error': str(e)})
+            return redirect(url_for('esqueci_senha'))
+
+    # GET
+    if not token or not email:
+        flash('Token ou e-mail ausente.', 'error')
+        return redirect(url_for('esqueci_senha'))
+    return render_template('resetar_senha.html', token=token, email=email)
 
 # Rota para a página de cadastro de alunos
 @app.route('/cadastro_alunos', methods=['GET', 'POST'])
@@ -234,6 +512,7 @@ def cadastro_alunos():
 
 # Rota para a página de cadastro de cursos
 @app.route('/cadastro_curso', methods=['GET', 'POST'])
+@login_required
 def cadastro_curso():
     if request.method == 'POST' and request.form:
         # Rate limit
@@ -301,6 +580,7 @@ def cadastro_curso():
 
 # Rota para a página de publicação
 @app.route('/publicacao', methods=['GET', 'POST'])
+@login_required
 def publicacao():
     if request.method == 'POST':
         # Rate limit
@@ -384,7 +664,13 @@ def publicacao():
             tipos = cur.fetchall()
 
             cur.execute("""
-                SELECT p.id_publicacao, p.titulo, p.tipo, c.nome_curso AS curso
+                SELECT 
+                  p.id_publicacao, 
+                  p.titulo, 
+                  p.tipo, 
+                  c.nome_curso AS curso,
+                  p.nome_arquivo,
+                  p.data_publicacao
                 FROM publicacao p
                 LEFT JOIN curso c ON c.id_curso = p.id_curso
                 ORDER BY p.id_publicacao DESC
@@ -409,6 +695,7 @@ def publicacao():
 
 # Rota para a página de avaliação
 @app.route('/avaliacao')
+@login_required
 def avaliacao():
     publicacoes = []
     conn = get_db_connection()
@@ -433,6 +720,7 @@ def avaliacao():
 
 # Rota para a página de vinculação de curso
 @app.route('/vinculacao_curso', methods=['GET', 'POST'])
+@login_required
 def vinculacao_curso():
     if request.method == 'POST':
         key = f"{request.remote_addr}:vinculacao_curso"
@@ -505,16 +793,19 @@ def vinculacao_curso():
 
 # Rota para a página de relatório
 @app.route('/relatorio')
+@login_required
 def relatorio():
     return render_template('relatorio.html')
 
 # Rota para a página de suporte
 @app.route('/suporte')
+@login_required
 def suporte():
     return render_template('suporte.html')
 
 # Rota para a página de configuração
 @app.route('/configuracao')
+@login_required
 def configuracao():
     return render_template('configuracao.html')
 

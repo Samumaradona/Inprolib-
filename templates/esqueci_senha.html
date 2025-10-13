@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>INPROLIB - Esqueci minha senha</title>
+  <link rel="stylesheet" href="cadastro_login.css">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="container">
+      <div class="left" style="display:flex;align-items:center;gap:8px">
+        <span class="material-symbols-outlined" aria-hidden="true">library_books</span>
+        <span style="font-weight:700;color:#0f172a;">INPROLIB</span>
+      </div>
+      <button class="notif-btn" aria-label="Notificações">
+        <span class="material-symbols-outlined">notifications</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    {% with messages = get_flashed_messages(with_categories=True) %}
+      {% if messages %}
+        <div class="flash-container" aria-live="polite" style="margin:12px 0">
+          {% for category, message in messages %}
+            <div class="flash {{ category }}" style="padding:10px;border-radius:6px;margin-bottom:8px;color:#0f172a;{% if category == 'success' %}background:#d1fae5;border:1px solid #10b981;{% elif category == 'error' %}background:#fee2e2;border:1px solid #ef4444;{% else %}background:#e5e7eb;border:1px solid #9ca3af;{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="form-container">
+      <h3>Recuperar senha</h3>
+      <form method="POST" action="/esqueci_senha" novalidate>
+        <div class="container-grid">
+          <div>
+            <label for="email">E-mail</label>
+            <input type="email" id="email" name="email" placeholder="seuemail@dominio.com" required />
+          </div>
+          <div class="btn-group">
+            <button type="submit" class="button">Enviar</button>
+            <a href="/login" class="button" style="text-decoration:none;background:#6c757d;">Voltar ao login</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

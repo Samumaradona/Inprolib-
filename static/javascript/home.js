@@ -259,7 +259,14 @@ function navigateTo(path){
 if (btnHamburger) btnHamburger.addEventListener('click', toggleMenu);
 if (btnClose) btnClose.addEventListener('click', closeMenu);
 if (backdrop) backdrop.addEventListener('click', closeMenu);
-if (logoutBtn) logoutBtn.addEventListener('click', () => { console.log('logout'); closeMenu(); });
+if (logoutBtn) logoutBtn.addEventListener('click', () => {
+  try {
+    navigateTo('/logout');
+  } catch(e) {
+    window.location.href = '/logout';
+  }
+  closeMenu();
+});
 if (btnBack) btnBack.addEventListener('click', () => {
   try {
     if (window.history && window.history.length > 1) {
