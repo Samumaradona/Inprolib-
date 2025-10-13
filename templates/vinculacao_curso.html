@@ -28,7 +28,7 @@
         <input id="fileAvatarInput" type="file" accept="image/*" style="display:none" aria-hidden="true">
       </div>
       <div>
-        <p id="username">Sérgio França de Oliveira</p>
+        <p id="username">{{ session.get('user_name', '') }}</p>
       </div>
     </div>
     <!-- LADO DIREITO: notificações + avatar -->

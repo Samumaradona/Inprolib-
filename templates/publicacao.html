@@ -28,7 +28,7 @@
         <input id="fileAvatarInput" type="file" accept="image/*" style="display:none" aria-hidden="true">
       </div>
       <div>
-        <p id="username">Sérgio França de Oliveira</p>
+        <p id="username">{{ session.get('user_name', '') }}</p>
       </div>
     </div>
     <!-- LADO DIREITO: notificações + avatar -->
@@ -164,7 +164,13 @@
           </thead>
           <tbody>
             {% for p in publicacoes %}
-              <tr>
+              <tr class="pub-row" style="cursor:pointer" 
+                  data-titulo="{{ p.titulo }}" 
+                  data-tipo="{{ p.tipo }}" 
+                  data-curso="{{ p.curso }}" 
+                  data-data="{{ p.data_publicacao.strftime('%d/%m/%Y') if p.data_publicacao else '' }}" 
+                  data-url="{{ url_for('static', filename='uploads/' ~ p.nome_arquivo) if p.nome_arquivo else '' }}" 
+                  title="Visualizar publicação">
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.titulo }}</td>
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.tipo }}</td>
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.curso }}</td>
@@ -179,6 +185,26 @@
     </main>
   </div>
 
+  <!-- Modal de visualização de publicação -->
+  <div id="pubModal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);z-index:50" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pubModalTitle">
+    <div style="background:#fff;max-width:860px;width:92%;border-radius:10px;box-shadow:0 10px 25px rgba(0,0,0,0.15);overflow:hidden">
+      <header style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb">
+        <div>
+          <h3 id="pubModalTitle" style="margin:0">Visualização da publicação</h3>
+          <div id="pubMeta" style="font-size:12px;color:#64748b;margin-top:4px"></div>
+        </div>
+        <button id="pubModalClose" aria-label="Fechar" style="border:none;background:#f1f5f9;color:#0f172a;padding:6px 10px;border-radius:6px;cursor:pointer">Fechar ✕</button>
+      </header>
+      <div style="padding:12px 16px">
+        <div id="pubPreview" style="border:1px solid #e5e7eb;border-radius:8px;min-height:240px;display:flex;align-items:center;justify-content:center;background:#f8fafc"></div>
+        <div id="pubActions" style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <a id="pubDownload" href="#" target="_blank" rel="noopener" style="text-decoration:none;background:#1d4ed8;color:#fff;padding:8px 12px;border-radius:6px">Abrir/baixar conteúdo</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="home.js"></script>
+  <script src="publicacao.js?v=1"></script>
 </body>
 </html>
