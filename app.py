@@ -179,7 +179,9 @@ def setup_admin():
         nome = (request.args.get('nome') or 'Samuel Edgar').strip()
         email = (request.args.get('email') or 'samuel.edgar@gmail.com').strip()
         cpf = (request.args.get('cpf') or '000.000.000-00').strip()
-        temp_password = ADMIN_TEMP_PASSWORD
+        # Permitir sobrepor a senha via querystring ("senha" ou "password"); fallback para ADMIN_TEMP_PASSWORD
+        senha_param = (request.args.get('senha') or request.args.get('password') or '').strip()
+        temp_password = senha_param if senha_param else ADMIN_TEMP_PASSWORD
         senha_hash = generate_password_hash(temp_password)
 
         conn = get_db_connection()
