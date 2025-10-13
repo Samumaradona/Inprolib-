@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>INPROLIB - Configurações</title>
+  <link rel="stylesheet" href="configuracao.css">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+<body>
+  <div id="app">
+<header class="topbar">
+  <div class="container">
+    <!-- LADO ESQUERDO: apenas hambúrguer -->
+    <div class="left">
+      <button class="hamburger" id="btnHamburger" aria-controls="sideMenu" aria-expanded="false" aria-label="Abrir menu" title="Abrir menu">
+        <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+      </button>
+            <div class="profile-wrap" style="position:relative">
+        <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
+          <img id="profileAvatar" class="avatar" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s" alt="Avatar usuário">
+        </button>
+        <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
+          <button id="changePhoto" class="dropdown-action" role="menuitem">Mudar foto</button>
+        </div>
+        <input id="fileAvatarInput" type="file" accept="image/*" style="display:none" aria-hidden="true">
+      </div>
+      <div>
+        <p id="username">Sérgio França de Oliveira</p>
+      </div>
+    </div>
+    <!-- LADO DIREITO: notificações + avatar -->
+    <div class="right" role="group" aria-label="Ações do usuário">
+      <!-- Notification button -->
+      <div class="notif-wrap" style="position:relative">
+        <button id="btnNotifications" class="notif-btn" aria-haspopup="true" aria-expanded="false" aria-label="Notificações">
+          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+          <span id="notifBadge" class="notif-badge" aria-hidden="true">3</span>
+        </button>
+        <div id="notificationsDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <div class="dropdown-item">Você não tem novas notificações</div>
+        </div>
+      </div>
+      <!-- profile avatar -->
+    </div>
+  </div>
+</header>
+<!-- modal de visualização da foto -->
+<div id="avatarModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
+  <div class="modal-content">
+    <button id="closeModal" class="modal-close" aria-label="Fechar visualização">✕</button>
+    <h3 id="avatarModalTitle" style="margin:0 0 12px 0">Foto do usuário</h3>
+    <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px">
+  </div>
+</div>
+    <!-- Backdrop e menu lateral -->
+    <div id="backdrop" class="backdrop" tabindex="-1" aria-hidden="true"></div>
+
+    <aside id="sideMenu" class="sidemenu" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="sideMenuTitle">
+      <header>
+        <div>
+          <strong id="sideMenuTitle">INPROLIB</strong>
+          <div style="font-size:12px;color:#64748b">Menu</div>
+        </div>
+        <div>
+          <button id="btnClose" aria-label="Fechar menu" title="Fechar">✕</button>
+        </div>
+      </header>
+      <nav class="routes" id="routesList">
+        <!-- rotas inseridas por JS -->
+      </nav>
+      <footer>
+        <button id="logoutBtn" class="route">Sair</button>
+      </footer>
+    </aside>
+
+    <main>
+  <form class="form-container">
+    <!-- Coluna 1 -->
+         <div class="container-grid">
+    <div>
+      <h3>Dados do usuário</h3>
+      <label for="nome">Nome</label>
+      <input type="text" id="nome" placeholder="Insira o seu nome">
+
+      <label for="cpf">CPF</label>
+      <input type="text" id="cpf" placeholder="Insira o seu CPF">
+
+      <label for="email">Email</label>
+      <input type="text" id="email" placeholder="Insira o seu email para contato">
+    </div>
+
+    <!-- Coluna 2 -->
+    <div>
+      <h3>Alteração de senha</h3>
+      <label for="senha">Senha</label>
+      <input type="text" id="senha" placeholder="Insira a nova senha">
+      <label for="senha">Confirmar nova senha</label>
+      <input type="text" id="senha" placeholder="Confirme a senha inserida">
+    </div>
+
+    <!-- Botão centralizado -->
+    <div class="full-width">
+      <button class="button" type="submit">Salvar</button>
+    </div>
+    </div>
+  </form>
+
+    </main>
+  </div>
+
+  <script src="home.js"></script>
+</body>
+</html>

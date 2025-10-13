@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Cadastro de cursos no INPROLIB com validações e lista em modal." />
+  <title>INPROLIB - Cadastro de Cursos</title>
+  <link rel="stylesheet" href="cadastro_curso.css">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+    <div class="container">
+      <!-- LADO ESQUERDO: apenas hambúrguer -->
+      <div class="left">
+        <button class="hamburger" id="btnHamburger" aria-controls="sideMenu" aria-expanded="false" aria-label="Abrir menu" title="Abrir menu">
+          <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+        </button>
+              <div class="profile-wrap" style="position:relative">
+          <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
+            <img id="profileAvatar" class="avatar" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s" alt="Avatar usuário">
+          </button>
+          <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+            <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
+            <button id="changePhoto" class="dropdown-action" role="menuitem">Mudar foto</button>
+          </div>
+          <input id="fileAvatarInput" type="file" accept="image/*" style="display:none" aria-hidden="true">
+        </div>
+        <div>
+          <p id="username">Sérgio França de Oliveira</p>
+        </div>
+      </div>
+      <!-- LADO DIREITO: notificações + avatar -->
+      <div class="right" role="group" aria-label="Ações do usuário">
+        <!-- Notification button -->
+        <div class="notif-wrap" style="position:relative">
+          <button id="btnNotifications" class="notif-btn" aria-haspopup="true" aria-expanded="false" aria-label="Notificações">
+            <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+            <span id="notifBadge" class="notif-badge" aria-hidden="true" style="display:none"></span>
+          </button>
+          <div id="notificationsDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+            <div class="dropdown-item">Você não tem novas notificações</div>
+          </div>
+        </div>
+        <!-- profile avatar -->
+      </div>
+    </div>
+  </header>
+  <!-- modal de visualização da foto -->
+  <div id="avatarModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
+    <div class="modal-content">
+      <button id="closeModal" class="modal-close" aria-label="Fechar visualização">✕</button>
+      <h3 id="avatarModalTitle" style="margin:0 0 12px 0">Foto do usuário</h3>
+      <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px">
+    </div>
+  </div>
+      <!-- Backdrop e menu lateral -->
+      <div id="backdrop" class="backdrop" tabindex="-1" aria-hidden="true"></div>
+      <aside id="sideMenu" class="sidemenu" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="sideMenuTitle">
+        <header>
+          <div>
+            <strong id="sideMenuTitle">INPROLIB</strong>
+            <div style="font-size:12px;color:#64748b">Menu</div>
+          </div>
+          <div>
+            <button id="btnClose" aria-label="Fechar menu" title="Fechar">✕</button>
+          </div>
+        </header>
+        <nav class="routes" id="routesList">
+          <!-- rotas inseridas por JS -->
+        </nav>
+        <footer>
+          <button id="logoutBtn" class="route">Sair</button>
+        </footer>
+      </aside>
+      <main>
+        <nav aria-label="breadcrumb" style="margin:8px 16px;color:#64748b">
+          <a href="/home" style="color:#1d4ed8;text-decoration:none">Home</a> · Cadastro de cursos
+        </nav>
+        {% with messages = get_flashed_messages(with_categories=True) %}
+          {% if messages %}
+            <div class="flash-container" aria-live="polite" style="margin:12px 16px">
+              {% for category, message in messages %}
+                <div class="flash {{ category }}" style="padding:10px;border-radius:6px;margin-bottom:8px;color:#0f172a;{% if category == 'success' %}background:#d1fae5;border:1px solid #10b981;{% elif category == 'error' %}background:#fee2e2;border:1px solid #ef4444;{% else %}background:#e5e7eb;border:1px solid #9ca3af;{% endif %}">
+                  {{ message }}
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+        {% if cursos and cursos|length > 0 %}
+          <div style="margin:0 16px 12px 16px">
+            <button type="button" id="btnOpenCourses" class="button">Ver cursos cadastrados</button>
+          </div>
+        {% endif %}
+        <form class="form-container" method="POST" action="/cadastro_curso" novalidate>
+          <!-- Coluna 1 -->
+          <div class="container-grid">
+            <div>
+              <h3>Informações do curso</h3>
+              <label for="nome">Nome do Curso</label>
+              <input type="text" id="nome" name="nome" placeholder="Insira o nome de seu curso" required maxlength="255">
+              <label for="descricao">Descrição</label>
+              <input type="text" id="descricao" name="descricao" placeholder="Insira a descrição de seu curso">
+              <label for="codigo">Código</label>
+              <input type="text" id="codigo" name="codigo" placeholder="Insira o seu código" pattern="[A-Z0-9-]+" title="Use letras maiúsculas, números e hífen">
+            </div>
+          
+            <!-- Coluna 2 -->
+            <div>
+              <h3>Vinculação de Coordenador</h3>
+              <label for="coordenador">Coordenador</label>
+              <select id="coordenador" name="coordenador">
+                <option value="">Selecione o coordenador</option>
+                {% if professores %}
+                  {% for p in professores %}
+                    <option value="{{ p.id_usuario }}">{{ p.nome }}</option>
+                  {% endfor %}
+                {% endif %}
+              </select>
+            
+              <h3>Autorização do curso</h3>
+              <label for="portaria">Portaria de Autorização</label>
+              <input type="text" id="portaria" name="portaria" placeholder="Insira o número da portaria" inputmode="numeric" maxlength="10">
+            </div>
+            <!-- Botão centralizado -->
+            <div class="full-width">
+              <button class="button" type="submit">Salvar</button>
+            </div>
+          </div>
+        </form>
+
+        <!-- Modal de cursos cadastrados -->
+        {% if cursos and cursos|length > 0 %}
+        <div id="coursesModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="coursesModalTitle" style="display:none">
+          <div class="modal-content" style="max-width:800px;width:100%">
+            <button id="closeCoursesModal" class="modal-close" aria-label="Fechar">✕</button>
+            <h3 id="coursesModalTitle" style="margin:0 0 12px 0">Cursos cadastrados</h3>
+            <div style="overflow:auto;border:1px solid #e5e7eb;border-radius:8px">
+              <table style="width:100%;border-collapse:collapse">
+                <thead>
+                  <tr style="text-align:left;background:#f8fafc">
+                    <th style="padding:8px;border-bottom:1px solid #e5e7eb">Nome</th>
+                    <th style="padding:8px;border-bottom:1px solid #e5e7eb">Código</th>
+                    <th style="padding:8px;border-bottom:1px solid #e5e7eb">Autorização</th>
+                    <th style="padding:8px;border-bottom:1px solid #e5e7eb">Coordenador</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for c in cursos %}
+                  <tr>
+                    <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.nome_curso }}</td>
+                    <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.codigo_curso or '-' }}</td>
+                    <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.autorizacao or '-' }}</td>
+                    <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.coordenador or '-' }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </main>
+    </div>
+    <script src="home.js"></script>
+    <script>
+      (function(){
+        const btnOpen = document.getElementById('btnOpenCourses');
+        const modal = document.getElementById('coursesModal');
+        const btnClose = document.getElementById('closeCoursesModal');
+        if(btnOpen && modal){
+          btnOpen.addEventListener('click', function(){ modal.style.display='flex'; });
+        }
+        if(btnClose && modal){
+          btnClose.addEventListener('click', function(){ modal.style.display='none'; });
+        }
+        // fechar ao clicar fora
+        if(modal){
+          modal.addEventListener('click', function(e){
+            if(e.target === modal){ modal.style.display='none'; }
+          });
+        }
+      })();
+    </script>
+</body>
+</html>

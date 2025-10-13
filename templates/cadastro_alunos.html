@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Cadastro de alunos no INPROLIB com validações e segurança." />
+  <title>INPROLIB - Cadastro de alunos</title>
+  <link rel="stylesheet" href="cadastro_alunos.css">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+<body>
+  <div id="app">
+<header class="topbar">
+  <div class="container">
+    <!-- LADO ESQUERDO: apenas botão de retorno -->
+    <div class="left">
+        <button id="btnBack" class="notif-btn" type="button" aria-label="Voltar">
+          <span class="material-symbols-outlined">keyboard_return</span>
+        </button>
+    </div>
+</header>
+
+    <main>
+      <nav aria-label="breadcrumb" style="margin:8px 16px;color:#64748b">
+        <a href="/home" style="color:#1d4ed8;text-decoration:none">Home</a> · Cadastro de alunos
+      </nav>
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+          <div class="flash-container" aria-live="polite" style="margin:12px 16px">
+            {% for category, message in messages %}
+              <div class="flash {{ category }}" style="padding:10px;border-radius:6px;margin-bottom:8px;color:#0f172a;{% if category == 'success' %}background:#d1fae5;border:1px solid #10b981;{% elif category == 'error' %}background:#fee2e2;border:1px solid #ef4444;{% else %}background:#e5e7eb;border:1px solid #9ca3af;{% endif %}">
+                {{ message }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+  <form class="form-container" method="POST" action="/cadastro_alunos">
+      <h3>Informações do usuário</h3>
+    <!-- Coluna 1 -->
+    <div class="container-grid">
+     <div>
+
+      <label for="nome">Nome</label>
+      <input type="text" id="nome_user" name="nome_user" placeholder="Insira o seu nome completo" required>
+
+      <label for="descricao">CPF</label>
+      <input type="text" id="cpf_user" name="cpf_user" placeholder="Insira o seu CPF" required inputmode="numeric" maxlength="14" pattern="\d{3}\.\d{3}\.\d{3}-\d{2}" title="Formato: 000.000.000-00">
+
+      <label for="codigo">Email</label>
+      <input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email">
+    </div>
+
+    <!-- Coluna 2 -->
+    <div>
+      <label for="portaria">Senha</label>
+      <input type="password" id="senha" name="senha" placeholder="Insira a sua senha" required minlength="8" autocomplete="new-password">
+      <div id="pwdStrength" style="font-size:12px;color:#64748b;margin:4px 0">Força da senha: fraca</div>
+
+      <label for="portaria">Confirmar senha</label>
+      <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme a sua senha" required autocomplete="new-password">
+
+      <label for="captcha">Captcha: {{ captcha_question }}</label>
+      <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required inputmode="numeric" pattern="\d+" title="Digite apenas números">
+    </div>
+
+    <!-- Botão centralizado -->
+<div class="btn-group">
+  <button type="submit" class="button">Salvar</button>
+</div>
+    </div>
+  </form>
+
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='javascript/home.js') }}"></script>
+  <script>
+    // Validação em tempo real de CPF e email; indicador de força de senha
+    (function(){
+      const cpfInput = document.getElementById('cpf_user');
+      const emailInput = document.getElementById('email_user');
+      const senhaInput = document.getElementById('senha');
+      const confirmarInput = document.getElementById('confirmar_senha');
+      const strengthEl = document.getElementById('pwdStrength');
+      function validarCPF(cpf){
+        cpf = (cpf||'').replace(/[^0-9]/g,'');
+        if(cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+        let soma=0; for(let i=0;i<9;i++) soma+=parseInt(cpf[i])*(10-i);
+        let resto = 11 - (soma % 11); let d1 = resto >= 10 ? 0 : resto;
+        soma=0; for(let i=0;i<10;i++) soma+=parseInt(cpf[i])*(11-i);
+        resto = 11 - (soma % 11); let d2 = resto >= 10 ? 0 : resto;
+        return cpf.slice(9) === `${d1}${d2}`;
+      }
+      function emailValido(e){ return /.+@.+\..+/.test(e); }
+      function forçaSenha(s){
+        let score = 0;
+        if(s.length >= 8) score++;
+        if(/[A-Z]/.test(s)) score++;
+        if(/[a-z]/.test(s)) score++;
+        if(/\d/.test(s) && /[^\w]/.test(s)) { score += 2; }
+        return score;
+      }
+      senhaInput.addEventListener('input', ()=>{
+        const score = forçaSenha(senhaInput.value);
+        const map = ['fraca','média','boa','forte','muito forte'];
+        strengthEl.textContent = `Força da senha: ${map[Math.min(score,4)]}`;
+      });
+      cpfInput.addEventListener('input', ()=>{
+        cpfInput.setCustomValidity(validarCPF(cpfInput.value)? '' : 'CPF inválido');
+      });
+      emailInput.addEventListener('input', ()=>{
+        emailInput.setCustomValidity(emailValido(emailInput.value)? '' : 'E-mail inválido');
+      });
+      confirmarInput.addEventListener('input', ()=>{
+        confirmarInput.setCustomValidity(confirmarInput.value === senhaInput.value ? '' : 'As senhas não coincidem');
+      });
+    })();
+  </script>
+</body>
+</html>

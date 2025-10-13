@@ -1,0 +1,220 @@
+    :root {
+    /*Todas as Cores a serem usadas*/
+    --bs-blue: #00002D;
+    --bs-indigo: #6610f2;
+    --bs-purple: #6f42c1;
+    --bs-pink: #d63384;
+    --bs-red: #dc3545;
+    --bs-red-light:#fa717f;
+    --bs-orange: #fd7e14;
+    --bs-yellow: #ffc107;
+    --bs-green: #125f3b;
+    --bs-grass: #5cca4e ;
+    --bs-teal: #20c997;
+    --bs-cyan: #0dcaf0;
+    --bs-white:  white;
+    --bs-gray: #6c757d;
+    --bs-gray-dark: #343a40;
+    --bs-gray-100: #f8f9fa;
+    --bs-gray-200: #e9ecef;
+    --bs-gray-300: #dee2e6;
+    --bs-gray-400: #ced4da;
+    --bs-gray-500: #adb5bd;
+    --bs-gray-600: #6c757d;
+    --bs-gray-700: #495057;
+    --bs-gray-800: #343a40;
+    --bs-gray-900: #212529;
+    /*Cores Principais do Site*/
+    --bs-primary: #0046E1;
+    --bs-secondary: #00002D;
+    --bs-terceary: #6c757d;
+    --bs-success: #198754;
+    --bs-info: #0dcaf0;
+    --bs-warning: #ffc107;
+    --bs-danger: #dc3545;
+    --bs-light: #f8f9fa;
+    --bs-dark: #212529;
+    /* Variações da cor principal */
+    --bs-primary-light-1: #3369E8;  
+    --bs-primary-light-2: #668BF0;  
+    --bs-primary-light-3: #99ACF7;  
+    --bs-primary-light-4: #CCD4FF;  
+    --bs-primary-dark-1: #003ABB;   
+    --bs-primary-dark-2: #002C94;   
+    --bs-primary-dark-3: #001E6E;   
+    --bs-primary-dark-4: #001048;  
+    --bs-new-light: #b3bcda;
+    --bs-new-casual: #4e62a6;
+    --bs-new-dark: #313f6b;
+    /*Cores RGB*/
+    --bs-primary-rgb: 0, 0, 45;
+    --bs-secondary-rgb: 108, 117, 125;
+    --bs-success-rgb: 25, 135, 84;
+    --bs-info-rgb: 13, 202, 240;
+    --bs-warning-rgb: 255, 193, 7;
+    --bs-danger-rgb: 220, 53, 69;
+    --bs-light-rgb: 248, 249, 250;
+    --bs-dark-rgb: 33, 37, 41;
+    --bs-white-rgb: 255, 255, 255;
+    --bs-black-rgb: 0, 0, 0;
+    --bs-body-color-rgb: 33, 37, 41;
+    --bs-body-bg-rgb: 255, 255, 255;
+    --bs-font-sans-serif: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    --bs-font-monospace: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --bs-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0));
+    --bs-body-font-family: var(--bs-font-sans-serif);
+    --bs-body-font-size: 1rem;
+    --bs-body-font-weight: 400;
+    --bs-body-line-height: 1.5;
+    --bs-body-color:  #0f172a;
+    --bs-body-bg:  var(--bs-white);
+    --bs-font-color: var(--bs-body-color);
+}
+
+/* fundo geral: "branco com cinza MUITO leve" */
+:root {
+  --page-bg: #ebebeb; /* muito leve */
+  --card-bg: #ffffff;
+  --card-shadow: 0 6px 24px rgba(2,6,23,0.06);
+}
+
+    
+/* reset / base */
+*{ box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #app { height: 100%; }
+body{
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  line-height: 1.4;
+  color: var(--bs-body-color);
+  background-color: var(--page-bg);
+}
+
+/* Topbar (simplificado para esta tela) */
+header.topbar{
+  background-color: var(--card-bg);
+  border-bottom: 1px solid rgba(0,70,225,0.06); /* sutil */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.container{
+  max-width: 1400px;
+  padding: 12px 20px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.left { display:flex; align-items:center; gap:8px; }
+
+/* ícone (Material Symbols) */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Notif button (só o necessário) */
+.notif-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:8px;
+  border-radius:8px;
+  background:transparent;
+  border:0;
+  cursor:pointer;
+}
+
+/* Main + formulário */
+main{
+  max-width: 900px;
+  margin: 28px auto;
+  padding: 0 20px;
+}
+.form-container {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  background-color: var(--card-bg);
+  padding: 20px 28px;
+  border-radius: 10px;
+  box-shadow: var(--card-shadow);
+}
+
+/* grid de campos (duas colunas) */
+.container-grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* títulos / labels / inputs */
+.form-container h3 {
+  margin: 0 0 12px 0;
+  color: #222;
+  font-size: 18px;
+}
+.form-container label {
+  display: block;
+  margin-top: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--bs-body-color);
+}
+.form-container input,
+.form-container select {
+  width: 100%;
+  padding: 10px 12px;
+  margin-top: 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  font-size: 14px;
+  background: #fff;
+  outline: none;
+}
+.form-container input:focus,
+.form-container select:focus {
+  box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+  border-color: rgba(0,70,225,0.25);
+}
+
+/* botão principal e grupo de botões */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--bs-new-casual);
+  border: 0;
+  cursor: pointer;
+  text-align: center;
+}
+
+.button:hover {
+  background: var(--bs-new-dark);
+}
+
+/* btn-group: ocupa as 2 colunas e centraliza */
+.btn-group{
+  grid-column: 1 / -1;        /* ocupa as duas colunas */
+  justify-self: center;       /* centraliza horizontalmente */
+  display: flex;
+  flex-direction: column;     /* um sobre o outro */
+  gap: 8px;                   /* espaço entre botões (troque para 0 se quiser) */
+  align-items: center;
+  width: 320px;               /* largura do grupo - ajustável */
+  margin-top: 12px;
+}
+
+/* responsividade */
+@media (max-width: 720px){
+  .container-grid { grid-template-columns: 1fr; }
+  .btn-group { width: 100%; }
+  .btn-group .button { width: 100%; }
+}
