@@ -103,7 +103,8 @@ header.topbar{
   justify-content: space-between;
   gap: 12px;
 }
-.left { display:flex; align-items:center; gap:8px; }
+  .left { display:flex; align-items:center; gap:8px; }
+  .logo{ height:24px; width:auto; display:inline-block; }
 
 /* ícone (Material Symbols) */
 .material-symbols-outlined {

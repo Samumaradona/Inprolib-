@@ -204,7 +204,8 @@
     </div>
   </div>
 
-  <script src="home.js"></script>
+  <script>window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";</script>
+  <script src="home.js?v=aval-fix-1"></script>
   <script src="publicacao.js?v=1"></script>
 </body>
 </html>

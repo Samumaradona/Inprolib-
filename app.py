@@ -128,13 +128,19 @@ def validar_cpf(cpf: str) -> bool:
 @app.route('/<asset_name>.css')
 def serve_css(asset_name):
     resp = make_response(send_from_directory(os.path.join(app.static_folder, 'css'), f'{asset_name}.css'))
-    resp.headers['Cache-Control'] = 'public, max-age=86400'
+    # Evita cache agressivo durante desenvolvimento, garantindo atualização imediata do menu
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
     return resp
 
 @app.route('/<script_name>.js')
 def serve_js(script_name):
     resp = make_response(send_from_directory(os.path.join(app.static_folder, 'javascript'), f'{script_name}.js'))
-    resp.headers['Cache-Control'] = 'public, max-age=86400'
+    # Evita cache agressivo durante desenvolvimento, garantindo atualização imediata do JS
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
     return resp
 
 @app.route('/img/<path:filename>')
@@ -161,6 +167,35 @@ def login_required(f):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
+
+# Controle de acesso por perfil
+def _normalize_role(tipo: str) -> str:
+    if not tipo:
+        return ''
+    tipo = str(tipo).strip()
+    mapping = {
+        'Administrador': 'Administrador',
+        'Funcionário': 'Administrador',
+        'Professor': 'Docente',
+        'Docente': 'Docente',
+        'Aluno': 'Aluno'
+    }
+    return mapping.get(tipo, tipo)
+
+def roles_required(allowed_roles):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            role = _normalize_role(session.get('role') or session.get('user_tipo'))
+            if not role:
+                flash('Por favor, faça login para acessar esta página', 'error')
+                return redirect(url_for('login'))
+            if role not in allowed_roles:
+                # Silenciosamente redireciona para Home sem exibir mensagem
+                return redirect(url_for('home'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 # Rota principal -> redireciona para Home
 @app.route('/')
@@ -278,7 +313,7 @@ def login():
             return redirect(url_for('login'))
         try:
             cur = conn.cursor(row_factory=dict_row)
-            cur.execute("SELECT id_usuario, nome, email, senha, tipo FROM usuario WHERE email = %s", (email,))
+            cur.execute("SELECT id_usuario, nome, email, senha, tipo, foto_perfil FROM usuario WHERE email = %s", (email,))
             user = cur.fetchone()
             cur.close()
             conn.close()
@@ -293,6 +328,24 @@ def login():
             session['user_id'] = user['id_usuario']
             session['user_name'] = user['nome']
             session['user_tipo'] = user['tipo']
+            session['role'] = _normalize_role(user['tipo'])
+            # Normaliza caminho da foto (se existente) para uso via static
+            foto = user.get('foto_perfil')
+            def _norm_photo_path(fp: str) -> str:
+                if not fp:
+                    return ''
+                # substitui barras invertidas por barras
+                fp = str(fp).replace('\\', '/').strip()
+                # tenta localizar subcaminho sob 'static/'
+                idx = fp.lower().find('static/')
+                if idx != -1:
+                    rel = fp[idx+len('static/'):]  # conteúdo após 'static/'
+                    return rel
+                # se já for relativo (uploads/..), mantem
+                if fp.startswith('uploads/'):
+                    return fp
+                return ''
+            session['user_photo'] = _norm_photo_path(foto)
             audit_log('login_ok', {'email': email})
             return redirect(url_for('home'))
         except Exception as e:
@@ -305,6 +358,63 @@ def login():
             return redirect(url_for('login'))
 
     return render_template('login.html')
+
+# Upload de avatar do usuário logado
+@app.route('/upload_avatar', methods=['POST'])
+@login_required
+def upload_avatar():
+    file = request.files.get('avatar')
+    if not file or not file.filename:
+        return jsonify({'ok': False, 'error': 'Nenhum arquivo selecionado'}), 400
+
+    # valida extensão
+    filename = secure_filename(file.filename)
+    name, ext = os.path.splitext(filename)
+    ext = ext.lower()
+    allowed = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
+    if ext not in allowed:
+        return jsonify({'ok': False, 'error': 'Formato não suportado'}), 400
+
+    # diretório de avatares
+    avatars_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'avatars')
+    os.makedirs(avatars_dir, exist_ok=True)
+
+    # nome do arquivo por usuário
+    uid = session.get('user_id')
+    ts = int(time.time())
+    out_name = f"avatar_{uid}_{ts}{ext}"
+    out_path = os.path.join(avatars_dir, out_name)
+    try:
+        file.save(out_path)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'Falha ao salvar: {e}'}), 500
+
+    # caminho relativo para servir via static
+    rel_path = f"uploads/avatars/{out_name}"
+
+    # Atualiza no banco
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'ok': False, 'error': 'Falha de conexão com o banco'}), 500
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE usuario SET foto_perfil = %s WHERE id_usuario = %s", (rel_path, uid))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({'ok': False, 'error': f'Falha ao atualizar perfil: {e}'}), 500
+
+    # Atualiza sessão
+    session['user_photo'] = rel_path
+
+    # URL acessível
+    photo_url = url_for('static', filename=rel_path)
+    return jsonify({'ok': True, 'photo_url': photo_url})
 
 # Esqueci a senha: solicitar token
 @app.route('/esqueci_senha', methods=['GET', 'POST'])
@@ -442,6 +552,7 @@ def cadastro_alunos():
         senha = (request.form.get('senha') or '').strip()
         confirmar_senha = (request.form.get('confirmar_senha') or '').strip()
         curso = request.form.get('curso')
+        tipo_form = (request.form.get('tipo_usuario') or '').strip()
         captcha = (request.form.get('captcha') or '').strip()
 
         # Validações básicas
@@ -474,17 +585,23 @@ def cadastro_alunos():
                     conn.close()
                     audit_log('cadastro_aluno_fail', {'motivo': 'email_duplicado', 'email': email})
                     return redirect(url_for('cadastro_alunos'))
-                # Inserir novo aluno
+                # Determinar tipo do usuário no banco
+                tipo_db = 'Aluno'
+                if tipo_form.lower() == 'docente':
+                    tipo_db = 'Professor'
+                # Inserir novo usuário
                 senha_hash = generate_password_hash(senha)
                 cur.execute(
                     "INSERT INTO usuario (nome, email, cpf, senha, tipo, curso_usuario) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (nome, email, cpf, senha_hash, 'Aluno', curso)
+                    (nome, email, cpf, senha_hash, tipo_db, curso)
                 )
                 conn.commit()
-                flash('Aluno cadastrado com sucesso!', 'success')
+                flash('Usuário cadastrado com sucesso!', 'success')
                 cur.close()
                 conn.close()
                 audit_log('cadastro_aluno_ok', {'email': email})
+                # Após cadastro bem-sucedido, redireciona para a Home
+                return redirect(url_for('home'))
             except Exception as e:
                 flash(f'Erro ao cadastrar aluno: {e}', 'error')
                 try:
@@ -515,6 +632,7 @@ def cadastro_alunos():
 # Rota para a página de cadastro de cursos
 @app.route('/cadastro_curso', methods=['GET', 'POST'])
 @login_required
+@roles_required(['Administrador'])
 def cadastro_curso():
     if request.method == 'POST' and request.form:
         # Rate limit
@@ -583,6 +701,7 @@ def cadastro_curso():
 # Rota para a página de publicação
 @app.route('/publicacao', methods=['GET', 'POST'])
 @login_required
+@roles_required(['Administrador','Docente','Aluno'])
 def publicacao():
     if request.method == 'POST':
         # Rate limit
@@ -698,6 +817,7 @@ def publicacao():
 # Rota para a página de avaliação
 @app.route('/avaliacao')
 @login_required
+@roles_required(['Administrador','Docente'])
 def avaliacao():
     publicacoes = []
     conn = get_db_connection()
@@ -723,6 +843,7 @@ def avaliacao():
 # Rota para a página de vinculação de curso
 @app.route('/vinculacao_curso', methods=['GET', 'POST'])
 @login_required
+@roles_required(['Administrador','Docente'])
 def vinculacao_curso():
     if request.method == 'POST':
         key = f"{request.remote_addr}:vinculacao_curso"
@@ -796,18 +917,21 @@ def vinculacao_curso():
 # Rota para a página de relatório
 @app.route('/relatorio')
 @login_required
+@roles_required(['Administrador'])
 def relatorio():
     return render_template('relatorio.html')
 
 # Rota para a página de suporte
 @app.route('/suporte')
 @login_required
+@roles_required(['Administrador','Docente','Aluno'])
 def suporte():
     return render_template('suporte.html')
 
 # Rota para a página de configuração
 @app.route('/configuracao')
 @login_required
+@roles_required(['Administrador'])
 def configuracao():
     return render_template('configuracao.html')
 
