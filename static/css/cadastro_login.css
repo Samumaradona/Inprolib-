@@ -94,6 +94,7 @@ header.topbar{
   border-bottom: 1px solid rgba(0,70,225,0.06); /* sutil */
   box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
+.logo{ height:24px; width:auto; display:inline-block; }
 .container{
   max-width: 1400px;
   padding: 12px 20px;

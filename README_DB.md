@@ -1,6 +1,6 @@
 # Banco de Dados — INPROLIB
 
-Este documento descreve a estrutura do banco, dados iniciais e a integração atual com a aplicação.
+Estrutura do banco, dados iniciais e integração com a aplicação.
 
 ## Visão Geral
 - Banco: `PostgreSQL`
@@ -8,8 +8,8 @@ Este documento descreve a estrutura do banco, dados iniciais e a integração at
 - Script: `banco.sql` (raiz do projeto)
 
 Principais entidades:
-- `usuario`: `nome`, `cpf`, `email`, `senha` (hash via aplicação), etc.
-- `curso`: `nome_curso`, `descricao`, `codigo_curso`, `autorizacao`, `id_coordenador`.
+- `usuario`: `nome`, `cpf`, `email`, `senha` (hash via aplicação), `tipo`, `curso_usuario`.
+- `curso`: `id_curso`, `nome_curso`, `descricao`, `codigo_curso`, `autorizacao`, `id_coordenador`.
 - `publicacao`: `id_publicacao`, `titulo`, `data_publicacao`, `id_autor`, `id_curso`, `tipo`, `status`, `arquivo`, `nome_arquivo`, `assuntos_relacionados`, `data_autoria`.
 - `usuario_curso`: relação N:N entre `usuario` e `curso`.
 - `tipos_de_publicacao`: lista de tipos (TCC, Dissertação, Monografia, Tese, etc.).
@@ -20,8 +20,8 @@ Tipos/Enums:
 ## O que está em uso pela aplicação
 - Senhas de novos cadastros são armazenadas com hash `pbkdf2:sha256`.
 - Uploads de publicações são gravados com caminho completo e `nome_arquivo` sanitizado.
-- Consultas na página de Publicação leem `nome_arquivo` e `data_publicacao` para exibição/preview no frontend.
-- Nenhuma mudança de schema foi necessária nesta entrega.
+- Consultas em “Publicação” usam `nome_arquivo` e `data_publicacao` para preview no frontend.
+- Nenhuma mudança de schema foi necessária nas últimas atualizações.
 
 ## Preparação do Banco
 1. Crie o banco/schema (ajuste conforme ambiente):
@@ -42,3 +42,7 @@ Tipos/Enums:
 - Com o servidor parado:
   - `python app.py --hash-migrate`
 - A rotina converte senhas que não parecem ser hash e ignora entradas já com hash.
+
+## Dica para Admin
+- Crie/atualize o admin em `GET /setup_admin` usando o token configurado em `ADMIN_SETUP_TOKEN`.
+- Exemplo: `http://127.0.0.1:5000/setup_admin?token=setup_admin_2024&senha=Adm@2025!`

@@ -10,43 +10,17 @@
    Configuração inicial
    ===================== */
 
-/* Lista de rotas baseada em perfil do usuário */
-const USER_ROLE = (typeof window !== 'undefined' ? (window.USER_ROLE || '') : '').trim();
-const ALL_ROUTES = [
-  { name: 'Home', path: '/home', icon: 'home' },
-  { name: 'Cadastro de Cursos', path: '/cadastro_curso', icon: 'school' },
-  { name: 'Cadastro de Alunos', path: '/cadastro_alunos', icon: 'people' },
-  { name: 'Publicação', path: '/publicacao', icon: 'publish' },
+/* Lista de rotas — cada objeto pode ter:
+   - name: texto exibido
+   - path: identificador / caminho (usado para persistência)
+   - icon: nome do Material Symbol (opcional)
+*/
+const ROUTES = [
+  { name: 'Publicar Conteúdo', path: '/publicacao', icon: 'publish' },
+  { name: 'Vincular Curso', path: '/vincular_curso', icon: 'merge_type' },
   { name: 'Avaliação', path: '/avaliacao', icon: 'rate_review' },
-  { name: 'Relatórios', path: '/relatorio', icon: 'bar_chart' },
   { name: 'Suporte', path: '/suporte', icon: 'support_agent' },
-  { name: 'Vinculação de curso', path: '/vinculacao_curso', icon: 'link' },
-  { name: 'Configurações', path: '/configuracao', icon: 'settings' }
 ];
-
-// Tabela de permissões por perfil (simplificada e robusta)
-const ALLOWED_BY_ROLE = {
-  'Administrador': new Set(ALL_ROUTES.map(r => r.path)),
-  'Docente': new Set(['/home','/publicacao','/suporte','/vinculacao_curso','/avaliacao']),
-  'Aluno': new Set(['/home','/publicacao','/suporte'])
-};
-
-// Calcula rotas permitidas
-const allowedSet = ALLOWED_BY_ROLE[USER_ROLE] || new Set(['/home']);
-let ROUTES = ALL_ROUTES.filter(r => allowedSet.has(r.path));
-
-// Garantia: para Admin/Docente, força inclusão de Avaliação caso falte
-if (USER_ROLE === 'Administrador' || USER_ROLE === 'Docente') {
-  const hasAval = ROUTES.some(r => r.path === '/avaliacao');
-  if (!hasAval) {
-    const avalRoute = ALL_ROUTES.find(r => r.path === '/avaliacao');
-    if (avalRoute) ROUTES.splice(4, 0, avalRoute); // após Publicação
-  }
-}
-
-// Ordena rotas em uma sequência desejada para melhor UX
-const ORDER = ['/home','/cadastro_curso','/cadastro_alunos','/publicacao','/avaliacao','/relatorio','/suporte','/vinculacao_curso','/configuracao'];
-ROUTES = ROUTES.sort((a,b) => ORDER.indexOf(a.path) - ORDER.indexOf(b.path));
 
 /* Elementos DOM principais (pega pelo ID).
    Observação: guard checks são aplicados antes de usar os elementos. */
@@ -56,7 +30,6 @@ const backdrop = document.getElementById('backdrop');
 const btnClose = document.getElementById('btnClose');
 const routesList = document.getElementById('routesList');
 const logoutBtn = document.getElementById('logoutBtn');
-const btnBack = document.getElementById('btnBack');
 
 /* variável usada para restaurar foco quando o menu for fechado */
 let lastFocused = null;
@@ -266,11 +239,8 @@ function setCurrentRoute(path){
  * - Sugestão: substituir console.log por history.pushState(...) / router.navigate(...)
  */
 function navigateTo(path){
-  try {
-    window.location.href = path;
-  } catch(e){
-    console.log('Navegar para', path);
-  }
+  console.log('Navegar para', path);
+  // TODO: integrar com history.pushState ou mecanismo de roteamento do app
   closeMenu();
 }
 
@@ -282,25 +252,7 @@ function navigateTo(path){
 if (btnHamburger) btnHamburger.addEventListener('click', toggleMenu);
 if (btnClose) btnClose.addEventListener('click', closeMenu);
 if (backdrop) backdrop.addEventListener('click', closeMenu);
-if (logoutBtn) logoutBtn.addEventListener('click', () => {
-  try {
-    navigateTo('/logout');
-  } catch(e) {
-    window.location.href = '/logout';
-  }
-  closeMenu();
-});
-if (btnBack) btnBack.addEventListener('click', () => {
-  try {
-    if (window.history && window.history.length > 1) {
-      window.history.back();
-    } else {
-      window.location.href = '/home';
-    }
-  } catch(e){
-    window.location.href = '/home';
-  }
-});
+if (logoutBtn) logoutBtn.addEventListener('click', () => { console.log('logout'); closeMenu(); });
 
 /* Liga os links da nav horizontal (se houver) — atualiza rota e navega */
 document.querySelectorAll('nav.primary a').forEach(a => {
@@ -328,7 +280,7 @@ renderRoutes();
 (function () {
   // URL padrão do avatar (sem backend)
   const DEFAULT_AVATAR = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s';
-  const SERVER_PHOTO = (typeof window !== 'undefined' ? (window.USER_PHOTO || '') : '');
+  const STORAGE_KEY = 'meuapp_avatar_dataurl';
 
   // elementos do perfil / notificações
   const btnNotifications = document.getElementById('btnNotifications');
@@ -364,34 +316,37 @@ renderRoutes();
 
   /**
    * loadAvatar()
-   * - Carrega avatar do servidor (USER_PHOTO) se disponível
-   * - Fallback para DEFAULT_AVATAR
+   * - Tenta carregar avatar salvo no localStorage (persistência no cliente)
+   * - Fallback para DEFAULT_AVATAR se storage vazio / bloqueado
    */
   function loadAvatar(){
-    if (avatarImg){
-      avatarImg.src = SERVER_PHOTO || DEFAULT_AVATAR;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if(stored){
+        if (avatarImg) avatarImg.src = stored;
+      } else {
+        if (avatarImg) avatarImg.src = DEFAULT_AVATAR;
+      }
+    } catch(e){
+      if (avatarImg) avatarImg.src = DEFAULT_AVATAR;
     }
   }
 
   /**
    * handleFile(e)
-   * - Envia imagem para o backend e atualiza avatar com a URL retornada
+   * - Lê arquivo selecionado (image/*) e transforma em dataURL
+   * - Atualiza avatar em tela e salva no localStorage (front-only)
    */
   function handleFile(e){
     const f = e.target.files && e.target.files[0];
     if(!f) return;
-    const fd = new FormData();
-    fd.append('avatar', f);
-    fetch('/upload_avatar', { method: 'POST', body: fd })
-      .then(r => r.json())
-      .then(json => {
-        if(json && json.ok && json.photo_url){
-          if (avatarImg) avatarImg.src = json.photo_url;
-          if (modalImg) modalImg.src = json.photo_url;
-          if (typeof window !== 'undefined') window.USER_PHOTO = json.photo_url;
-        }
-      })
-      .catch(() => { /* silencioso conforme requisito */ });
+    const reader = new FileReader();
+    reader.onload = function(ev){
+      const d = ev.target.result;
+      if (avatarImg) avatarImg.src = d;
+      try { localStorage.setItem(STORAGE_KEY, d); } catch(e) { /* ignore */ }
+    };
+    reader.readAsDataURL(f);
   }
 
   /* Toggle dropdown de notificações (abre/fecha) */
@@ -482,34 +437,11 @@ renderRoutes();
     }
   });
 
-  /* Inicializa avatar (carrega do servidor ou padrão) */
+  /* Inicializa avatar (carrega do localStorage ou padrão) */
   loadAvatar();
 
-  // Badge de notificações: mostra apenas quando houver contagem real
-  function initNotifBadge(){
-    let count = 0;
-    try {
-      if(btnNotifications){
-        const data = btnNotifications.getAttribute('data-notif-count');
-        if(data) count = parseInt(data, 10) || 0;
-      }
-      if(typeof window.NOTIF_COUNT === 'number'){
-        count = window.NOTIF_COUNT;
-      }
-    } catch(e){}
-    if(notifBadge){
-      if(count > 0){
-        notifBadge.textContent = String(count);
-        notifBadge.style.display = '';
-        notifBadge.setAttribute('aria-hidden','false');
-      } else {
-        notifBadge.textContent = '';
-        notifBadge.style.display = 'none';
-        notifBadge.setAttribute('aria-hidden','true');
-      }
-    }
-  }
-  initNotifBadge();
+  /* Se não tiver badge de notificações, esconde o elemento visualmente */
+  if(notifBadge && notifBadge.textContent === '') notifBadge.style.display = 'none';
 
 })(); // fim do módulo profile/notifications
 
@@ -655,171 +587,4 @@ renderRoutes();
   // inicializa com dados de exemplo
   populateCarousel(SAMPLE_DOCS);
 
-})();
-
-/* =====================
-   Máscaras e validações de formulários
-   ===================== */
-(function(){
-  function onlyDigits(str){ return (str||'').replace(/\D+/g,''); }
-  function applyCpfMask(raw){
-    const d = onlyDigits(raw).slice(0,11);
-    const p1 = d.slice(0,3);
-    const p2 = d.slice(3,6);
-    const p3 = d.slice(6,9);
-    const p4 = d.slice(9,11);
-    let out = '';
-    if(p1) out = p1;
-    if(p2) out += '.'+p2;
-    if(p3) out += '.'+p3;
-    if(p4) out += '-'+p4;
-    return out;
-  }
-
-  // Calcula a posição do cursor com base na quantidade de dígitos antes do cursor
-  function caretFromDigits(formatted, digitCount){
-    if(digitCount <= 0) return 0;
-    let seen = 0;
-    for(let i=0;i<formatted.length;i++){
-      if(/\d/.test(formatted[i])){
-        seen++;
-        if(seen === digitCount) return i+1; // logo após o dígito correspondente
-      }
-    }
-    return formatted.length;
-  }
-
-  // CPF (cadastro de alunos)
-  const cpfInput = document.getElementById('cpf_user');
-  if(cpfInput){
-    cpfInput.setAttribute('inputmode','numeric');
-    cpfInput.setAttribute('maxlength','14');
-    cpfInput.setAttribute('pattern','\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}');
-    cpfInput.addEventListener('input', function(){
-      const raw = cpfInput.value || '';
-      const prevPos = cpfInput.selectionStart || raw.length;
-      const digitsBefore = onlyDigits(raw.slice(0, prevPos)).length;
-      const formatted = applyCpfMask(raw);
-      cpfInput.value = formatted;
-      const newPos = caretFromDigits(formatted, digitsBefore);
-      try { cpfInput.setSelectionRange(newPos, newPos); } catch(e){}
-    });
-  }
-
-  // Código do curso (letras/números/hífen, auto upper)
-  const codigoInput = document.getElementById('codigo');
-  if(codigoInput){
-    codigoInput.setAttribute('pattern','[A-Z0-9-]+');
-    codigoInput.addEventListener('input', function(){
-      const val = codigoInput.value || '';
-      codigoInput.value = val.toUpperCase().replace(/\s+/g,'');
-    });
-  }
-
-  // Portaria (somente números) — presente em curso e publicação
-  const portariaInput = document.getElementById('portaria');
-  if(portariaInput){
-    portariaInput.setAttribute('inputmode','numeric');
-    portariaInput.setAttribute('maxlength','10');
-    portariaInput.addEventListener('input', function(){
-      portariaInput.value = onlyDigits(portariaInput.value).slice(0,10);
-    });
-  }
-
-  // Captcha (somente números)
-  const captchaInput = document.getElementById('captcha');
-  if(captchaInput){
-    captchaInput.setAttribute('inputmode','numeric');
-    captchaInput.setAttribute('pattern','\\d+');
-    captchaInput.addEventListener('input', function(){
-      captchaInput.value = onlyDigits(captchaInput.value);
-    });
-  }
-
-  // Publicação: validação de arquivo e campos obrigatórios
-  const publicacaoForm = (function(){
-    // tenta localizar pelo action e pela presença dos inputs típicos
-    const forms = document.querySelectorAll('form');
-    for(const f of forms){
-      const a = (f.getAttribute('action')||'').toLowerCase();
-      if(a.includes('/publicacao')) return f;
-    }
-    return null;
-  })();
-
-  if(publicacaoForm){
-    const titulo = document.getElementById('titulo_conteudo');
-    const tipo = document.getElementById('tipo_publicacao');
-    const curso = document.getElementById('curso');
-    const conteudo = document.getElementById('conteudo');
-    const termo = document.getElementById('termo');
-    const lblConteudo = document.querySelector('label[for="conteudo"]');
-    const lblTermo = document.querySelector('label[for="termo"]');
-
-    const ALLOW_EXT = new Set(['.pdf','.doc','.docx','.xls','.xlsx','.csv','.txt','.png','.jpg','.jpeg','.webp']);
-    function getExt(name){
-      const m = /\.[^.]+$/.exec((name||'').toLowerCase());
-      return m ? m[0] : '';
-    }
-
-    function updateLabel(input, label){
-      if(!input || !label) return;
-      const f = input.files && input.files[0];
-      if(f){
-        label.textContent = `Selecionado: ${f.name}`;
-      } else {
-        const base = label.getAttribute('data-base') || label.textContent;
-        label.setAttribute('data-base', base);
-        label.textContent = base.includes('Selecionado:') ? 'Anexar' : base;
-      }
-    }
-
-    if(conteudo && lblConteudo){ conteudo.addEventListener('change', ()=>updateLabel(conteudo,lblConteudo)); }
-    if(termo && lblTermo){ termo.addEventListener('change', ()=>updateLabel(termo,lblTermo)); }
-
-    publicacaoForm.addEventListener('submit', function(ev){
-      // título e tipo obrigatórios
-      if(titulo && !titulo.value.trim()){
-        ev.preventDefault();
-        titulo.focus();
-        titulo.reportValidity && titulo.reportValidity();
-        alert('Informe o título da publicação.');
-        return;
-      }
-      if(tipo && !tipo.value.trim()){
-        ev.preventDefault();
-        tipo.focus();
-        tipo.reportValidity && tipo.reportValidity();
-        alert('Informe o tipo da publicação.');
-        return;
-      }
-      // arquivo obrigatório
-      if(conteudo){
-        const f = conteudo.files && conteudo.files[0];
-        if(!f){
-          ev.preventDefault();
-          alert('Anexe o arquivo de conteúdo para publicar.');
-          return;
-        }
-        const ext = getExt(f.name);
-        if(!ALLOW_EXT.has(ext)){
-          ev.preventDefault();
-          alert('Tipo de arquivo não permitido.');
-          return;
-        }
-      }
-      // termo é opcional, mas se vier, valida extensão
-      if(termo){
-        const ft = termo.files && termo.files[0];
-        if(ft){
-          const ext2 = getExt(ft.name);
-          if(!ALLOW_EXT.has(ext2)){
-            ev.preventDefault();
-            alert('Tipo de arquivo do termo não permitido.');
-            return;
-          }
-        }
-      }
-    });
-  }
 })();

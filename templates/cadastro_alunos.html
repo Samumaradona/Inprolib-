@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Cadastro de alunos no INPROLIB com validações e segurança." />
-  <title>INPROLIB - Cadastro de alunos</title>
+  <meta name="description" content="Cadastro de usuário no INPROLIB com validações e segurança." />
+  <title>INPROLIB - Cadastro de usuário</title>
   <link rel="stylesheet" href="cadastro_alunos.css">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
@@ -22,7 +22,7 @@
 
     <main>
       <nav aria-label="breadcrumb" style="margin:8px 16px;color:#64748b">
-        <a href="/home" style="color:#1d4ed8;text-decoration:none">Home</a> · Cadastro de alunos
+        <a href="/home" style="color:#1d4ed8;text-decoration:none">Home</a> · Cadastro de usuário
       </nav>
       {% with messages = get_flashed_messages(with_categories=True) %}
         {% if messages %}
@@ -49,6 +49,12 @@
 
       <label for="codigo">Email</label>
       <input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email">
+      
+      <label for="tipo_usuario">Tipo de Usuário</label>
+      <select id="tipo_usuario" name="tipo_usuario" required>
+        <option value="Docente">Docente</option>
+        <option value="Aluno" selected>Aluno</option>
+      </select>
     </div>
 
     <!-- Coluna 2 -->
@@ -74,6 +80,7 @@
     </main>
   </div>
 
+  <script>window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";</script>
   <script src="{{ url_for('static', filename='javascript/home.js') }}"></script>
   <script>
     // Validação em tempo real de CPF e email; indicador de força de senha

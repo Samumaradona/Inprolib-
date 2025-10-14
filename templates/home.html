@@ -18,7 +18,7 @@
       </button>
             <div class="profile-wrap" style="position:relative">
         <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
-          <img id="profileAvatar" class="avatar" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s" alt="Avatar usuário">
+          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário">
         </button>
         <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
           <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
@@ -82,6 +82,17 @@
 
 <main>
   <div class="page-wrap">
+    {% with messages = get_flashed_messages(with_categories=True) %}
+      {% if messages %}
+        <div class="flash-container" aria-live="polite" style="margin:12px 16px">
+          {% for category, message in messages %}
+            <div class="flash {{ category }}" style="padding:10px;border-radius:6px;margin-bottom:8px;color:#0f172a;{% if category == 'success' %}background:#d1fae5;border:1px solid #10b981;{% elif category == 'error' %}background:#fee2e2;border:1px solid #ef4444;{% else %}background:#e5e7eb;border:1px solid #9ca3af;{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
 
     <!-- Painel de busca (card branco pequeno) -->
     <section class="card search-panel" aria-labelledby="searchTitle">
@@ -131,6 +142,10 @@
 
   </div>
 
-  <script src="home.js"></script>
+  <script>
+    window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
+    window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
+  </script>
+  <script src="home.js?v=aval-fix-1"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-    :root {
+:root {
     /*Todas as Cores a serem usadas*/
     --bs-blue: #00002D;
     --bs-indigo: #6610f2;
@@ -138,6 +138,13 @@
         display:flex;
         align-items:center;
         gap:10px
+    }
+
+    /* Logo padrão no topo */
+    .logo{
+        height:24px;
+        width:auto;
+        display:inline-block;
     }
 
     /* Hamburger */

@@ -18,9 +18,9 @@
           <span class="material-symbols-outlined" aria-hidden="true">menu</span>
         </button>
               <div class="profile-wrap" style="position:relative">
-          <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
-            <img id="profileAvatar" class="avatar" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s" alt="Avatar usuário">
-          </button>
+        <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
+          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário">
+        </button>
           <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
             <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
             <button id="changePhoto" class="dropdown-action" role="menuitem">Mudar foto</button>
@@ -164,7 +164,11 @@
         {% endif %}
       </main>
     </div>
-    <script src="home.js"></script>
+    <script>
+      window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
+      window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
+    </script>
+  <script src="home.js?v=aval-fix-1"></script>
     <script>
       (function(){
         const btnOpen = document.getElementById('btnOpenCourses');
