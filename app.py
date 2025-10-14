@@ -1146,6 +1146,18 @@ def run_seed_admins():
             'cpf': '000.000.000-00',
             'senha': 'JV123@47'
         },
+        {
+            'nome': 'Victor Hugo Freitas',
+            'email': 'victorhugofreitas123@gmail.com',
+            'cpf': '000.000.000-00',
+            'senha': 'VH123@47'
+        },
+        {
+            'nome': 'Renata Fagundes',
+            'email': 'renata.facinpro@gmail.com',
+            'cpf': '000.000.000-00',
+            'senha': 'RF123@47'
+        },
     ]
 
     conn = get_db_connection()
