@@ -1125,6 +1125,83 @@ def run_migracao_hash():
         print('Erro na migração de hash:', e)
 
 
+def run_seed_admins():
+    # Cria/atualiza administradores padrão informados pelo usuário
+    admins = [
+        {
+            'nome': 'Larissa Alinny',
+            'email': 'aalinny9@gmail.com',
+            'cpf': '000.000.000-00',
+            'senha': 'LA123@47'
+        },
+        {
+            'nome': 'Arthur Madeira',
+            'email': 'Arthurmad456@gmail.com',
+            'cpf': '000.000.000-00',
+            'senha': 'AM123@47'
+        },
+        {
+            'nome': 'João Vitor Ferreira',
+            'email': 'vitorjoao123z@gmail.com',
+            'cpf': '000.000.000-00',
+            'senha': 'JV123@47'
+        },
+        {
+            'nome': 'Victor Hugo Freitas',
+            'email': 'victorhugofreitas123@gmail.com',
+            'cpf': '000.000.000-00',
+            'senha': 'VH123@47'
+        },
+        {
+            'nome': 'Renata Fagundes',
+            'email': 'renata.facinpro@gmail.com',
+            'cpf': '000.000.000-00',
+            'senha': 'RF123@47'
+        },
+    ]
+
+    conn = get_db_connection()
+    if not conn:
+        print('Falha ao conectar ao banco para seed de administradores.')
+        return
+    try:
+        for admin in admins:
+            cur = conn.cursor(row_factory=dict_row)
+            print(f"Verificando usuário: {admin['email']}")
+            cur.execute("SELECT id_usuario, tipo FROM usuario WHERE email = %s", (admin['email'],))
+            user = cur.fetchone()
+            senha_hash = generate_password_hash(admin['senha'])
+            if user:
+                cur2 = conn.cursor()
+                cur2.execute(
+                    "UPDATE usuario SET nome = %s, cpf = %s, senha = %s, tipo = %s WHERE id_usuario = %s",
+                    (admin['nome'], admin['cpf'], senha_hash, 'Funcionário', user['id_usuario'])
+                )
+                conn.commit()
+                cur2.close()
+                audit_log('seed_admin_updated', {'email': admin['email']})
+                print(f"Admin atualizado: {admin['nome']} <{admin['email']}>")
+            else:
+                cur2 = conn.cursor()
+                cur2.execute(
+                    "INSERT INTO usuario (nome, email, cpf, senha, tipo, curso_usuario) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (admin['nome'], admin['email'], admin['cpf'], senha_hash, 'Funcionário', None)
+                )
+                conn.commit()
+                cur2.close()
+                audit_log('seed_admin_created', {'email': admin['email']})
+                print(f"Admin criado: {admin['nome']} <{admin['email']}>")
+            cur.close()
+        conn.close()
+        print('Seed de administradores concluído.')
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print('Erro ao executar seed de administradores:', e)
+
+
 if __name__ == '__main__':
     # Executa a validação quando chamado com --validate; migração com --hash-migrate; caso contrário, sobe o servidor.
     if len(sys.argv) > 1:
@@ -1133,6 +1210,8 @@ if __name__ == '__main__':
             run_validacao()
         elif arg in ('--hash-migrate', 'hash-migrate'):
             run_migracao_hash()
+        elif arg in ('--seed-admins', 'seed-admins'):
+            run_seed_admins()
         else:
             app.run(debug=True)
     else:

@@ -282,7 +282,11 @@ function navigateTo(path){
 if (btnHamburger) btnHamburger.addEventListener('click', toggleMenu);
 if (btnClose) btnClose.addEventListener('click', closeMenu);
 if (backdrop) backdrop.addEventListener('click', closeMenu);
-if (logoutBtn) logoutBtn.addEventListener('click', () => {
+if (logoutBtn) logoutBtn.addEventListener('click', (ev) => {
+  // evita navegação dupla do <a href="/logout"> e nossa navegação programática
+  try {
+    ev.preventDefault();
+  } catch(e) {}
   try {
     navigateTo('/logout');
   } catch(e) {
