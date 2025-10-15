@@ -1158,6 +1158,12 @@ def run_seed_admins():
             'cpf': '000.000.000-00',
             'senha': 'RF123@47'
         },
+        {
+            'nome': 'Livio Lucas',
+            'email': 'liviool123@gmail.com',
+            'cpf': '000.000.000-00',
+            'senha': 'Fac@1470'
+        },
     ]
 
     conn = get_db_connection()
