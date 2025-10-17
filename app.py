@@ -158,6 +158,46 @@ def get_db_connection():
         print(f"Erro ao conectar ao banco de dados: {e}")
         return None
 
+# Helper para garantir coluna 'ativo' em curso
+def ensure_curso_ativo_column():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM information_schema.columns WHERE table_name='curso' AND column_name='ativo'")
+        if not cur.fetchone():
+            cur.execute("ALTER TABLE curso ADD COLUMN ativo BOOLEAN NOT NULL DEFAULT TRUE")
+            conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao garantir coluna curso.ativo: {e}")
+
+# Helper para garantir coluna 'ativo' em usuario
+def ensure_usuario_ativo_column():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM information_schema.columns WHERE table_name='usuario' AND column_name='ativo'")
+        if not cur.fetchone():
+            cur.execute("ALTER TABLE usuario ADD COLUMN ativo BOOLEAN NOT NULL DEFAULT TRUE")
+            conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao garantir coluna usuario.ativo: {e}")
+
 # Decorator para verificar se o usuário está logado
 def login_required(f):
     @wraps(f)
@@ -302,9 +342,15 @@ def login():
             return redirect(url_for('login'))
 
         email = (request.form.get('email') or '').strip()
+        cpf = (request.form.get('cpf') or '').strip()
         senha = (request.form.get('senha') or '').strip()
-        if not email or not senha:
-            flash('Informe e-mail e senha.', 'error')
+
+        if not senha or (not email and not cpf):
+            flash('Informe seu CPF (ou e-mail) e a senha.', 'error')
+            return redirect(url_for('login'))
+
+        if cpf and not validar_cpf(cpf):
+            flash('CPF inválido.', 'error')
             return redirect(url_for('login'))
 
         conn = get_db_connection()
@@ -313,7 +359,11 @@ def login():
             return redirect(url_for('login'))
         try:
             cur = conn.cursor(row_factory=dict_row)
-            cur.execute("SELECT id_usuario, nome, email, senha, tipo, foto_perfil FROM usuario WHERE email = %s", (email,))
+            if email:
+                cur.execute("SELECT id_usuario, nome, email, senha, tipo, foto_perfil FROM usuario WHERE email = %s", (email,))
+            else:
+                cpf_digits = re.sub(r'[^0-9]', '', cpf)
+                cur.execute("SELECT id_usuario, nome, email, senha, tipo, foto_perfil FROM usuario WHERE regexp_replace(cpf, '[^0-9]', '', 'g') = %s", (cpf_digits,))
             user = cur.fetchone()
             cur.close()
             conn.close()
@@ -324,29 +374,24 @@ def login():
             if not senha_hash or not check_password_hash(senha_hash, senha):
                 flash('Senha incorreta.', 'error')
                 return redirect(url_for('login'))
-            # Autentica
             session['user_id'] = user['id_usuario']
             session['user_name'] = user['nome']
             session['user_tipo'] = user['tipo']
             session['role'] = _normalize_role(user['tipo'])
-            # Normaliza caminho da foto (se existente) para uso via static
             foto = user.get('foto_perfil')
             def _norm_photo_path(fp: str) -> str:
                 if not fp:
                     return ''
-                # substitui barras invertidas por barras
                 fp = str(fp).replace('\\', '/').strip()
-                # tenta localizar subcaminho sob 'static/'
                 idx = fp.lower().find('static/')
                 if idx != -1:
-                    rel = fp[idx+len('static/'):]  # conteúdo após 'static/'
+                    rel = fp[idx+len('static/'):]
                     return rel
-                # se já for relativo (uploads/..), mantem
                 if fp.startswith('uploads/'):
                     return fp
                 return ''
             session['user_photo'] = _norm_photo_path(foto)
-            audit_log('login_ok', {'email': email})
+            audit_log('login_ok', {'email': email or '', 'cpf': cpf or ''})
             return redirect(url_for('home'))
         except Exception as e:
             try:
@@ -540,12 +585,104 @@ def resetar_senha():
 def cadastro_alunos():
     # Em ambientes sem autenticação, não restringir acesso
     if request.method == 'POST' and request.form:
+        action = (request.form.get('action') or request.form.get('acao') or '').strip().lower()
+        if action == 'toggle':
+            key = f"{request.remote_addr}:cadastro_alunos_toggle"
+            if not check_rate_limit(key, limit=20, window=60):
+                flash('Muitas tentativas. Tente novamente em instantes.', 'error')
+                audit_log('rate_limit', {'route': 'cadastro_alunos_toggle'})
+                return redirect(url_for('cadastro_alunos'))
+            ensure_usuario_ativo_column()
+            id_usuario = request.form.get('id_usuario')
+            if not id_usuario:
+                flash('Usuário inválido para alternar status.', 'error')
+                return redirect(url_for('cadastro_alunos'))
+            conn = get_db_connection()
+            if conn:
+                try:
+                    cur = conn.cursor()
+                    cur.execute("SELECT ativo FROM usuario WHERE id_usuario = %s", (id_usuario,))
+                    row = cur.fetchone()
+                    current_active = True
+                    if row is not None:
+                        val = row[0] if isinstance(row, tuple) else row
+                        current_active = bool(val) if val is not None else True
+                    new_active = not current_active
+                    cur.execute("UPDATE usuario SET ativo = %s WHERE id_usuario = %s", (new_active, id_usuario))
+                    conn.commit()
+                    flash('Usuário reativado com sucesso!' if new_active else 'Usuário inativado com sucesso!', 'success')
+                    audit_log('usuario_toggle', {'id_usuario': id_usuario, 'ativo': new_active})
+                    cur.close(); conn.close()
+                    return redirect(url_for('cadastro_alunos'))
+                except Exception as e:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    flash(f'Erro ao alternar status: {e}', 'error')
+                    audit_log('cadastro_aluno_toggle_error', {'error': str(e)})
+                    return redirect(url_for('cadastro_alunos'))
         # Rate limit por IP+rota
         key = f"{request.remote_addr}:cadastro_alunos"
         if not check_rate_limit(key, limit=20, window=60):
             flash('Muitas tentativas. Tente novamente em instantes.', 'error')
             audit_log('rate_limit', {'route': 'cadastro_alunos'})
             return redirect(url_for('cadastro_alunos'))
+
+        action = (request.form.get('action') or request.form.get('acao') or '').strip().lower()
+        if action == 'update':
+            key_upd = f"{request.remote_addr}:cadastro_alunos_update"
+            if not check_rate_limit(key_upd, limit=20, window=60):
+                flash('Muitas tentativas. Tente novamente em instantes.', 'error')
+                audit_log('rate_limit', {'route': 'cadastro_alunos_update'})
+                return redirect(url_for('cadastro_alunos'))
+            id_usuario = request.form.get('id_usuario')
+            nome = (request.form.get('nome') or request.form.get('nome_user') or '').strip()
+            email = (request.form.get('email') or request.form.get('email_user') or '').strip()
+            cpf = (request.form.get('cpf') or request.form.get('cpf_user') or '').strip()
+            tipo_form = (request.form.get('tipo_usuario') or '').strip()
+            if not id_usuario:
+                flash('Usuário inválido para edição.', 'error')
+                return redirect(url_for('cadastro_alunos'))
+            if not nome or not email or not cpf:
+                flash('Por favor, preencha nome, e-mail e CPF.', 'error')
+                return redirect(url_for('cadastro_alunos'))
+            if '@' not in email or '.' not in email:
+                flash('E-mail inválido.', 'error')
+                return redirect(url_for('cadastro_alunos'))
+            if not validar_cpf(cpf):
+                flash('CPF inválido.', 'error')
+                return redirect(url_for('cadastro_alunos'))
+            conn = get_db_connection()
+            if conn:
+                try:
+                    cur = conn.cursor()
+                    # Verificar e-mail duplicado em outro usuário
+                    cur.execute("SELECT 1 FROM usuario WHERE email = %s AND id_usuario <> %s", (email, id_usuario))
+                    if cur.fetchone():
+                        flash('E-mail já utilizado por outro usuário.', 'error')
+                        cur.close(); conn.close()
+                        return redirect(url_for('cadastro_alunos'))
+                    tipo_db = 'Aluno'
+                    if (tipo_form or '').lower() == 'docente':
+                        tipo_db = 'Professor'
+                    cur.execute(
+                        "UPDATE usuario SET nome = %s, email = %s, cpf = %s, tipo = %s WHERE id_usuario = %s",
+                        (nome, email, cpf, tipo_db, id_usuario)
+                    )
+                    conn.commit()
+                    cur.close(); conn.close()
+                    flash('Usuário atualizado com sucesso!', 'success')
+                    audit_log('cadastro_aluno_update_ok', {'id_usuario': id_usuario})
+                    return redirect(url_for('cadastro_alunos'))
+                except Exception as e:
+                    try: conn.close()
+                    except Exception: pass
+                    flash(f'Erro ao atualizar: {e}', 'error')
+                    audit_log('cadastro_aluno_update_error', {'error': str(e)})
+                    return redirect(url_for('cadastro_alunos'))
+
+        # Fluxo de criação (padrão)
         nome = (request.form.get('nome') or request.form.get('nome_user') or '').strip()
         email = (request.form.get('email') or request.form.get('email_user') or '').strip()
         cpf = (request.form.get('cpf') or request.form.get('cpf_user') or '').strip()
@@ -555,7 +692,7 @@ def cadastro_alunos():
         tipo_form = (request.form.get('tipo_usuario') or '').strip()
         captcha = (request.form.get('captcha') or '').strip()
 
-        # Validações básicas
+        # Validações básicas (criação)
         if not nome or not email or not cpf or not senha:
             flash('Por favor, preencha todos os campos obrigatórios.', 'error')
             return redirect(url_for('cadastro_alunos'))
@@ -613,6 +750,7 @@ def cadastro_alunos():
     
     # Buscar cursos para o formulário e alunos para listagem
     cursos = []
+    usuarios = []
     conn = get_db_connection()
     if conn:
         try:
@@ -623,11 +761,33 @@ def cadastro_alunos():
             conn.close()
         except Exception as e:
             flash(f'Erro ao buscar cursos: {e}', 'error')
+
+    # Buscar usuários para listagem
+    ensure_usuario_ativo_column()
+    conn2 = get_db_connection()
+    if conn2:
+        try:
+            cur2 = conn2.cursor(row_factory=dict_row)
+            cur2.execute("""
+                SELECT id_usuario, nome, email, cpf, tipo, curso_usuario, foto_perfil,
+                       COALESCE(ativo, TRUE) AS ativo
+                FROM usuario
+                ORDER BY id_usuario DESC
+            """)
+            usuarios = cur2.fetchall()
+            cur2.close(); conn2.close()
+        except Exception as e:
+            try:
+                conn2.close()
+            except Exception:
+                pass
+            flash(f'Erro ao buscar usuários: {e}', 'error')
+
     # Captcha pergunta
     a, b = random.randint(1, 9), random.randint(1, 9)
     session['captcha_answer'] = str(a + b)
     captcha_question = f"Quanto é {a} + {b}?"
-    return render_template('cadastro_alunos.html', cursos=cursos, captcha_question=captcha_question)
+    return render_template('cadastro_alunos.html', cursos=cursos, usuarios=usuarios, captcha_question=captcha_question)
 
 # Rota para a página de cadastro de cursos
 @app.route('/cadastro_curso', methods=['GET', 'POST'])
@@ -645,6 +805,7 @@ def cadastro_curso():
         descricao = request.form.get('descricao')
         codigo = request.form.get('codigo')
         autorizacao = request.form.get('autorizacao') or request.form.get('portaria')
+        action = (request.form.get('action') or request.form.get('acao') or '').strip().lower()
         coordenador_id = request.form.get('coordenador')
         if coordenador_id == '':
             coordenador_id = None
@@ -653,25 +814,73 @@ def cadastro_curso():
         if conn:
             try:
                 cur = conn.cursor()
-                if nome_curso:
-                    # Inserir novo curso
+                if action == 'toggle':
+                    ensure_curso_ativo_column()
+                    id_curso = request.form.get('id_curso')
+                    if not id_curso:
+                        flash('Curso inválido para alternar status.', 'error')
+                        cur.close(); conn.close()
+                        return redirect(url_for('cadastro_curso'))
+                    # Obtém estado atual
+                    conn2 = get_db_connection()
+                    row = None
+                    if conn2:
+                        try:
+                            cur2 = conn2.cursor()
+                            cur2.execute("SELECT ativo FROM curso WHERE id_curso = %s", (id_curso,))
+                            row = cur2.fetchone()
+                            cur2.close(); conn2.close()
+                        except Exception:
+                            try:
+                                conn2.close()
+                            except Exception:
+                                pass
+                            row = None
+                    current_active = True
+                    if row is not None:
+                        val = row[0] if isinstance(row, tuple) else row
+                        current_active = bool(val) if val is not None else True
+                    new_active = not current_active
+                    cur.execute("UPDATE curso SET ativo = %s WHERE id_curso = %s", (new_active, id_curso))
+                    conn.commit()
+                    flash('Curso reativado com sucesso!' if new_active else 'Curso inativado com sucesso!', 'success')
+                    audit_log('curso_toggle', {'id_curso': id_curso, 'ativo': new_active})
+                    cur.close(); conn.close()
+                    return redirect(url_for('cadastro_curso'))
+                elif action == 'update':
+                    id_curso = request.form.get('id_curso')
+                    if not id_curso or not nome_curso:
+                        flash('Informe nome e selecione o curso para editar.', 'error')
+                        cur.close(); conn.close()
+                        audit_log('cadastro_curso_fail', {'motivo': 'update_campos_invalidos'})
+                        return redirect(url_for('cadastro_curso'))
                     cur.execute(
-                        "INSERT INTO curso (nome_curso, descricao_curso, codigo_curso, autorizacao, id_coordenador) VALUES (%s, %s, %s, %s, %s)",
-                        (nome_curso, descricao, codigo, autorizacao, coordenador_id)
+                        "UPDATE curso SET nome_curso = %s, descricao_curso = %s, codigo_curso = %s, autorizacao = %s, id_coordenador = %s WHERE id_curso = %s",
+                        (nome_curso, descricao, codigo, autorizacao, coordenador_id, id_curso)
                     )
                     conn.commit()
-                    flash('Curso cadastrado com sucesso!', 'success')
-                    cur.close()
-                    conn.close()
-                    audit_log('cadastro_curso_ok', {'nome_curso': nome_curso})
+                    flash('Curso atualizado com sucesso!', 'success')
+                    cur.close(); conn.close()
+                    audit_log('cadastro_curso_update', {'id_curso': id_curso, 'nome_curso': nome_curso})
                     return redirect(url_for('cadastro_curso'))
                 else:
-                    flash('Informe ao menos o nome do curso.', 'error')
-                    cur.close()
-                    conn.close()
-                    audit_log('cadastro_curso_fail', {'motivo': 'nome_vazio'})
+                    # Inserir novo curso
+                    if nome_curso:
+                        cur.execute(
+                            "INSERT INTO curso (nome_curso, descricao_curso, codigo_curso, autorizacao, id_coordenador) VALUES (%s, %s, %s, %s, %s)",
+                            (nome_curso, descricao, codigo, autorizacao, coordenador_id)
+                        )
+                        conn.commit()
+                        flash('Curso cadastrado com sucesso!', 'success')
+                        cur.close(); conn.close()
+                        audit_log('cadastro_curso_ok', {'nome_curso': nome_curso})
+                        return redirect(url_for('cadastro_curso'))
+                    else:
+                        flash('Informe ao menos o nome do curso.', 'error')
+                        cur.close(); conn.close()
+                        audit_log('cadastro_curso_fail', {'motivo': 'nome_vazio'})
             except Exception as e:
-                flash(f'Erro ao cadastrar curso: {e}', 'error')
+                flash(f'Erro ao processar curso: {e}', 'error')
                 audit_log('cadastro_curso_error', {'error': str(e)})
     
     # Buscar professores para o formulário
@@ -684,18 +893,20 @@ def cadastro_curso():
             cur.execute("SELECT * FROM usuario WHERE tipo = 'Professor' ORDER BY nome")
             professores = cur.fetchall()
             # Buscar cursos já cadastrados
-            cur.execute("""
-                SELECT c.id_curso, c.nome_curso, c.codigo_curso, c.autorizacao, u.nome as coordenador
+            ensure_curso_ativo_column()
+            cur.execute(
+                """
+                SELECT c.id_curso, c.nome_curso, c.codigo_curso, c.autorizacao, c.ativo, c.id_coordenador, u.nome as coordenador
                 FROM curso c
                 LEFT JOIN usuario u ON c.id_coordenador = u.id_usuario
                 ORDER BY c.id_curso DESC
-            """)
+                """
+            )
             cursos = cur.fetchall()
             cur.close()
             conn.close()
         except Exception as e:
             flash(f'Erro ao buscar professores: {e}', 'error')
-    
     return render_template('cadastro_curso.html', professores=professores, cursos=cursos)
 
 # Rota para a página de publicação

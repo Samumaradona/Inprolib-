@@ -409,6 +409,7 @@
     height: 150px;
   }
   
+  
   /* botão principal e grupo de botões - botões usam exclusivamente bs-new-casual/dark */
   .button {
     display: inline-flex;
@@ -458,7 +459,7 @@
   }
   
   /* botão centralizado (quando o grupo existir) */
-  .btn-group{
+  .form-container .btn-group{
     grid-column: 1 / -1;        /* ocupa as duas colunas */
     justify-self: center;       /* centraliza horizontalmente */
     display: flex;
@@ -467,6 +468,116 @@
     align-items: center;
     width: 320px;               /* largura do grupo - ajustável */
     margin-top: 12px;
+  }
+
+  .form-container .btn-group2{
+    grid-column: 1 / -1;        /* ocupa as duas colunas */
+    justify-self: center;       /* centraliza horizontalmente */
+    display: flex;
+    flex-direction: unset;     /* um sobre o outro */
+    gap: 8px;                   /* espaço entre botões */
+    align-items: center;
+    width: 320px;               /* largura do grupo - ajustável */
+    margin-top: 12px;
+  }
+
+  .form-container .button:nth-child(2) {
+    background-color: var(--bs-danger);
+  }
+  
+  form button{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--bs-new-casual);
+    border: 0;
+    cursor: pointer;
+    text-align: center;
+    transition: background .12s ease;
+  }
+  
+  form button:hover {
+    background: var(--bs-new-dark);
+  }
+
+
+  
+  /* responsividade */
+  @media (max-width: 720px){
+    .container-grid { grid-template-columns: 1fr; }
+    .btn-group { width: 100%; }
+    .btn-group .button { width: 100%; }
+    #avModal .btn-group {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      width: auto !important;
+      margin-top: 12px;
+    }
+  }
+  
+  /* Toolbar inputs com ícone */
+  .input-with-icon { display:inline-flex; align-items:center; gap:8px; border:1px solid #e5e7eb; border-radius:8px; padding:4px 8px; background:#f8fafc; }
+  .input-with-icon .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20; font-size:20px; color:#64748b; }
+  .input-with-icon input { border:none; outline:none; background:transparent; padding:6px 4px; min-width:180px; color:#0f172a; }
+  .input-with-icon input::placeholder { color:#94a3b8; }
+  .results-counter { color:#64748b; font-size:13px; }
+
+  /* Botões de ícone (ações da lista) */
+  .icon-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:6px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color:#334155; cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
+  .icon-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
+  .icon-btn .material-symbols-outlined { font-size:20px; line-height:1; margin:0; color:inherit; }
+  .icon-btn.is-blue { color: var(--bs-new-casual); border-color: var(--bs-new-light); background:#eff6ff; }
+  .icon-btn.is-blue:hover { background:#dbeafe; }
+  .icon-btn.is-blue .material-symbols-outlined { color: var(--bs-new-casual); }
+  .icon-btn.is-danger { color:#dc2626; border-color:#fecaca; background:#fff5f5; }
+  .icon-btn.is-danger:hover { background:#fee2e2; }
+  .icon-btn.is-danger .material-symbols-outlined { color:#b91c1c; }
+  .icon-btn.is-success { color:#166534; border-color:#bbf7d0; background:#f0fdf4; }
+  .icon-btn.is-success:hover { background:#dcfce7; }
+  .icon-btn.is-success .material-symbols-outlined { color:#166534; }
+
+  /* Tabela (ações e status) */
+  .actions-cell { white-space: nowrap; }
+  .av-row.inactive { opacity: 0.65; }
+  .status-cell { color:#166534; font-weight:600; }
+  .status-cell.inactive { color:#b91c1c; }
+
+  /* Toolbar layout: melhor espaçamento e alinhamento */
+  .toolbar { margin: 0 16px 12px -12px; display:flex; align-items:center; gap:12px; justify-content: flex-start; flex-wrap: nowrap; }
+  .toolbar .filters { display:flex; align-items:center; gap:8px; flex-wrap: nowrap; }
+  .toolbar .button.is-sm { flex-shrink: 0; }
+  .toolbar select { min-width: 140px; }
+  .input-with-icon input#searchAv { width: 180px; }
+  
+/* Modal refinements for Avaliação */
+#avModal.modal { background: rgba(2,6,23,0.55); }
+#avModal .modal-content { max-width: 680px; padding: 20px; border-radius: 12px; }
+#avModal .modal-content h3 { margin: 0 0 12px 0; font-size: 18px; color: #222; }
+#avModal .container-grid { display: flex; flex-direction: column; gap: 12px; }
+#avModal label { display: block; font-weight: 700; font-size: 14px; color: var(--bs-body-color); }
+#avModal input, #avModal textarea, #avModal select { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 12px; font-size: 14px; background: #fff; outline: none; }
+#avModal textarea { height: 140px; }
+#avModal input:focus, #avModal textarea:focus, #avModal select:focus { box-shadow: 0 6px 18px rgba(2,6,23,0.06); border-color: rgba(0,70,225,0.25); }
+#avModal .btn-group2 { display: flex; gap: 8px; align-items: center; justify-content: center; width: 100%; margin-top: 6px; }
+#avModal .btn-group { display: flex; justify-content: center; margin-top: 12px; }
+#avModal .button.is-success { background: var(--bs-success); color: #fff; }
+#avModal .button.is-success:hover { background: var(--bs-green); }
+#avModal .button.is-danger { background: var(--bs-danger); color: #fff; }
+#avModal .button.is-danger:hover { background: #b91c1c; }
+  grid-column: 1 / -1;        /* ocupa as duas colunas */
+  justify-self: center;       /* centraliza horizontalmente */
+  display: flex;
+  flex-direction: column;     /* um sobre o outro */
+  gap: 8px;                   /* espaço entre botões */
+  align-items: center;
+  width: 320px;               /* largura do grupo - ajustável */
+  margin-top: 12px;
   }
 
   .btn-group2{
@@ -511,5 +622,53 @@
     .container-grid { grid-template-columns: 1fr; }
     .btn-group { width: 100%; }
     .btn-group .button { width: 100%; }
+    .btn-group .button {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      width: auto !important;
+      margin-top: 12px;
+    }
   }
+  
+  /* Toolbar inputs com ícone */
+  .input-with-icon { display:inline-flex; align-items:center; gap:8px; border:1px solid #e5e7eb; border-radius:8px; padding:4px 8px; background:#f8fafc; }
+  .input-with-icon .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20; font-size:20px; color:#64748b; }
+  .input-with-icon input { border:none; outline:none; background:transparent; padding:6px 4px; min-width:180px; color:#0f172a; }
+  .input-with-icon input::placeholder { color:#94a3b8; }
+  .results-counter { color:#64748b; font-size:13px; }
+
+  /* Botões de ícone (ações da lista) */
+  .icon-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:6px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color:#334155; cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
+  .icon-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
+  .icon-btn .material-symbols-outlined { font-size:20px; line-height:1; margin:0; color:inherit; }
+  .icon-btn.is-blue { color: var(--bs-new-casual); border-color: var(--bs-new-light); background:#eff6ff; }
+  .icon-btn.is-blue:hover { background:#dbeafe; }
+  .icon-btn.is-blue .material-symbols-outlined { color: var(--bs-new-casual); }
+  .icon-btn.is-danger { color:#dc2626; border-color:#fecaca; background:#fff5f5; }
+  .icon-btn.is-danger:hover { background:#fee2e2; }
+  .icon-btn.is-danger .material-symbols-outlined { color:#b91c1c; }
+  .icon-btn.is-success { color:#166534; border-color:#bbf7d0; background:#f0fdf4; }
+  .icon-btn.is-success:hover { background:#dcfce7; }
+  .icon-btn.is-success .material-symbols-outlined { color:#166534; }
+
+  /* Tabela (ações e status) */
+  .actions-cell { white-space: nowrap; }
+  .av-row.inactive { opacity: 0.65; }
+  .status-cell { color:#166534; font-weight:600; }
+  .status-cell.inactive { color:#b91c1c; }
+
+  /* Toolbar layout: melhor espaçamento e alinhamento */
+  .toolbar { margin: 0 16px 12px -12px; display:flex; align-items:center; gap:12px; justify-content: flex-start; flex-wrap: nowrap; }
+  .toolbar .filters { display:flex; align-items:center; gap:8px; flex-wrap: nowrap; }
+  .toolbar .button.is-sm { flex-shrink: 0; }
+  .toolbar select { min-width: 140px; }
+  .input-with-icon input#searchAv { width: 180px; }
+  .toolbar .button.with-icon {
+    gap: 6px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .toolbar select { min-width: 140px; }
+  .input-with-icon input#searchAv { width: 180px; }
   

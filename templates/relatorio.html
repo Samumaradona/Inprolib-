@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>INPROLIB - Emissão de Relatórios</title>
   <link rel="stylesheet" href="relatorio.css">
+  <link rel="stylesheet" href="notifications.css?v=1">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
 <body>
@@ -120,6 +121,8 @@
     window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
     window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
   </script>
+  <script src="notifications.js?v=1"></script>
   <script src="home.js?v=aval-fix-1"></script>
+  <script>window.initFlashToasts && window.initFlashToasts();</script>
 </body>
 </html>

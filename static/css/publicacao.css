@@ -489,3 +489,55 @@ form button:hover {
   .btn-group { width: 100%; }
   .btn-group .button { width: 100%; }
 }
+
+/* Toolbar de busca e filtros */
+.toolbar { /* container já inline no HTML, regras complementares aqui se necessário */ }
+.input-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+}
+.input-with-icon input {
+  border: 0;
+  outline: none;
+  font-size: 14px;
+}
+.results-counter {
+  font-size: 13px;
+  color: #64748b;
+  margin-left: 4px;
+}
+
+/* Botões de ícone padronizados (Material Symbols) */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #0f172a; /* ícone herda esta cor */
+  cursor: pointer;
+}
+.icon-btn .material-symbols-outlined { color: inherit; font-size: 20px; }
+.icon-btn:hover { box-shadow: 0 1px 2px rgba(2,6,23,0.08); }
+
+.icon-btn.is-blue { color: #2563eb; }
+.icon-btn.is-blue:hover { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+
+.icon-btn.is-danger { color: #dc2626; }
+.icon-btn.is-danger:hover { background: #fee2e2; border-color: #fecaca; }
+
+.icon-btn.is-success { color: #166534; }
+.icon-btn.is-success:hover { background: #dcfce7; border-color: #bbf7d0; }
+
+/* Tabela: célula de ações e estado inativo */
+.actions-cell { white-space: nowrap; }
+.pub-row.inactive td { color: #64748b; background: #f8fafc; }
+
+/* ... existing code ... */

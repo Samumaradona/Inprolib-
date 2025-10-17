@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Cadastro de cursos no INPROLIB com validações e lista em modal." />
   <title>INPROLIB - Cadastro de Cursos</title>
-  <link rel="stylesheet" href="cadastro_curso.css">
+  <link rel="stylesheet" href="/cadastro_curso.css">
+  <link rel="stylesheet" href="/notifications.css">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
 <body>
   <div id="app">
     <header class="topbar">
     <div class="container">
-      <!-- LADO ESQUERDO: apenas hambúrguer -->
+      <!-- LADO ESQUERDO: apenas hambÃºrguer -->
       <div class="left">
         <button class="hamburger" id="btnHamburger" aria-controls="sideMenu" aria-expanded="false" aria-label="Abrir menu" title="Abrir menu">
           <span class="material-symbols-outlined" aria-hidden="true">menu</span>
@@ -31,7 +32,7 @@
           <p id="username">{{ session.get('user_name', '') }}</p>
         </div>
       </div>
-      <!-- LADO DIREITO: notificações + avatar -->
+      <!-- LADO DIREITO: notificaÃ§Ãµes + avatar -->
       <div class="right" role="group" aria-label="Ações do usuário">
         <!-- Notification button -->
         <div class="notif-wrap" style="position:relative">
@@ -50,7 +51,7 @@
   <!-- modal de visualização da foto -->
   <div id="avatarModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
     <div class="modal-content">
-      <button id="closeModal" class="modal-close" aria-label="Fechar visualização">✕</button>
+      <button id="closeModal" class="modal-close" aria-label="Fechar visualização"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
       <h3 id="avatarModalTitle" style="margin:0 0 12px 0">Foto do usuário</h3>
       <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px">
     </div>
@@ -64,7 +65,7 @@
             <div style="font-size:12px;color:#64748b">Menu</div>
           </div>
           <div>
-            <button id="btnClose" aria-label="Fechar menu" title="Fechar">✕</button>
+            <button id="btnClose" aria-label="Fechar menu" title="Fechar"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
           </div>
         </header>
         <nav class="routes" id="routesList">
@@ -80,113 +81,248 @@
         </nav>
         {% with messages = get_flashed_messages(with_categories=True) %}
           {% if messages %}
-            <div class="flash-container" aria-live="polite" style="margin:12px 16px">
-              {% for category, message in messages %}
-                <div class="flash {{ category }}" style="padding:10px;border-radius:6px;margin-bottom:8px;color:#0f172a;{% if category == 'success' %}background:#d1fae5;border:1px solid #10b981;{% elif category == 'error' %}background:#fee2e2;border:1px solid #ef4444;{% else %}background:#e5e7eb;border:1px solid #9ca3af;{% endif %}">
-                  {{ message }}
-                </div>
-              {% endfor %}
-            </div>
+            <script>
+              window.FLASH_MESSAGES = {{ messages|tojson|safe }};
+            </script>
           {% endif %}
         {% endwith %}
-        {% if cursos and cursos|length > 0 %}
-          <div style="margin:0 16px 12px 16px">
-            <button type="button" id="btnOpenCourses" class="button">Ver cursos cadastrados</button>
+        
+        <!-- Toolbar: filtros Ã  esquerda + botÃ£o adicionar -->
+        <div class="toolbar" style="margin:0 16px 12px 16px; display:flex; gap:12px; justify-content:space-between; align-items:center">
+          <div class="filters" id="filterBar" style="display:flex; gap:8px; align-items:center">
+<button type="button" id="btnToggleForm" class="button is-sm" title="Adicionar curso" aria-label="Adicionar curso">
+  Adicionar curso
+</button>
+            <div class="input-with-icon">
+              <span class="material-symbols-outlined" aria-hidden="true">search</span>
+              <input type="text" id="courseSearch" placeholder="Buscar cursos..." aria-label="Buscar cursos">
+            </div>
+            <select id="statusFilter" aria-label="Filtrar status">
+              <option value="all">Todos</option>
+              <option value="active">Ativos</option>
+              <option value="inactive">Inativos</option>
+            </select>
+            <button type="button" id="btnClearFilters" class="button is-sm with-icon" title="Limpar filtros">
+              <span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
+              Limpar filtros
+            </button>
+            <span id="resultsCounter" class="results-counter" aria-live="polite"></span>
           </div>
-        {% endif %}
-        <form class="form-container" method="POST" action="/cadastro_curso" novalidate>
-          <!-- Coluna 1 -->
-          <div class="container-grid">
-            <div>
-              <h3>Informações do curso</h3>
-              <label for="nome">Nome do Curso</label>
-              <input type="text" id="nome" name="nome" placeholder="Insira o nome de seu curso" required maxlength="255">
-              <label for="descricao">Descrição</label>
-              <input type="text" id="descricao" name="descricao" placeholder="Insira a descrição de seu curso">
-              <label for="codigo">Código</label>
-              <input type="text" id="codigo" name="codigo" placeholder="Insira o seu código" pattern="[A-Z0-9-]+" title="Use letras maiúsculas, números e hífen">
-            </div>
-          
-            <!-- Coluna 2 -->
-            <div>
-              <h3>Vinculação de Coordenador</h3>
-              <label for="coordenador">Coordenador</label>
-              <select id="coordenador" name="coordenador">
-                <option value="">Selecione o coordenador</option>
-                {% if professores %}
-                  {% for p in professores %}
-                    <option value="{{ p.id_usuario }}">{{ p.nome }}</option>
-                  {% endfor %}
-                {% endif %}
-              </select>
-            
-              <h3>Autorização do curso</h3>
-              <label for="portaria">Portaria de Autorização</label>
-              <input type="text" id="portaria" name="portaria" placeholder="Insira o número da portaria" inputmode="numeric" maxlength="10">
-            </div>
-            <!-- Botão centralizado -->
-            <div class="full-width">
-              <button class="button" type="submit">Salvar</button>
-            </div>
-          </div>
-        </form>
 
-        <!-- Modal de cursos cadastrados -->
+        </div>
+        
+        <!-- Lista de cursos como visÃ£o inicial -->
         {% if cursos and cursos|length > 0 %}
-        <div id="coursesModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="coursesModalTitle" style="display:none">
-          <div class="modal-content" style="max-width:800px;width:100%">
-            <button id="closeCoursesModal" class="modal-close" aria-label="Fechar">✕</button>
-            <h3 id="coursesModalTitle" style="margin:0 0 12px 0">Cursos cadastrados</h3>
-            <div style="overflow:auto;border:1px solid #e5e7eb;border-radius:8px">
-              <table style="width:100%;border-collapse:collapse">
-                <thead>
-                  <tr style="text-align:left;background:#f8fafc">
-                    <th style="padding:8px;border-bottom:1px solid #e5e7eb">Nome</th>
-                    <th style="padding:8px;border-bottom:1px solid #e5e7eb">Código</th>
-                    <th style="padding:8px;border-bottom:1px solid #e5e7eb">Autorização</th>
-                    <th style="padding:8px;border-bottom:1px solid #e5e7eb">Coordenador</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for c in cursos %}
-                  <tr>
-                    <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.nome_curso }}</td>
-                    <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.codigo_curso or '-' }}</td>
-                    <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.autorizacao or '-' }}</td>
-                    <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.coordenador or '-' }}</td>
-                  </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
+        <section id="coursesList" class="form-container" aria-label="Lista de cursos" style="margin-bottom:16px">
+          <h3 style="margin-bottom:12px">Cursos cadastrados</h3>
+          <div style="overflow:auto;border:1px solid #e5e7eb;border-radius:8px">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="text-align:left;background:#f8fafc">
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">Nome</th>
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">Código</th>
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">Autorização</th>
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">Coordenador</th>
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in cursos %}
+                <tr data-nome="{{ c.nome_curso }}" data-codigo="{{ c.codigo_curso or '' }}" data-autorizacao="{{ c.autorizacao or '' }}" data-coordenador="{{ c.coordenador or '' }}" data-ativo="{{ '1' if c.ativo else '0' }}">
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.nome_curso }}</td>
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.codigo_curso or '-' }}</td>
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.autorizacao or '-' }}</td>
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.coordenador or '-' }}</td>
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">
+                    <div class="action-buttons">
+                      <button type="button" class="icon-btn is-blue" aria-label="Editar curso {{ c.nome_curso }}"
+                              data-action="edit"
+                              data-id="{{ c.id_curso }}"
+                              data-nome="{{ c.nome_curso }}"
+                              data-descricao="{{ c.descricao_curso or '' }}"
+                              data-codigo="{{ c.codigo_curso or '' }}"
+                              data-autorizacao="{{ c.autorizacao or '' }}"
+                              data-coordenador-id="{{ c.id_coordenador or '' }}">
+                        <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                      </button>
+                      <form method="POST" action="/cadastro_curso" style="display:inline">
+                        <input type="hidden" name="action" value="toggle">
+                        <input type="hidden" name="id_curso" value="{{ c.id_curso }}">
+                        <button type="submit" class="icon-btn {{ 'is-danger' if c.ativo else 'is-success' }}" aria-label="{{ 'Inativar' if c.ativo else 'Reativar' }} curso {{ c.nome_curso }}">
+                          <span class="material-symbols-outlined" aria-hidden="true">{{ 'do_not_disturb_on' if c.ativo else 'check_circle' }}</span>
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        {% endif %}
+        
+        <!-- Modal de criação/edição de curso -->
+        <div id="cursoModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cursoModalTitle">
+          <div class="modal-content">
+            <button id="closeCursoModal" class="modal-close" aria-label="Fechar"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+            <h3 id="cursoModalTitle" style="margin:0 0 12px 0">Adicionar curso</h3>
+
+            <form id="cursoForm" class="form-container" method="POST" action="/cadastro_curso" novalidate>
+              <input type="hidden" name="action" id="action" value="create">
+              <input type="hidden" name="id_curso" id="id_curso" value="">
+              <!-- Coluna 1 -->
+              <div class="container-grid">
+                <div>
+                  <h3>Informações do curso</h3>
+                  <label for="nome">Nome do Curso</label>
+                  <input type="text" id="nome" name="nome" placeholder="Insira o nome de seu curso" required maxlength="255">
+                  <label for="descricao">Descrição</label>
+                  <input type="text" id="descricao" name="descricao" placeholder="Insira a descrição de seu curso">
+                  <label for="codigo">Código</label>
+                  <input type="text" id="codigo" name="codigo" placeholder="Insira o seu código" pattern="[A-Z0-9-]+" title="Use letras maiúsculas, números e hífen">
+                </div>
+              
+                <!-- Coluna 2 -->
+                <div>
+                  <h3>Vinculação de Coordenador</h3>
+                  <label for="coordenador">Coordenador</label>
+                  <select id="coordenador" name="coordenador">
+                    <option value="">Selecione o coordenador</option>
+                    {% if professores %}
+                      {% for p in professores %}
+                        <option value="{{ p.id_usuario }}">{{ p.nome }}</option>
+                      {% endfor %}
+                    {% endif %}
+                  </select>
+                
+                  <h3>Autorização do curso</h3>
+                  <label for="portaria">Portaria de Autorização</label>
+                  <input type="text" id="portaria" name="portaria" placeholder="Insira o número da portaria" inputmode="numeric" maxlength="10">
+                </div>
+                <!-- Botão centralizado -->
+                <div class="full-width">
+                  <button class="button" type="submit">Salvar Curso</button>
+                  <button type="button" id="btnCloseForm" class="button" style="background:#6b7280">Fechar</button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
-        {% endif %}
+
+        <!-- Removido: Modal de cursos cadastrados (agora a lista Ã© inicial) -->
       </main>
     </div>
     <script>
       window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
       window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
     </script>
-  <script src="home.js?v=aval-fix-1"></script>
+  <script src="/notifications.js?v=1"></script>
+  <script src="/home.js?v=aval-fix-1"></script>
+  <script>window.initFlashToasts && window.initFlashToasts();</script>
     <script>
       (function(){
-        const btnOpen = document.getElementById('btnOpenCourses');
-        const modal = document.getElementById('coursesModal');
-        const btnClose = document.getElementById('closeCoursesModal');
-        if(btnOpen && modal){
-          btnOpen.addEventListener('click', function(){ modal.style.display='flex'; });
+        const btnToggle = document.getElementById('btnToggleForm');
+        const form = document.getElementById('cursoForm');
+        const modal = document.getElementById('cursoModal');
+        const modalTitle = document.getElementById('cursoModalTitle');
+        const btnCloseModal = document.getElementById('closeCursoModal');
+        const btnCloseForm = document.getElementById('btnCloseForm');
+
+        function openCursoModal(title){
+          if(title) modalTitle.textContent = title;
+          modal.setAttribute('aria-hidden', 'false');
+          modal.classList.add('open');
+          const firstInput = form && form.querySelector('#nome');
+          if(firstInput){ firstInput.focus(); }
         }
-        if(btnClose && modal){
-          btnClose.addEventListener('click', function(){ modal.style.display='none'; });
+        function closeCursoModal(){
+          modal.setAttribute('aria-hidden', 'true');
+          modal.classList.remove('open');
         }
-        // fechar ao clicar fora
+
+        // Interação com fechar
+        if(btnCloseModal){ btnCloseModal.addEventListener('click', closeCursoModal); }
+        if(btnCloseForm){ btnCloseForm.addEventListener('click', closeCursoModal); }
         if(modal){
-          modal.addEventListener('click', function(e){
-            if(e.target === modal){ modal.style.display='none'; }
+          modal.addEventListener('click', function(e){ if(e.target === modal) closeCursoModal(); });
+        }
+        document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCursoModal(); });
+
+        // Abrir para criar
+        if(btnToggle && form){
+          btnToggle.addEventListener('click', function(){
+            document.getElementById('action').value = 'create';
+            document.getElementById('id_curso').value = '';
+            form.querySelector('#nome').value = '';
+            form.querySelector('#descricao').value = '';
+            form.querySelector('#codigo').value = '';
+            form.querySelector('#portaria').value = '';
+            form.querySelector('#coordenador').value = '';
+            openCursoModal('Adicionar curso');
           });
         }
+
+        // Abrir para editar e preencher dados
+        document.querySelectorAll('[data-action="edit"]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            if(form){
+              document.getElementById('action').value = 'update';
+              document.getElementById('id_curso').value = this.getAttribute('data-id');
+              form.querySelector('#nome').value = this.getAttribute('data-nome') || '';
+              form.querySelector('#descricao').value = this.getAttribute('data-descricao') || '';
+              form.querySelector('#codigo').value = this.getAttribute('data-codigo') || '';
+              form.querySelector('#portaria').value = this.getAttribute('data-autorizacao') || '';
+              const coordId = this.getAttribute('data-coordenador-id') || '';
+              const coordSelect = form.querySelector('#coordenador');
+              if(coordSelect){ coordSelect.value = coordId; }
+              openCursoModal('Editar curso');
+            }
+          });
+        });
       })();
     </script>
-</body>
-</html>
+    <script>
+       (function(){
+         const searchInput = document.getElementById('courseSearch');
+         const statusSelect = document.getElementById('statusFilter');
+         const clearBtn = document.getElementById('btnClearFilters');
+         const counterEl = document.getElementById('resultsCounter');
+         const rows = Array.from(document.querySelectorAll('#coursesList tbody tr'));
+ 
+         function normalize(v){
+           return String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+         }
+         function applyCourseFilters(){
+           const term = normalize(searchInput ? searchInput.value : '');
+           const status = statusSelect ? statusSelect.value : 'all';
+           let visibleCount = 0;
+ 
+           rows.forEach(row => {
+             const ds = row.dataset || {};
+             const hay = normalize(`${ds.nome || ''} ${ds.codigo || ''} ${ds.autorizacao || ''} ${ds.coordenador || ''}`);
+             const matchText = term ? hay.includes(term) : true;
+             const ativo = (ds.ativo === '1' || ds.ativo === 'true');
+             const matchStatus = status === 'all' ? true : (status === 'active' ? ativo : !ativo);
+             const show = matchText && matchStatus;
+             row.style.display = show ? '' : 'none';
+             if (show) visibleCount++;
+           });
+ 
+           if (counterEl) {
+             counterEl.textContent = `Exibindo ${visibleCount} de ${rows.length}`;
+           }
+         }
+ 
+         if (searchInput) searchInput.addEventListener('input', applyCourseFilters);
+         if (statusSelect) statusSelect.addEventListener('change', applyCourseFilters);
+         if (clearBtn) clearBtn.addEventListener('click', function(){
+           if (searchInput) searchInput.value = '';
+           if (statusSelect) statusSelect.value = 'all';
+           applyCourseFilters();
+         });
+         applyCourseFilters();
+       })();
+     </script>
+  </body>
+  </html>

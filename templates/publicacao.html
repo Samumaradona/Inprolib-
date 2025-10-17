@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Publicação de conteúdo no INPROLIB com validações e segurança." />
   <title>INPROLIB - Publicação de Conteúdo</title>
-  <link rel="stylesheet" href="publicacao.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/publicacao.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
 <body>
@@ -50,7 +51,7 @@
 <!-- modal de visualização da foto -->
 <div id="avatarModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
   <div class="modal-content">
-    <button id="closeModal" class="modal-close" aria-label="Fechar visualização">✕</button>
+    <button id="closeModal" class="modal-close" aria-label="Fechar visualização"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
     <h3 id="avatarModalTitle" style="margin:0 0 12px 0">Foto do usuário</h3>
     <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px">
   </div>
@@ -65,7 +66,7 @@
           <div style="font-size:12px;color:#64748b">Menu</div>
         </div>
         <div>
-          <button id="btnClose" aria-label="Fechar menu" title="Fechar">✕</button>
+          <button id="btnClose" aria-label="Fechar menu" title="Fechar"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
         </div>
       </header>
       <nav class="routes" id="routesList">
@@ -80,75 +81,105 @@
       <nav aria-label="breadcrumb" style="margin:8px 16px;color:#64748b">
         <a href="/home" style="color:#1d4ed8;text-decoration:none">Home</a> · Publicação de conteúdo
       </nav>
+
+      <!-- Toolbar: adicionar, buscar, filtro e contador -->
+      <div class="toolbar" style="margin:0 16px 12px 16px; display:flex; gap:12px; justify-content:space-between; align-items:center">
+        <div class="filters" id="pubFilterBar" style="display:flex; gap:8px; align-items:center">
+          <button type="button" id="btnTogglePubForm" class="button is-sm" title="Adicionar publicação" aria-label="Adicionar publicação">
+            Adicionar publicação
+          </button>
+          <div class="input-with-icon">
+            <span class="material-symbols-outlined" aria-hidden="true">search</span>
+            <input type="text" id="searchPub" placeholder="Buscar publicações..." aria-label="Buscar publicações">
+          </div>
+          <select id="statusFilterPub" aria-label="Filtrar status">
+            <option value="all">Todos</option>
+            <option value="active">Ativos</option>
+            <option value="inactive">Inativos</option>
+          </select>
+          <button type="button" id="btnClearPubFilters" class="button is-sm with-icon" title="Limpar filtros">
+            <span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
+            Limpar filtros
+          </button>
+          <span id="resultsCounterPub" class="results-counter" aria-live="polite"></span>
+        </div>
+      </div>
+
       {% with messages = get_flashed_messages(with_categories=True) %}
         {% if messages %}
-          <div class="flash-container" aria-live="polite" style="margin:12px 16px">
-            {% for category, message in messages %}
-              <div class="flash {{ category }}" style="padding:10px;border-radius:6px;margin-bottom:8px;color:#0f172a;{% if category == 'success' %}background:#d1fae5;border:1px solid #10b981;{% elif category == 'error' %}background:#fee2e2;border:1px solid #ef4444;{% else %}background:#e5e7eb;border:1px solid #9ca3af;{% endif %}">
-                {{ message }}
-              </div>
-            {% endfor %}
-          </div>
+          <script>
+            window.FLASH_MESSAGES = {{ messages|tojson|safe }};
+          </script>
         {% endif %}
       {% endwith %}
-  <form class="form-container" method="POST" action="/publicacao" enctype="multipart/form-data">
-      <h3>Informações da publicação</h3>
-    <!-- Coluna 1 -->
-    <div class="container-grid">
-     <div>
+  <!-- Modal de cadastro/edição de publicação -->
+  <div id="pubCreateModal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);z-index:50" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pubCreateModalTitle">
+    <div style="background:#fff;max-width:860px;width:92%;border-radius:10px;box-shadow:0 10px 25px rgba(0,0,0,0.15);overflow:hidden">
+      <header style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb">
+        <div>
+          <h3 id="pubCreateModalTitle" style="margin:0">Informações da publicação</h3>
+        </div>
+        <button id="pubCreateModalClose" aria-label="Fechar" style="border:none;background:#f1f5f9;color:#0f172a;padding:6px 10px;border-radius:6px;cursor:pointer"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+      </header>
+      <div style="padding:12px 16px">
+        <form id="pubFormContainer" class="form-container" method="POST" action="/publicacao" enctype="multipart/form-data">
+          <!-- Coluna 1 -->
+          <div class="container-grid">
+            <div>
+              <label for="nome">Autor</label>
+              <input type="text" id="autor" name="autor" placeholder="Insira o autor do conteúdo">
 
-      <label for="nome">Autor</label>
-      <input type="text" id="autor" name="autor" placeholder="Insira o autor do conteúdo">
+              <label for="descricao">Título do conteúdo</label>
+              <input type="text" id="titulo_conteudo" name="titulo_conteudo" placeholder="Insira o título da publicação" required maxlength="255">
 
-      <label for="descricao">Título do conteúdo</label>
-      <input type="text" id="titulo_conteudo" name="titulo_conteudo" placeholder="Insira o título da publicação" required maxlength="255">
+              <label for="codigo">Tipo da publicação</label>
+              <select id="tipo_publicacao" name="tipo_publicacao" required>
+                <option value="">Selecione o tipo</option>
+                {% if tipos %}
+                  {% for t in tipos %}
+                    <option value="{{ t.nome_tipo }}">{{ t.nome_tipo }}</option>
+                  {% endfor %}
+                {% endif %}
+              </select>
+            </div>
 
-      <label for="codigo">Tipo da publicação</label>
-      <select id="tipo_publicacao" name="tipo_publicacao" required>
-        <option value="">Selecione o tipo</option>
-        {% if tipos %}
-          {% for t in tipos %}
-            <option value="{{ t.nome_tipo }}">{{ t.nome_tipo }}</option>
-          {% endfor %}
-        {% endif %}
-      </select>
+            <!-- Coluna 2 -->
+            <div>
+              <label for="curso">Curso</label>
+              <select id="curso" name="curso" required>
+                <option value="">Selecione o curso</option>
+                {% if cursos %}
+                  {% for c in cursos %}
+                    <option value="{{ c.id_curso }}">{{ c.nome_curso }}</option>
+                  {% endfor %}
+                {% endif %}
+              </select>
+              
+              <label for="portaria">Portaria de Autorização</label>
+              <input type="text" id="portaria" placeholder="Insira o número da portaria">
+
+              <label for="captcha">Captcha: {{ captcha_question }}</label>
+              <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required>
+            </div>
+          </div>
+
+          <div class="btn-group" style="margin-top:12px">
+            <input type="file" name="conteudo" id="conteudo" hidden>
+            <label for="conteudo" class="button">
+              Anexar Conteúdo
+            </label>
+
+            <input type="file" name="termo" id="termo" hidden>
+            <label for="termo" class="button">
+              Anexar Termo de Autorização
+            </label>
+
+            <button type="submit">Salvar</button>
+          </div>
+        </form>
+      </div>
     </div>
-
-    <!-- Coluna 2 -->
-    <div>
-      <label for="curso">Curso</label>
-      <select id="curso" name="curso" required>
-        <option value="">Selecione o curso</option>
-        {% if cursos %}
-          {% for c in cursos %}
-            <option value="{{ c.id_curso }}">{{ c.nome_curso }}</option>
-          {% endfor %}
-        {% endif %}
-      </select>
-      
-      <label for="portaria">Portaria de Autorização</label>
-      <input type="text" id="portaria" placeholder="Insira o número da portaria">
-
-      <label for="captcha">Captcha: {{ captcha_question }}</label>
-      <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required>
-    </div>
-
-    <!-- Botão centralizado -->
-<div class="btn-group">
-  <input type="file" name="conteudo" id="conteudo" hidden>
-  <label for="conteudo" class="button">
-    Anexar Conteúdo +
-  </label>
-
-  <input type="file" name="termo" id="termo" hidden>
-  <label for="termo" class="button">
-    Anexar Termo de Autorização +
-  </label>
-
-  <button type="submit">Salvar</button>
-</div>
-    </div>
-  </form>
+  </div>
 
   {% if publicacoes %}
     <section style="padding:16px">
@@ -160,6 +191,8 @@
               <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Título</th>
               <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Tipo</th>
               <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Curso</th>
+              <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Status</th>
+              <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;width:140px">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -170,10 +203,20 @@
                   data-curso="{{ p.curso }}" 
                   data-data="{{ p.data_publicacao.strftime('%d/%m/%Y') if p.data_publicacao else '' }}" 
                   data-url="{{ url_for('static', filename='uploads/' ~ p.nome_arquivo) if p.nome_arquivo else '' }}" 
+                  data-status="ativo"
                   title="Visualizar publicação">
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.titulo }}</td>
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.tipo }}</td>
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.curso }}</td>
+                <td class="status-cell" style="padding:8px;border-bottom:1px solid #f1f5f9">Ativo</td>
+                <td class="actions-cell" style="padding:4px 8px;border-bottom:1px solid #f1f5f9;text-align:center">
+                  <button type="button" class="icon-btn is-blue action-edit" title="Editar publicação" aria-label="Editar publicação">
+                    <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                  </button>
+                  <button type="button" class="icon-btn is-danger action-toggle-status" title="Inativar publicação" aria-label="Inativar publicação">
+                    <span class="material-symbols-outlined" aria-hidden="true">do_not_disturb_on</span>
+                  </button>
+                </td>
               </tr>
             {% endfor %}
           </tbody>
@@ -193,7 +236,7 @@
           <h3 id="pubModalTitle" style="margin:0">Visualização da publicação</h3>
           <div id="pubMeta" style="font-size:12px;color:#64748b;margin-top:4px"></div>
         </div>
-        <button id="pubModalClose" aria-label="Fechar" style="border:none;background:#f1f5f9;color:#0f172a;padding:6px 10px;border-radius:6px;cursor:pointer">Fechar ✕</button>
+        <button id="pubModalClose" aria-label="Fechar" style="border:none;background:#f1f5f9;color:#0f172a;padding:6px 10px;border-radius:6px;cursor:pointer"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
       </header>
       <div style="padding:12px 16px">
         <div id="pubPreview" style="border:1px solid #e5e7eb;border-radius:8px;min-height:240px;display:flex;align-items:center;justify-content:center;background:#f8fafc"></div>
@@ -205,7 +248,9 @@
   </div>
 
   <script>window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";</script>
-  <script src="home.js?v=aval-fix-1"></script>
-  <script src="publicacao.js?v=1"></script>
+  <script src="{{ url_for('serve_js', script_name='notifications') }}?v=1"></script>
+  <script src="{{ url_for('serve_js', script_name='home') }}?v=aval-fix-1"></script>
+  <script src="{{ url_for('serve_js', script_name='publicacao') }}?v=pub-ui-1"></script>
+  <script>window.initFlashToasts && window.initFlashToasts();</script>
 </body>
 </html>
