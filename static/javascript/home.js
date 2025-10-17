@@ -490,65 +490,160 @@ renderRoutes();
 /* ---------- Search & Carousel JS (front-only) ---------- */
 
 (function () {
-  // simples sample docs — substitua pelos seus dados reais
-  const SAMPLE_DOCS = [
-    { title: "Relatório de Algebra", author: "Ana Silva", subject: "Matemática", course: "Engenharia", date: "2025-09-01", img: "https://picsum.photos/seed/doc1/300/200" },
-    { title: "Resumo de História", author: "Bruno Costa", subject: "História", course: "Humanas", date: "2025-08-28", img: "https://picsum.photos/seed/doc2/300/200" },
-    { title: "Projeto de Física", author: "Clara Souza", subject: "Física", course: "Licenciatura", date: "2025-08-21", img: "https://picsum.photos/seed/doc3/300/200" },
-    { title: "Guia de Programação", author: "Diego Martins", subject: "Computação", course: "Sistemas", date: "2025-08-15", img: "https://picsum.photos/seed/doc4/300/200" },
-    { title: "Artigo sobre Arte", author: "Elisa Ramos", subject: "Arte", course: "Artes", date: "2025-08-10", img: "https://picsum.photos/seed/doc5/300/200" },
-    { title: "Estudo de Caso", author: "Fabio Lima", subject: "Administração", course: "Administração", date: "2025-07-30", img: "https://picsum.photos/seed/doc6/300/200" }
-  ];
+  // dados reais vindos do backend
+  const DOCS_RAW = Array.isArray(window.PUBLICACOES) ? window.PUBLICACOES : [];
+  function formatDate(v){
+    try{
+      if(!v) return '';
+      const d = new Date(v);
+      if(isNaN(d.getTime())) return String(v);
+      const dd = String(d.getDate()).padStart(2,'0');
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }catch{ return String(v||''); }
+  }
+  const DOCS = DOCS_RAW.map(p => ({
+    title: p.titulo || 'Sem título',
+    author: p.autor_nome || '',
+    tipo: p.tipo || '',
+    course: p.nome_curso || p.curso || '',
+    date: formatDate(p.data_publicacao),
+    thumb: '/img/logo.png',
+    url: (p.nome_arquivo ? `/static/uploads/${p.nome_arquivo}` : '')
+  }));
 
   const carousel = document.getElementById('carousel');
   const prevBtn = document.querySelector('.carousel-prev');
   const nextBtn = document.querySelector('.carousel-next');
   const searchInput = document.getElementById('searchInput');
-  const searchBtn = document.getElementById('searchBtn');
+  const resultsCounter = document.getElementById('resultsCounterHome');
+  const filterField = document.getElementById('homeFilterField');
+  const clearBtn = document.getElementById('btnClearHomeFilters');
+  const modal = document.getElementById('homeCardModal');
+  const modalClose = document.getElementById('homeCardModalClose');
+  const modalTitle = document.getElementById('homeCardModalTitle');
+  const modalMeta = document.getElementById('homeCardModalMeta');
+  const modalPreview = document.getElementById('homeCardModalPreview');
+
+  function openCardModal(doc){
+    if(!modal) return;
+    if(modalTitle) modalTitle.textContent = doc.title || 'Publicação';
+    if(modalMeta){
+      const parts = [
+        doc.author && `Autor: ${doc.author}`,
+        doc.tipo && `Tipo: ${doc.tipo}`,
+        doc.course && `Curso: ${doc.course}`,
+        doc.date && `Data: ${doc.date}`
+      ].filter(Boolean);
+      modalMeta.textContent = parts.join(' • ');
+    }
+    if(modalPreview){
+      modalPreview.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.style.display = 'flex';
+      wrap.style.flexDirection = 'column';
+      wrap.style.alignItems = 'center';
+      wrap.style.gap = '8px';
+      const img = document.createElement('img');
+      img.src = doc.thumb || '/img/logo.png';
+      img.alt = doc.title || 'Pré-visualização';
+      img.style.maxWidth = '160px';
+      img.style.borderRadius = '8px';
+      img.style.opacity = '0.9';
+      wrap.appendChild(img);
+      if(doc.url){
+        const a = document.createElement('a');
+        a.href = doc.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = 'Abrir/baixar conteúdo';
+        a.style.textDecoration = 'none';
+        a.style.background = '#1d4ed8';
+        a.style.color = '#fff';
+        a.style.padding = '8px 12px';
+        a.style.borderRadius = '6px';
+        wrap.appendChild(a);
+      } else {
+        const msg = document.createElement('div');
+        msg.textContent = 'Conteúdo não disponível.';
+        msg.style.color = '#64748b';
+        wrap.appendChild(msg);
+      }
+      modalPreview.appendChild(wrap);
+    }
+    modal.setAttribute('aria-hidden','false');
+    modal.classList.add('open');
+  }
+  function closeCardModal(){
+    if(!modal) return;
+    modal.setAttribute('aria-hidden','true');
+    modal.classList.remove('open');
+    if(modalPreview) modalPreview.innerHTML = '';
+  }
+  if(modalClose) modalClose.addEventListener('click', closeCardModal);
+  if(modal) modal.addEventListener('click', (ev)=>{ if(ev.target === modal) closeCardModal(); });
+  document.addEventListener('keydown', (ev)=>{ if(ev.key === 'Escape' && modal && modal.classList.contains('open')) closeCardModal(); });
 
   // cria um card DOM a partir de um objeto doc
   function createCard(doc) {
     const item = document.createElement('article');
     item.className = 'carousel-item';
     item.setAttribute('role','listitem');
+    item.tabIndex = 0; // acessível por teclado
 
     const img = document.createElement('img');
     img.className = 'thumb';
-    img.src = doc.img;
-    img.alt = doc.title;
+    img.src = doc.thumb || '/img/logo.png';
+    img.alt = doc.title || 'Documento';
 
     const meta = document.createElement('div');
     meta.className = 'card-meta';
 
     const title = document.createElement('div');
     title.className = 'title';
-    title.textContent = doc.title;
+    title.textContent = doc.title || 'Sem título';
 
     const author = document.createElement('div');
     author.className = 'meta-line';
-    author.textContent = `Autor: ${doc.author}`;
+    author.textContent = `Autor: ${doc.author || '—'}`;
 
-    const subject = document.createElement('div');
-    subject.className = 'meta-line';
-    subject.textContent = `Assunto: ${doc.subject}`;
+    const tipo = document.createElement('div');
+    tipo.className = 'meta-line';
+    tipo.textContent = `Tipo: ${doc.tipo || '—'}`;
 
     const course = document.createElement('div');
     course.className = 'meta-line';
-    course.textContent = `Curso: ${doc.course}`;
+    course.textContent = `Curso: ${doc.course || '—'}`;
 
     const date = document.createElement('div');
     date.className = 'meta-line';
-    date.textContent = `Data: ${doc.date}`;
+    date.textContent = `Data: ${doc.date || ''}`;
 
     meta.appendChild(title);
     meta.appendChild(author);
-    meta.appendChild(subject);
+    meta.appendChild(tipo);
     meta.appendChild(course);
     meta.appendChild(date);
 
     item.appendChild(img);
     item.appendChild(meta);
+
+    // abre modal ao selecionar
+    item.addEventListener('click', ()=> openCardModal(doc));
+    item.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openCardModal(doc); }
+    });
+
     return item;
+  }
+
+  // contador de resultados
+  function updateCounter(visibleCount, totalCount){
+    if(!resultsCounter) return;
+    if(totalCount == null) totalCount = DOCS.length;
+    if(visibleCount === 0){ resultsCounter.textContent = 'Nenhum resultado'; }
+    else { resultsCounter.textContent = `Exibindo ${visibleCount} de ${totalCount}`; }
   }
 
   // popula o carrossel
@@ -556,6 +651,7 @@ renderRoutes();
     if (!carousel) return;
     carousel.innerHTML = '';
     docs.forEach(d => carousel.appendChild(createCard(d)));
+    updateCounter(docs.length, DOCS.length);
   }
 
   // navegação por setas: desloca 1 item equivalente à largura de um item
@@ -573,27 +669,36 @@ renderRoutes();
   if (prevBtn) prevBtn.addEventListener('click', () => scrollByItem('prev'));
   if (nextBtn) nextBtn.addEventListener('click', () => scrollByItem('next'));
 
-  // simple search (front-only): filtra pelo título/autor/assunto/curso quando checkbox habilitado
+  // busca: filtra por título/autor/tipo/curso
   function doSearch() {
     const q = (searchInput && searchInput.value || '').trim().toLowerCase();
-    const checked = Array.from(document.querySelectorAll('input[name="filter"]:checked')).map(i => i.value);
-    if (!q) { populateCarousel(SAMPLE_DOCS); return; }
-
-    const filtered = SAMPLE_DOCS.filter(d => {
-      // verifica apenas os campos selecionados
-      let ok = false;
-      if (checked.includes('titulo') && d.title.toLowerCase().includes(q)) ok = true;
-      if (checked.includes('autor') && d.author.toLowerCase().includes(q)) ok = true;
-      if (checked.includes('assunto') && d.subject.toLowerCase().includes(q)) ok = true;
-      if (checked.includes('curso') && d.course.toLowerCase().includes(q)) ok = true;
-      return ok;
+    const field = (filterField && filterField.value) || 'all';
+    if (!q) { populateCarousel(DOCS); return; }
+  
+    const filtered = DOCS.filter(d => {
+      if(field === 'all'){
+        const hay = `${d.title||''} ${d.author||''} ${d.tipo||''} ${d.course||''}`.toLowerCase();
+        return hay.includes(q);
+      }
+      if(field === 'titulo') return (d.title||'').toLowerCase().includes(q);
+      if(field === 'autor') return (d.author||'').toLowerCase().includes(q);
+      if(field === 'tipo') return (d.tipo||'').toLowerCase().includes(q);
+      if(field === 'curso') return (d.course||'').toLowerCase().includes(q);
+      return false;
     });
     populateCarousel(filtered);
   }
 
-  if (searchBtn) searchBtn.addEventListener('click', doSearch);
-  if (searchInput) searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') doSearch();
+  // busca: Enter e digitação imediata
+  if (searchInput){
+    searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+    searchInput.addEventListener('input', () => { doSearch(); });
+  }
+  if (filterField) filterField.addEventListener('change', () => { doSearch(); });
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    if(searchInput) searchInput.value = '';
+    if(filterField) filterField.value = 'all';
+    populateCarousel(DOCS);
   });
 
   // comportamento de arrastar/scroll (drag-to-scroll)
@@ -626,8 +731,8 @@ renderRoutes();
     });
   })(carousel);
 
-  // inicializa com dados de exemplo
-  populateCarousel(SAMPLE_DOCS);
+  // inicializa com dados reais
+  populateCarousel(DOCS);
 
 })();
 
