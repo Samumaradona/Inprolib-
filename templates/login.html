@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>INPROLIB - Login</title>
   <link rel="stylesheet" href="cadastro_login.css">
+  <link rel="stylesheet" href="notifications.css?v=1">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
 <body>
@@ -22,37 +23,51 @@
   <main>
     {% with messages = get_flashed_messages(with_categories=True) %}
       {% if messages %}
-        <div class="flash-container" aria-live="polite" style="margin:12px 0">
-          {% for category, message in messages %}
-            <div class="flash {{ category }}" style="padding:10px;border-radius:6px;margin-bottom:8px;color:#0f172a;{% if category == 'success' %}background:#d1fae5;border:1px solid #10b981;{% elif category == 'error' %}background:#fee2e2;border:1px solid #ef4444;{% else %}background:#e5e7eb;border:1px solid #9ca3af;{% endif %}">
-              {{ message }}
-            </div>
-          {% endfor %}
-        </div>
+        <script>
+          window.FLASH_MESSAGES = {{ messages|tojson|safe }};
+        </script>
       {% endif %}
     {% endwith %}
 
-    <div class="form-container">
-      <h3>Entrar</h3>
-      <form id="loginForm" method="POST" action="/login" novalidate>
-        <div class="container-grid">
-          <div>
-            <label for="email">E-mail</label>
-            <input type="email" id="email" name="email" placeholder="seuemail@dominio.com" required />
-          </div>
-          <div>
-            <label for="senha">Senha</label>
-            <input type="password" id="senha" name="senha" placeholder="Sua senha" required />
-          </div>
-          <div class="btn-group">
-            <button type="submit" class="button">Entrar</button>
-            <a href="/esqueci_senha" class="button" style="text-decoration:none;background:#6c757d;">Esqueci minha senha</a>
-          </div>
+    <div class="login-split">
+      <!-- Lado esquerdo: fundo azul e card de login -->
+      <section class="left-pane">
+        <div class="login-card" role="dialog" aria-labelledby="loginTitle">
+          <h3 id="loginTitle">Bem-vindo!</h3>
+          <form id="loginForm" method="POST" action="/login" novalidate>
+            <div class="form-row">
+              <label for="cpf">CPF:</label>
+              <input type="text" id="cpf" name="cpf" placeholder="Digite seu CPF" inputmode="numeric" autocomplete="username" required />
+            </div>
+            <div class="form-row">
+              <label for="senha">Senha:</label>
+              <input type="password" id="senha" name="senha" placeholder="Digite sua senha" autocomplete="current-password" required />
+            </div>
+            <div class="form-row inline">
+              <label class="checkbox">
+                <input type="checkbox" id="rememberMe" />
+                <span>Lembrar-me</span>
+              </label>
+            </div>
+            <div class="actions">
+              <button type="submit" class="button">Entrar</button>
+            </div>
+            <div class="links">
+              <a href="/esqueci_senha" class="link">Esqueci minha senha</a>
+            </div>
+          </form>
         </div>
-      </form>
+      </section>
+
+      <!-- Lado direito: imagem de estante com logo -->
+      <section class="right-pane" aria-hidden="true">
+        <img src="/img/Design sem nome (1).png" alt="INPROLIB" class="brand-badge" />
+      </section>
     </div>
   </main>
 
+  <script src="notifications.js?v=1"></script>
   <script src="login.js"></script>
+  <script>window.initFlashToasts && window.initFlashToasts();</script>
 </body>
 </html>

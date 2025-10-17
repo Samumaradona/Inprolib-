@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Cadastro de usuário no INPROLIB com validações e segurança." />
   <title>INPROLIB - Cadastro de usuário</title>
-  <link rel="stylesheet" href="cadastro_alunos.css">
+  <link rel="stylesheet" href="/cadastro_alunos.css">
+  <link rel="stylesheet" href="/notifications.css">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
 <body>
@@ -26,62 +27,138 @@
       </nav>
       {% with messages = get_flashed_messages(with_categories=True) %}
         {% if messages %}
-          <div class="flash-container" aria-live="polite" style="margin:12px 16px">
-            {% for category, message in messages %}
-              <div class="flash {{ category }}" style="padding:10px;border-radius:6px;margin-bottom:8px;color:#0f172a;{% if category == 'success' %}background:#d1fae5;border:1px solid #10b981;{% elif category == 'error' %}background:#fee2e2;border:1px solid #ef4444;{% else %}background:#e5e7eb;border:1px solid #9ca3af;{% endif %}">
-                {{ message }}
-              </div>
-            {% endfor %}
-          </div>
+          <script>
+            window.FLASH_MESSAGES = {{ messages|tojson|safe }};
+          </script>
         {% endif %}
       {% endwith %}
-  <form class="form-container" method="POST" action="/cadastro_alunos">
-      <h3>Informações do usuário</h3>
-    <!-- Coluna 1 -->
-    <div class="container-grid">
-     <div>
+        <!-- Toolbar: filtros à esquerda -->
+        <div class="toolbar" style="margin:0 16px 12px 16px; display:flex; gap:12px; justify-content:space-between; align-items:center">
+          <div class="filters" id="filterBar" style="display:flex; gap:8px; align-items:center">
+<button type="button" id="btnToggleUserForm" class="button is-sm" title="Adicionar aluno" aria-label="Adicionar aluno">
+  Adicionar aluno
+</button>
+            <div class="input-with-icon">
+              <span class="material-symbols-outlined" aria-hidden="true">search</span>
+              <input type="text" id="searchUser" placeholder="Buscar usuários..." aria-label="Buscar usuários">
+            </div>
+            <select id="statusFilter" aria-label="Filtrar status">
+              <option value="all">Todos</option>
+              <option value="active">Ativos</option>
+              <option value="inactive">Inativos</option>
+            </select>
+            <button type="button" id="btnClearFilters" class="button is-sm with-icon" title="Limpar filtros">
+              <span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
+              Limpar filtros
+            </button>
+            <span id="resultsCounter" class="results-counter" aria-live="polite"></span>
+          </div>
+        </div>
 
-      <label for="nome">Nome</label>
-      <input type="text" id="nome_user" name="nome_user" placeholder="Insira o seu nome completo" required>
+        {% if usuarios and usuarios|length > 0 %}
+        <section id="usersList" class="form-container" aria-label="Lista de usuários" style="margin-bottom:16px">
+          <h3 style="margin-bottom:12px">Usuários cadastrados</h3>
+          <div style="overflow:auto;border:1px solid #e5e7eb;border-radius:8px">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="text-align:left;background:#f8fafc">
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">Nome</th>
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">E-mail</th>
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">CPF</th>
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">Tipo</th>
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">Curso</th>
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for u in usuarios %}
+                <tr data-nome="{{ u.nome }}" data-email="{{ u.email or '' }}" data-cpf="{{ u.cpf or '' }}" data-tipo="{{ u.tipo or '' }}" data-curso="{{ u.curso_usuario or '' }}" data-ativo="{{ '1' if u.ativo else '0' }}">
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.nome }}</td>
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.email or '-' }}</td>
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.cpf or '-' }}</td>
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.tipo or '-' }}</td>
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.curso_usuario or '-' }}</td>
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">
+                    <div class="action-buttons">
+<button type="button"
+class="icon-btn is-blue"
+aria-label="Editar usuário {{ u.nome }}"
+title="Editar"
+data-action="edit-user"
+data-id="{{ u.id_usuario }}">
+<span class="material-symbols-outlined" aria-hidden="true">edit</span>
+</button>
+                       <form method="POST" action="/cadastro_alunos" style="display:inline">
+                         <input type="hidden" name="action" value="toggle">
+                         <input type="hidden" name="id_usuario" value="{{ u.id_usuario }}">
 
-      <label for="descricao">CPF</label>
-      <input type="text" id="cpf_user" name="cpf_user" placeholder="Insira o seu CPF" required inputmode="numeric" maxlength="14" pattern="\d{3}\.\d{3}\.\d{3}-\d{2}" title="Formato: 000.000.000-00">
-
-      <label for="codigo">Email</label>
-      <input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email">
-      
-      <label for="tipo_usuario">Tipo de Usuário</label>
-      <select id="tipo_usuario" name="tipo_usuario" required>
-        <option value="Docente">Docente</option>
-        <option value="Aluno" selected>Aluno</option>
-      </select>
-    </div>
-
-    <!-- Coluna 2 -->
-    <div>
-      <label for="portaria">Senha</label>
-      <input type="password" id="senha" name="senha" placeholder="Insira a sua senha" required minlength="8" autocomplete="new-password">
-      <div id="pwdStrength" style="font-size:12px;color:#64748b;margin:4px 0">Força da senha: fraca</div>
-
-      <label for="portaria">Confirmar senha</label>
-      <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme a sua senha" required autocomplete="new-password">
-
-      <label for="captcha">Captcha: {{ captcha_question }}</label>
-      <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required inputmode="numeric" pattern="\d+" title="Digite apenas números">
-    </div>
-
-    <!-- Botão centralizado -->
-<div class="btn-group">
-  <button type="submit" class="button">Salvar</button>
+<button type="submit" class="icon-btn {{ 'is-danger' if u.ativo else 'is-success' }}" aria-label="{{ 'Inativar' if u.ativo else 'Reativar' }} usuário {{ u.nome }}" title="{{ 'Inativar' if u.ativo else 'Reativar' }}">
+                           <span class="material-symbols-outlined" aria-hidden="true">{{ 'do_not_disturb_on' if u.ativo else 'check_circle' }}</span>
+                         </button>
+                       </form>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        {% endif %}
+<!-- Modal de criação/edição de usuário -->
+<div id="usuarioModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="usuarioModalTitle">
+<div class="modal-content">
+<button id="closeUsuarioModal" class="modal-close" aria-label="Fechar">✕</button>
+<h3 id="usuarioModalTitle" style="margin:0 0 12px 0">Adicionar usuário</h3>
+<form id="usuarioForm" class="form-container" method="POST" action="/cadastro_alunos" novalidate>
+<input type="hidden" name="action" id="user_action" value="create">
+<input type="hidden" name="id_usuario" id="user_id" value="">
+<div class="container-grid">
+<div>
+<h3>Informações do usuário</h3>
+<label for="nome_user">Nome</label>
+<input type="text" id="nome_user" name="nome_user" placeholder="Insira o seu nome completo" required maxlength="255">
+<label for="cpf_user">CPF</label>
+<input type="text" id="cpf_user" name="cpf_user" placeholder="Insira o seu CPF" required inputmode="numeric" maxlength="14" pattern="\d{3}\.\d{3}\.\d{3}-\d{2}" title="Formato: 000.000.000-00">
+<label for="email_user">Email</label>
+<input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email">
+<label for="tipo_usuario">Tipo de Usuário</label>
+<select id="tipo_usuario" name="tipo_usuario" required>
+<option value="Docente">Docente</option>
+<option value="Aluno" selected>Aluno</option>
+</select>
 </div>
-    </div>
-  </form>
+<div>
+<div id="senhaGroup">
+<label for="senha">Senha</label>
+<input type="password" id="senha" name="senha" placeholder="Insira a sua senha" required minlength="8" autocomplete="new-password">
+<div id="pwdStrength" style="font-size:12px;color:#64748b;margin:4px 0">Força da senha: fraca</div>
+</div>
+<div id="confirmarGroup">
+<label for="confirmar_senha">Confirmar senha</label>
+<input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme a sua senha" required autocomplete="new-password">
+</div>
+<div id="captchaGroup">
+<label for="captcha">Captcha: {{ captcha_question }}</label>
+<input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required inputmode="numeric" pattern="\d+" title="Digite apenas números">
+</div>
+</div>
+<div class="full-width">
+<button class="button" type="submit">Salvar</button>
+<button type="button" id="btnCloseUserForm" class="button" style="background:#6b7280">Fechar</button>
+</div>
+</div>
+</form>
+</div>
+</div>
 
     </main>
   </div>
 
   <script>window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";</script>
+  <script src="notifications.js?v=1"></script>
   <script src="{{ url_for('static', filename='javascript/home.js') }}"></script>
+  <script>window.initFlashToasts && window.initFlashToasts();</script>
   <script>
     // Validação em tempo real de CPF e email; indicador de força de senha
     (function(){
@@ -100,27 +177,150 @@
         return cpf.slice(9) === `${d1}${d2}`;
       }
       function emailValido(e){ return /.+@.+\..+/.test(e); }
-      function forçaSenha(s){
+      function scoreSenha(s){
         let score = 0;
-        if(s.length >= 8) score++;
+        if((s||'').length >= 8) score++;
         if(/[A-Z]/.test(s)) score++;
         if(/[a-z]/.test(s)) score++;
-        if(/\d/.test(s) && /[^\w]/.test(s)) { score += 2; }
+        if(/\d/.test(s)) score++;
+        if(/[^A-Za-z0-9]/.test(s)) score++;
         return score;
       }
-      senhaInput.addEventListener('input', ()=>{
-        const score = forçaSenha(senhaInput.value);
-        const map = ['fraca','média','boa','forte','muito forte'];
-        strengthEl.textContent = `Força da senha: ${map[Math.min(score,4)]}`;
+      if(senhaInput && strengthEl){
+        senhaInput.addEventListener('input', ()=>{
+          const score = scoreSenha(senhaInput.value);
+          const map = ['fraca','média','boa','forte','muito forte'];
+          strengthEl.textContent = `Força da senha: ${map[Math.min(score,4)]}`;
+        });
+      }
+      if(cpfInput){
+        cpfInput.addEventListener('input', ()=>{
+          cpfInput.setCustomValidity(validarCPF(cpfInput.value)? '' : 'CPF inválido');
+        });
+      }
+      if(emailInput){
+        emailInput.addEventListener('input', ()=>{
+          emailInput.setCustomValidity(emailValido(emailInput.value)? '' : 'E-mail inválido');
+        });
+      }
+      if(confirmarInput && senhaInput){
+        confirmarInput.addEventListener('input', ()=>{
+          confirmarInput.setCustomValidity(confirmarInput.value === senhaInput.value ? '' : 'As senhas não coincidem');
+        });
+      }
+    })();
+  </script>
+  <script>
+    (function(){
+      const searchInput = document.getElementById('searchUser');
+      const statusSelect = document.getElementById('statusFilter');
+      const clearBtn = document.getElementById('btnClearFilters');
+      const resultsEl = document.getElementById('resultsCounter');
+      const tbody = document.querySelector('#usersList tbody');
+      function applyUserFilters(){
+        if(!tbody){ if(resultsEl) resultsEl.textContent = ''; return; }
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const q = (searchInput?.value || '').trim().toLowerCase();
+        const status = (statusSelect?.value || 'all');
+        let visible = 0;
+        rows.forEach(row => {
+          const nome = (row.dataset.nome || '').toLowerCase();
+          const email = (row.dataset.email || '').toLowerCase();
+          const cpf = (row.dataset.cpf || '').toLowerCase();
+          const tipo = (row.dataset.tipo || '').toLowerCase();
+          const curso = (row.dataset.curso || '').toLowerCase();
+          const ativo = row.dataset.ativo === '1';
+          let matchText = true;
+          if(q){
+            matchText = nome.includes(q) || email.includes(q) || cpf.includes(q) || tipo.includes(q) || curso.includes(q);
+          }
+          let matchStatus = true;
+          if(status === 'active') matchStatus = ativo;
+          else if(status === 'inactive') matchStatus = !ativo;
+          const show = matchText && matchStatus;
+          row.style.display = show ? '' : 'none';
+          if(show) visible++;
+        });
+        if(resultsEl){
+          const total = rows.length;
+          resultsEl.textContent = `Exibindo ${visible} de ${total}`;
+        }
+      }
+      if(searchInput) searchInput.addEventListener('input', applyUserFilters);
+      if(statusSelect) statusSelect.addEventListener('change', applyUserFilters);
+      if(clearBtn) clearBtn.addEventListener('click', ()=>{
+        if(searchInput) searchInput.value = '';
+        if(statusSelect) statusSelect.value = 'all';
+        applyUserFilters();
       });
-      cpfInput.addEventListener('input', ()=>{
-        cpfInput.setCustomValidity(validarCPF(cpfInput.value)? '' : 'CPF inválido');
-      });
-      emailInput.addEventListener('input', ()=>{
-        emailInput.setCustomValidity(emailValido(emailInput.value)? '' : 'E-mail inválido');
-      });
-      confirmarInput.addEventListener('input', ()=>{
-        confirmarInput.setCustomValidity(confirmarInput.value === senhaInput.value ? '' : 'As senhas não coincidem');
+      applyUserFilters();
+    })();
+  </script>
+  <script>
+    // Modal e ação de editar/criar usuário
+    (function(){
+      const modal = document.getElementById('usuarioModal');
+      const form = document.getElementById('usuarioForm');
+      const title = document.getElementById('usuarioModalTitle');
+      const btnOpen = document.getElementById('btnToggleUserForm');
+      const btnClose = document.getElementById('closeUsuarioModal');
+      const btnCloseForm = document.getElementById('btnCloseUserForm');
+
+      const actionInput = document.getElementById('user_action');
+      const idInput = document.getElementById('user_id');
+      const nomeInput = document.getElementById('nome_user');
+      const cpfInput = document.getElementById('cpf_user');
+      const emailInput = document.getElementById('email_user');
+      const tipoSelect = document.getElementById('tipo_usuario');
+      const senhaInput = document.getElementById('senha');
+      const confirmarInput = document.getElementById('confirmar_senha');
+      const captchaInput = document.getElementById('captcha');
+      const senhaGroup = document.getElementById('senhaGroup');
+      const confirmarGroup = document.getElementById('confirmarGroup');
+      const captchaGroup = document.getElementById('captchaGroup');
+
+      function openModal(){ modal.setAttribute('aria-hidden','false'); modal.classList.add('open'); setTimeout(()=>{ nomeInput && nomeInput.focus(); }, 0); }
+      function closeModal(){ modal.setAttribute('aria-hidden','true'); modal.classList.remove('open'); }
+
+      function normalizeDigits(v){ return String(v||'').replace(/\D+/g,''); }
+      function formatCPF(d){ const s = normalizeDigits(d); if(s.length !== 11) return d || ''; return `${s.slice(0,3)}.${s.slice(3,6)}.${s.slice(6,9)}-${s.slice(9)}`; }
+
+      function prepareCreate(){
+        actionInput.value = 'create';
+        idInput.value = '';
+        nomeInput.value = '';
+        cpfInput.value = '';
+        emailInput.value = '';
+        tipoSelect.value = 'Aluno';
+        senhaInput.required = true; confirmarInput.required = true; captchaInput.required = true;
+        senhaGroup.style.display = ''; confirmarGroup.style.display = ''; captchaGroup.style.display = '';
+        title.textContent = 'Adicionar usuário';
+        openModal();
+      }
+      function prepareEdit(fromBtn){
+        const tr = fromBtn.closest('tr');
+        const tipo = (tr?.dataset.tipo || '').trim();
+        actionInput.value = 'update';
+        idInput.value = fromBtn.getAttribute('data-id') || '';
+        nomeInput.value = tr?.dataset.nome || '';
+        cpfInput.value = formatCPF(tr?.dataset.cpf || '');
+        emailInput.value = tr?.dataset.email || '';
+        tipoSelect.value = (tipo.toLowerCase() === 'professor' ? 'Docente' : 'Aluno');
+        // Oculta campos de senha/captcha na edição
+        senhaInput.required = false; confirmarInput.required = false; captchaInput.required = false;
+        senhaGroup.style.display = 'none'; confirmarGroup.style.display = 'none'; captchaGroup.style.display = 'none';
+        title.textContent = 'Editar usuário';
+        openModal();
+      }
+
+      if(btnOpen){ btnOpen.addEventListener('click', prepareCreate); }
+      if(btnClose){ btnClose.addEventListener('click', closeModal); }
+      if(btnCloseForm){ btnCloseForm.addEventListener('click', closeModal); }
+      if(modal){ modal.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); }); }
+      document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeModal(); });
+
+      document.querySelectorAll('[data-action="edit-user"]').forEach(btn => {
+        btn.addEventListener('click', function(){ prepareEdit(this); });
       });
     })();
   </script>

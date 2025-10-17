@@ -390,6 +390,14 @@ main{
   background: var(--bs-new-dark);
 }
 
+/* Modificadores para botões menores e com ícones */
+.action-buttons { display: flex; gap: 8px; align-items: center; }
+.button.is-sm { padding: 6px 12px; font-size: 13px; }
+.button.with-icon .material-symbols-outlined { font-size: 18px; margin-right: 6px; }
+.button.is-danger { background: #dc2626; }
+.button.is-danger:hover { background: #b91c1c; }
+.button.is-success { background: #22c55e; }
+.button.is-success:hover { background: #16a34a; }
 #btnClose {
     border: none;
     background-color: var(--bs-body-bg);
@@ -425,3 +433,65 @@ main{
   .btn-group { width: 100%; }
   .btn-group .button { width: 100%; }
 }
+
+/* Filtros na toolbar */
+#filterBar {
+  gap: 8px;
+}
+.input-with-icon {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 12px;
+  padding: 0 8px;
+  height: 36px;
+}
+.input-with-icon .material-symbols-outlined {
+  color: #64748b;
+  font-size: 20px;
+  margin-right: 4px;
+}
+.input-with-icon input {
+  border: none;
+  outline: none;
+  padding: 8px 6px;
+  font-size: 14px;
+  width: 220px;
+  background: transparent;
+}
+.input-with-icon input::placeholder {
+  color: #94a3b8;
+}
+#statusFilter {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 14px;
+  height: 36px;
+}
+@media (max-width: 640px) {
+  .input-with-icon input { width: 140px; }
+}
+.results-counter {
+  color: #64748b;
+  font-size: 13px;
+  padding: 0 6px;
+}
+}
+
+/* Icon-only buttons to match alunos screen */
+.icon-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:6px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color:#334155; cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
+.icon-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
+.icon-btn .material-symbols-outlined { font-size:20px; line-height:1; }
+.icon-btn.is-danger { color:#dc2626; border-color:#fecaca; background:#fff5f5; }
+.icon-btn.is-danger:hover { background:#fee2e2; }
+.icon-btn.is-danger .material-symbols-outlined { color:#dc2626; }
+.icon-btn.is-success .material-symbols-outlined { color:#166534; }
+/* Azul padrão dos botões da página (igual alunos) */
+.icon-btn.is-blue { color: var(--bs-new-casual); border-color: var(--bs-new-light); background:#eff6ff; }
+.icon-btn.is-blue:hover { background:#dbeafe; }
+.icon-btn.is-blue .material-symbols-outlined { color: var(--bs-new-casual); }
+.icon-btn.is-success { color:#166534; border-color:#bbf7d0; background:#f0fdf4; }
+.icon-btn.is-success:hover { background:#dcfce7; }

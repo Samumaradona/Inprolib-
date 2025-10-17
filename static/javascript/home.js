@@ -48,121 +48,19 @@ if (USER_ROLE === 'Administrador' || USER_ROLE === 'Docente') {
 const ORDER = ['/home','/cadastro_curso','/cadastro_alunos','/publicacao','/avaliacao','/relatorio','/suporte','/vinculacao_curso','/configuracao'];
 ROUTES = ROUTES.sort((a,b) => ORDER.indexOf(a.path) - ORDER.indexOf(b.path));
 
-/* Elementos DOM principais (pega pelo ID).
-   Observação: guard checks são aplicados antes de usar os elementos. */
-const btnHamburger = document.getElementById('btnHamburger');
-const sideMenu = document.getElementById('sideMenu');
-const backdrop = document.getElementById('backdrop');
-const btnClose = document.getElementById('btnClose');
-const routesList = document.getElementById('routesList');
-const logoutBtn = document.getElementById('logoutBtn');
-const btnBack = document.getElementById('btnBack');
-
-/* variável usada para restaurar foco quando o menu for fechado */
-let lastFocused = null;
-
-/* =====================
-   Controle do slide-over
-   ===================== */
-
-/**
- * openMenu()
- * - Abre o menu lateral (slide-over)
- * - Salva o elemento que estava focado para restaurar depois
- * - Bloqueia o scroll do body (document.body.style.overflow = 'hidden')
- * - Define atributos ARIA para acessibilidade
- * - Foca o primeiro item (se existir) para navegação por teclado
- * - Instala listener global de teclado (Escape e trap de Tab)
- */
-function openMenu(){
-  lastFocused = document.activeElement;
-  if (sideMenu) sideMenu.classList.add('open');
-  if (backdrop) backdrop.classList.add('visible');
-
-  if (sideMenu) sideMenu.setAttribute('aria-hidden','false');
-  if (btnHamburger) btnHamburger.setAttribute('aria-expanded','true');
-  if (backdrop) backdrop.setAttribute('aria-hidden','false');
-
-  document.body.style.overflow = 'hidden'; // impede scroll por baixo do overlay
-
-  // foco inicial no primeiro item para melhor acessibilidade
-  const first = document.getElementById('firstRoute');
-  if(first) first.focus();
-
-  // listener para teclado (Esc e trap de foco)
-  document.addEventListener('keydown', onKeyDown);
-}
-
-/**
- * closeMenu()
- * - Fecha o menu lateral
- * - Restaura o foco para o elemento anteriormente ativo
- * - Remove listeners e desbloqueia scroll
- */
-function closeMenu(){
-  if (sideMenu) sideMenu.classList.remove('open');
-  if (backdrop) backdrop.classList.remove('visible');
-
-  if (sideMenu) sideMenu.setAttribute('aria-hidden','true');
-  if (btnHamburger) btnHamburger.setAttribute('aria-expanded','false');
-  if (backdrop) backdrop.setAttribute('aria-hidden','true');
-
-  document.body.style.overflow = '';
-  document.removeEventListener('keydown', onKeyDown);
-
-  if(lastFocused) lastFocused.focus();
-}
-
-/**
- * toggleMenu()
- * - Alterna entre open/close
- * - Usa short-circuit guards para evitar erros se sideMenu não existir
- */
-function toggleMenu(){
-  sideMenu && sideMenu.classList.contains('open') ? closeMenu() : openMenu();
-}
-
-/**
- * onKeyDown(e)
- * - Handler de teclado global enquanto o menu está aberto
- * - Fecha com Escape
- * - Implementa um "trap" simples de foco (Shift+Tab / Tab) entre primeiro/último item
- */
-function onKeyDown(e){
-  if(e.key === 'Escape') closeMenu();
-
-  // busca elementos focusable dentro do sideMenu
-  const focusable = sideMenu ? sideMenu.querySelectorAll('button, a') : [];
-  if(!focusable.length) return;
-
-  const first = focusable[0];
-  const last = focusable[focusable.length -1];
-
-  if(e.key === 'Tab'){
-    if(e.shiftKey && document.activeElement === first){
-      e.preventDefault();
-      last.focus(); // se Shift+Tab no primeiro => vai pro último
-    } else if(!e.shiftKey && document.activeElement === last){
-      e.preventDefault();
-      first.focus(); // se Tab no último => volta pro primeiro
-    }
-  }
-}
-
-/* =====================
-   Persistência + rota atual
-   ===================== */
+// Define rota padrão por perfil (Admin começa em Cadastro de Cursos)
+const DEFAULT_ROUTE = (USER_ROLE === 'Administrador') ? '/cadastro_curso' : '/home';
 
 /* chave usada no localStorage para guardar qual rota está ativa */
 const ROUTE_STORAGE_KEY = 'meuapp_current_route';
 
-/* lê a rota atual do localStorage com fallback para a primeira rota */
+/* lê a rota atual do localStorage com fallback para DEFAULT_ROUTE */
 let currentRoute = (function(){
   try {
-    return localStorage.getItem(ROUTE_STORAGE_KEY) || (ROUTES[0] && ROUTES[0].path) || '/';
+    return localStorage.getItem(ROUTE_STORAGE_KEY) || DEFAULT_ROUTE || (ROUTES[0] && ROUTES[0].path) || '/';
   } catch(e) {
     // se localStorage inacessível (ex: modo privado restrito), usa fallback
-    return (ROUTES[0] && ROUTES[0].path) || '/';
+    return DEFAULT_ROUTE || (ROUTES[0] && ROUTES[0].path) || '/';
   }
 })();
 
@@ -272,6 +170,78 @@ function navigateTo(path){
     console.log('Navegar para', path);
   }
   closeMenu();
+}
+
+/* =====================
+   Menu controls
+   ===================== */
+
+const btnHamburger = document.getElementById('btnHamburger');
+const sideMenu = document.getElementById('sideMenu');
+const backdrop = document.getElementById('backdrop');
+const btnClose = document.getElementById('btnClose');
+const routesList = document.getElementById('routesList');
+const logoutBtn = document.getElementById('logoutBtn');
+const btnBack = document.getElementById('btnBack');
+let lastFocused = null;
+
+function openMenu(){
+  lastFocused = document.activeElement;
+  if (sideMenu) sideMenu.classList.add('open');
+  if (backdrop) backdrop.classList.add('visible');
+
+  if (sideMenu) sideMenu.setAttribute('aria-hidden','false');
+  if (btnHamburger) btnHamburger.setAttribute('aria-expanded','true');
+  if (backdrop) backdrop.setAttribute('aria-hidden','false');
+
+  if (document && document.body) document.body.style.overflow = 'hidden';
+
+  const first = document.getElementById('firstRoute');
+  if(first) first.focus();
+
+  document.addEventListener('keydown', onKeyDown);
+}
+
+function closeMenu(){
+  if (sideMenu) sideMenu.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('visible');
+
+  if (sideMenu) sideMenu.setAttribute('aria-hidden','true');
+  if (btnHamburger) btnHamburger.setAttribute('aria-expanded','false');
+  if (backdrop) backdrop.setAttribute('aria-hidden','true');
+
+  if (document && document.body) document.body.style.overflow = '';
+  document.removeEventListener('keydown', onKeyDown);
+
+  if(lastFocused) { try { lastFocused.focus(); } catch(e){} }
+}
+
+function toggleMenu(){
+  if (sideMenu && sideMenu.classList.contains('open')) {
+    closeMenu();
+  } else {
+    openMenu();
+  }
+}
+
+function onKeyDown(e){
+  if(e.key === 'Escape') closeMenu();
+
+  const focusable = sideMenu ? sideMenu.querySelectorAll('button, a') : [];
+  if(!focusable.length) return;
+
+  const first = focusable[0];
+  const last = focusable[focusable.length -1];
+
+  if(e.key === 'Tab'){
+    if(e.shiftKey && document.activeElement === first){
+      e.preventDefault();
+      last.focus();
+    } else if(!e.shiftKey && document.activeElement === last){
+      e.preventDefault();
+      first.focus();
+    }
+  }
 }
 
 /* =====================
@@ -787,14 +757,14 @@ renderRoutes();
         ev.preventDefault();
         titulo.focus();
         titulo.reportValidity && titulo.reportValidity();
-        alert('Informe o título da publicação.');
+        if (window.showToast) { window.showToast('Informe o título da publicação.', 'error'); } else { alert('Informe o título da publicação.'); }
         return;
       }
       if(tipo && !tipo.value.trim()){
         ev.preventDefault();
         tipo.focus();
         tipo.reportValidity && tipo.reportValidity();
-        alert('Informe o tipo da publicação.');
+        if (window.showToast) { window.showToast('Informe o tipo da publicação.', 'error'); } else { alert('Informe o tipo da publicação.'); }
         return;
       }
       // arquivo obrigatório
@@ -802,13 +772,13 @@ renderRoutes();
         const f = conteudo.files && conteudo.files[0];
         if(!f){
           ev.preventDefault();
-          alert('Anexe o arquivo de conteúdo para publicar.');
+          if (window.showToast) { window.showToast('Anexe o arquivo de conteúdo para publicar.', 'error'); } else { alert('Anexe o arquivo de conteúdo para publicar.'); }
           return;
         }
         const ext = getExt(f.name);
         if(!ALLOW_EXT.has(ext)){
           ev.preventDefault();
-          alert('Tipo de arquivo não permitido.');
+          if (window.showToast) { window.showToast('Tipo de arquivo não permitido.', 'error'); } else { alert('Tipo de arquivo não permitido.'); }
           return;
         }
       }
@@ -819,7 +789,7 @@ renderRoutes();
           const ext2 = getExt(ft.name);
           if(!ALLOW_EXT.has(ext2)){
             ev.preventDefault();
-            alert('Tipo de arquivo do termo não permitido.');
+            if (window.showToast) { window.showToast('Tipo de arquivo do termo não permitido.', 'error'); } else { alert('Tipo de arquivo do termo não permitido.'); }
             return;
           }
         }
