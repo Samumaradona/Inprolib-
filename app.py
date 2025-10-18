@@ -152,7 +152,11 @@ def serve_img(filename):
 # Função para conectar ao banco de dados
 def get_db_connection():
     try:
-        conn = psycopg.connect(**DB_CONFIG)
+        db_url = os.getenv('DATABASE_URL')
+        if db_url:
+            conn = psycopg.connect(db_url)
+        else:
+            conn = psycopg.connect(**DB_CONFIG)
         return conn
     except Exception as e:
         print(f"Erro ao conectar ao banco de dados: {e}")
@@ -448,7 +452,11 @@ def login():
             audit_log('login_error', {'error': str(e)})
             return redirect(url_for('login'))
 
-    return render_template('login.html')
+    # GET — gerar captcha para o formulário de cadastro no modal
+    a, b = random.randint(1, 9), random.randint(1, 9)
+    session['captcha_answer'] = str(a + b)
+    captcha_question = f"Quanto é {a} + {b}?"
+    return render_template('login.html', captcha_question=captcha_question)
 
 # Upload de avatar do usuário logado
 @app.route('/upload_avatar', methods=['POST'])

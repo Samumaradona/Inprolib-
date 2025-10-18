@@ -266,11 +266,7 @@ if (logoutBtn) logoutBtn.addEventListener('click', (ev) => {
 });
 if (btnBack) btnBack.addEventListener('click', () => {
   try {
-    if (window.history && window.history.length > 1) {
-      window.history.back();
-    } else {
-      window.location.href = '/home';
-    }
+    navigateTo('/home');
   } catch(e){
     window.location.href = '/home';
   }
