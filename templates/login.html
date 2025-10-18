@@ -53,6 +53,9 @@
               <button type="submit" class="button">Entrar</button>
             </div>
             <div class="links">
+              <a href="#" id="openAlunoModal" class="link">Cadastro</a>
+            </div>
+            <div class="links">
               <a href="/esqueci_senha" class="link">Esqueci minha senha</a>
             </div>
           </form>
@@ -65,6 +68,15 @@
       </section>
     </div>
   </main>
+
+  <!-- Modal: Cadastro de Aluno -->
+  <div id="alunoModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="alunoModalTitle">
+    <div class="modal-content modal-large">
+      <button id="closeAlunoModal" class="modal-close" aria-label="Fechar">✕</button>
+      <h3 id="alunoModalTitle" style="margin:0 0 12px 0">Cadastro de usuário</h3>
+      <iframe id="alunoFrame" title="Cadastro de usuário" loading="lazy" style="width:100%; height:80vh; border:0; border-radius:8px; background:#fff"></iframe>
+    </div>
+  </div>
 
   <script src="notifications.js?v=1"></script>
   <script src="login.js"></script>

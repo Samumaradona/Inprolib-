@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Cadastro de usuário no INPROLIB com validações e segurança." />
   <title>INPROLIB - Cadastro de usuário</title>
-  <link rel="stylesheet" href="/cadastro_alunos.css">
-  <link rel="stylesheet" href="/notifications.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/cadastro_alunos.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
 <body>
@@ -33,11 +33,9 @@
         {% endif %}
       {% endwith %}
         <!-- Toolbar: filtros à esquerda -->
+        {% if session.get('role') or session.get('user_tipo') %}
         <div class="toolbar" style="margin:0 16px 12px 16px; display:flex; gap:12px; justify-content:space-between; align-items:center">
           <div class="filters" id="filterBar" style="display:flex; gap:8px; align-items:center">
-<button type="button" id="btnToggleUserForm" class="button is-sm" title="Adicionar aluno" aria-label="Adicionar aluno">
-  Adicionar aluno
-</button>
             <div class="input-with-icon">
               <span class="material-symbols-outlined" aria-hidden="true">search</span>
               <input type="text" id="searchUser" placeholder="Buscar usuários..." aria-label="Buscar usuários">
@@ -53,6 +51,7 @@
             </button>
             <span id="resultsCounter" class="results-counter" aria-live="polite"></span>
           </div>
+
         </div>
 
         {% if usuarios and usuarios|length > 0 %}
@@ -80,7 +79,7 @@
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.curso_usuario or '-' }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">
                     <div class="action-buttons">
-<button type="button"
+                      <button type="button"
 class="icon-btn is-blue"
 aria-label="Editar usuário {{ u.nome }}"
 title="Editar"
@@ -105,6 +104,62 @@ data-id="{{ u.id_usuario }}">
           </div>
         </section>
         {% endif %}
+{% else %}
+        <h3 style="margin:0 16px 12px 16px">Adicionar aluno</h3>
+        <form id="usuarioForm" class="form-container" method="POST" action="/cadastro_alunos" novalidate>
+          <input type="hidden" name="action" id="user_action" value="create">
+          <input type="hidden" name="id_usuario" id="user_id" value="">
+          <div class="container-grid">
+            <div>
+              <h3>Informações do usuário</h3>
+              <label for="nome_user">Nome</label>
+              <input type="text" id="nome_user" name="nome_user" placeholder="Insira o seu nome completo" required maxlength="255">
+              <label for="cpf_user">CPF</label>
+              <input type="text" id="cpf_user" name="cpf_user" placeholder="Insira o seu CPF" required inputmode="numeric" maxlength="14" pattern="\d{3}\.\d{3}\.\d{3}-\d{2}" title="Formato: 000.000.000-00">
+              <label for="email_user">Email</label>
+              <input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email">
+              <label for="tipo_usuario">Tipo de Usuário</label>
+              <select id="tipo_usuario" name="tipo_usuario" required>
+                <option value="Docente">Docente</option>
+                <option value="Aluno" selected>Aluno</option>
+              </select>
+            </div>
+            <div>
+               <label for="cep_user">CEP</label>
+               <input type="text" id="cep_user" name="cep_user" placeholder="00000-000" inputmode="numeric" maxlength="9" autocomplete="postal-code">
+               <div id="cepFeedback" style="font-size:12px;color:#64748b;margin:4px 0" aria-live="polite"></div>
+               <label for="logradouro">Rua (Logradouro)</label>
+               <input type="text" id="logradouro" name="logradouro" placeholder="Ex.: Avenida Brasil, 1000" autocomplete="address-line1">
+               <label for="complemento">Complemento</label>
+               <input type="text" id="complemento" name="complemento" placeholder="Ex.: Apto 202" autocomplete="address-line2">
+               <label for="bairro">Bairro</label>
+               <input type="text" id="bairro" name="bairro" placeholder="Ex.: Centro" autocomplete="address-level3">
+               <label for="cidade">Cidade</label>
+               <input type="text" id="cidade" name="cidade" placeholder="Ex.: São Paulo" autocomplete="address-level2">
+               <label for="estado">Estado</label>
+               <input type="text" id="estado" name="estado" placeholder="UF" maxlength="2" style="text-transform:uppercase" autocomplete="address-level1">
+               <div id="senhaGroup">
+                 <label for="senha">Senha</label>
+                 <input type="password" id="senha" name="senha" placeholder="Insira a sua senha" required minlength="8" autocomplete="new-password">
+                 <div id="pwdStrength" style="font-size:12px;color:#64748b;margin:4px 0">Força da senha: fraca</div>
+               </div>
+               <div id="confirmarGroup">
+                 <label for="confirmar_senha">Confirmar senha</label>
+                 <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme a sua senha" required autocomplete="new-password">
+               </div>
+               <div id="captchaGroup">
+                 <label for="captcha">Captcha: {{ captcha_question }}</label>
+                 <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required inputmode="numeric" pattern="\d+" title="Digite apenas números">
+               </div>
+             </div>
+             <div class="full-width">
+               <button class="button" type="submit">Salvar</button>
+             </div>
+           </div>
+         </form>
+{% endif %}
+
+{% if session.get('role') or session.get('user_tipo') %}
 <!-- Modal de criação/edição de usuário -->
 <div id="usuarioModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="usuarioModalTitle">
 <div class="modal-content">
@@ -129,6 +184,19 @@ data-id="{{ u.id_usuario }}">
 </select>
 </div>
 <div>
+<label for="cep_user">CEP</label>
+<input type="text" id="cep_user" name="cep_user" placeholder="00000-000" inputmode="numeric" maxlength="9" autocomplete="postal-code">
+<div id="cepFeedback" style="font-size:12px;color:#64748b;margin:4px 0" aria-live="polite"></div>
+<label for="logradouro">Rua (Logradouro)</label>
+<input type="text" id="logradouro" name="logradouro" placeholder="Ex.: Avenida Brasil, 1000" autocomplete="address-line1">
+<label for="complemento">Complemento</label>
+<input type="text" id="complemento" name="complemento" placeholder="Ex.: Apto 202" autocomplete="address-line2">
+<label for="bairro">Bairro</label>
+<input type="text" id="bairro" name="bairro" placeholder="Ex.: Centro" autocomplete="address-level3">
+<label for="cidade">Cidade</label>
+<input type="text" id="cidade" name="cidade" placeholder="Ex.: São Paulo" autocomplete="address-level2">
+<label for="estado">Estado</label>
+<input type="text" id="estado" name="estado" placeholder="UF" maxlength="2" style="text-transform:uppercase" autocomplete="address-level1">
 <div id="senhaGroup">
 <label for="senha">Senha</label>
 <input type="password" id="senha" name="senha" placeholder="Insira a sua senha" required minlength="8" autocomplete="new-password">
@@ -155,8 +223,10 @@ data-id="{{ u.id_usuario }}">
     </main>
   </div>
 
+  {% endif %}
+
   <script>window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";</script>
-  <script src="notifications.js?v=1"></script>
+  <script src="{{ url_for('static', filename='javascript/notifications.js') }}"></script>
   <script src="{{ url_for('static', filename='javascript/home.js') }}"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
   <script>
@@ -175,6 +245,56 @@ data-id="{{ u.id_usuario }}">
         soma=0; for(let i=0;i<10;i++) soma+=parseInt(cpf[i])*(11-i);
         resto = 11 - (soma % 11); let d2 = resto >= 10 ? 0 : resto;
         return cpf.slice(9) === `${d1}${d2}`;
+      }
+      // CEP e preenchimento automático (ViaCEP)
+      const cepInput = document.getElementById('cep_user');
+      const logradouroInput = document.getElementById('logradouro');
+      const complementoInput = document.getElementById('complemento');
+      const bairroInput = document.getElementById('bairro');
+      const cidadeInput = document.getElementById('cidade');
+      const estadoInput = document.getElementById('estado');
+      const cepFeedback = document.getElementById('cepFeedback');
+
+      function onlyDigits(s){ return (s||'').replace(/[^0-9]/g,''); }
+      function formatCEP(v){ const d = onlyDigits(v).slice(0,8); return d.length>5 ? d.slice(0,5)+'-'+d.slice(5) : d; }
+
+      async function buscarCEP(cepDigits){
+        if(!cepDigits || cepDigits.length !== 8) return;
+        try{
+          if(cepFeedback){ cepFeedback.textContent = 'Consultando CEP...'; cepFeedback.style.color = '#64748b'; }
+          let data = null;
+          try {
+            const resp = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`);
+            if (resp.ok) data = await resp.json();
+          } catch(e) { /* ignore */ }
+          if (!data || data.erro) {
+            try {
+              const resp2 = await fetch(`https://brasilapi.com.br/api/cep/v1/${cepDigits}`);
+              if (resp2.ok) {
+                const d2 = await resp2.json();
+                data = {
+                  logradouro: d2.street || '',
+                  complemento: '',
+                  bairro: d2.neighborhood || '',
+                  localidade: d2.city || '',
+                  uf: d2.state || ''
+                };
+              }
+            } catch(e) { /* ignore */ }
+          }
+          if(data && !data.erro){
+            if(logradouroInput) logradouroInput.value = data.logradouro || '';
+            if(complementoInput) complementoInput.value = data.complemento || '';
+            if(bairroInput) bairroInput.value = data.bairro || '';
+            if(cidadeInput) cidadeInput.value = data.localidade || '';
+            if(estadoInput) estadoInput.value = (data.uf || '').toUpperCase();
+            if(cepFeedback){ cepFeedback.textContent = 'Endereço preenchido pelo CEP.'; cepFeedback.style.color = '#16a34a'; }
+          } else {
+            if(cepFeedback){ cepFeedback.textContent = 'CEP não encontrado.'; cepFeedback.style.color = '#dc2626'; }
+          }
+        }catch(e){
+          if(cepFeedback){ cepFeedback.textContent = 'Falha ao consultar CEP.'; cepFeedback.style.color = '#dc2626'; }
+        }
       }
       function emailValido(e){ return /.+@.+\..+/.test(e); }
       function scoreSenha(s){
@@ -196,6 +316,18 @@ data-id="{{ u.id_usuario }}">
       if(cpfInput){
         cpfInput.addEventListener('input', ()=>{
           cpfInput.setCustomValidity(validarCPF(cpfInput.value)? '' : 'CPF inválido');
+        });
+      }
+      if(cepInput){
+        cepInput.addEventListener('input', (e)=>{
+          const v = formatCEP(e.target.value);
+          e.target.value = v;
+          const d = (v||'').replace(/\D/g,'');
+          if(d.length === 8){ buscarCEP(d); }
+        });
+        cepInput.addEventListener('blur', (e)=>{
+          const d = (e.target.value||'').replace(/\D/g,'');
+          if(d.length === 8){ buscarCEP(d); }
         });
       }
       if(emailInput){
@@ -292,6 +424,16 @@ data-id="{{ u.id_usuario }}">
         cpfInput.value = '';
         emailInput.value = '';
         tipoSelect.value = 'Aluno';
+        // limpa endereço
+        const cep = document.getElementById('cep_user');
+        const logradouro = document.getElementById('logradouro');
+        const complemento = document.getElementById('complemento');
+        const bairro = document.getElementById('bairro');
+        const cidade = document.getElementById('cidade');
+        const estado = document.getElementById('estado');
+        const fb = document.getElementById('cepFeedback');
+        if(cep) cep.value=''; if(logradouro) logradouro.value=''; if(complemento) complemento.value=''; if(bairro) bairro.value=''; if(cidade) cidade.value=''; if(estado) estado.value='';
+        if(fb){ fb.textContent=''; fb.style.color='#64748b'; }
         senhaInput.required = true; confirmarInput.required = true; captchaInput.required = true;
         senhaGroup.style.display = ''; confirmarGroup.style.display = ''; captchaGroup.style.display = '';
         title.textContent = 'Adicionar usuário';

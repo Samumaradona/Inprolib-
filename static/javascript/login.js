@@ -83,4 +83,33 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.removeItem('cpf');
     }
   });
+
+  // Modal Cadastro de Aluno no Login
+  const openAluno = document.getElementById('openAlunoModal');
+  const alunoModal = document.getElementById('alunoModal');
+  const closeAluno = document.getElementById('closeAlunoModal');
+  const alunoFrame = document.getElementById('alunoFrame');
+
+  function openAlunoModal(e){
+    if (e) e.preventDefault();
+    if (alunoModal){
+      alunoModal.setAttribute('aria-hidden','false');
+      alunoModal.classList.add('open');
+      document.body.style.overflow = 'hidden';
+      if (alunoFrame) alunoFrame.src = '/cadastro_alunos';
+    }
+  }
+  function closeAlunoModal(){
+    if (alunoModal){
+      alunoModal.setAttribute('aria-hidden','true');
+      alunoModal.classList.remove('open');
+      document.body.style.overflow = '';
+      if (alunoFrame) alunoFrame.src = '';
+    }
+  }
+
+  openAluno && openAluno.addEventListener('click', openAlunoModal);
+  closeAluno && closeAluno.addEventListener('click', closeAlunoModal);
+  alunoModal && alunoModal.addEventListener('click', (ev)=>{ if(ev.target === alunoModal) closeAlunoModal(); });
+  document.addEventListener('keydown', (ev)=>{ if(ev.key === 'Escape' && alunoModal && alunoModal.classList.contains('open')) closeAlunoModal(); });
 });
