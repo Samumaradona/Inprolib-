@@ -152,7 +152,11 @@ def serve_img(filename):
 # Função para conectar ao banco de dados
 def get_db_connection():
     try:
-        conn = psycopg.connect(**DB_CONFIG)
+        db_url = os.getenv('DATABASE_URL')
+        if db_url:
+            conn = psycopg.connect(db_url)
+        else:
+            conn = psycopg.connect(**DB_CONFIG)
         return conn
     except Exception as e:
         print(f"Erro ao conectar ao banco de dados: {e}")
@@ -185,18 +189,64 @@ def ensure_usuario_ativo_column():
         return
     try:
         cur = conn.cursor()
-        cur.execute("SELECT 1 FROM information_schema.columns WHERE table_name='usuario' AND column_name='ativo'")
+        cur.execute("SELECT current_schema()")
+        schema = (cur.fetchone() or ['public'])[0] or 'public'
+        cur.execute("SELECT 1 FROM information_schema.columns WHERE table_schema=%s AND table_name='usuario' AND column_name='ativo'", (schema,))
         if not cur.fetchone():
-            cur.execute("ALTER TABLE usuario ADD COLUMN ativo BOOLEAN NOT NULL DEFAULT TRUE")
+            cur.execute(f'ALTER TABLE "{schema}".usuario ADD COLUMN ativo BOOLEAN NOT NULL DEFAULT TRUE')
             conn.commit()
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
     except Exception as e:
         try:
             conn.close()
         except Exception:
             pass
         print(f"Falha ao garantir coluna usuario.ativo: {e}")
+
+# Helper para garantir colunas de endereço em usuario (cep, logradouro, complemento, bairro, cidade, estado)
+def ensure_usuario_endereco_columns():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT current_schema()")
+        schema = (cur.fetchone() or ['public'])[0] or 'public'
+        cols = [
+            ('cep', 'VARCHAR(9)'),
+            ('logradouro', 'VARCHAR(255)'),
+            ('complemento', 'VARCHAR(255)'),
+            ('bairro', 'VARCHAR(255)'),
+            ('cidade', 'VARCHAR(255)'),
+            ('estado', 'VARCHAR(2)')
+        ]
+        for col, coldef in cols:
+            cur.execute("SELECT 1 FROM information_schema.columns WHERE table_schema=%s AND table_name='usuario' AND column_name=%s", (schema, col))
+            if not cur.fetchone():
+                cur.execute(f'ALTER TABLE "{schema}".usuario ADD COLUMN {col} {coldef}')
+                conn.commit()
+        cur.close(); conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao garantir colunas de endereço em usuario: {e}")
+
+# Inicialização do schema na primeira requisição
+SCHEMA_INIT_DONE = False
+@app.before_request
+def init_schema_once():
+    global SCHEMA_INIT_DONE
+    if SCHEMA_INIT_DONE:
+        return
+    try:
+        ensure_usuario_ativo_column()
+        ensure_usuario_endereco_columns()
+        SCHEMA_INIT_DONE = True
+        print("Schema inicial garantido: usuario.ativo e colunas de endereço.")
+    except Exception as e:
+        print(f"Falha ao garantir schema inicial: {e}")
 
 # Decorator para verificar se o usuário está logado
 def login_required(f):
@@ -402,7 +452,11 @@ def login():
             audit_log('login_error', {'error': str(e)})
             return redirect(url_for('login'))
 
-    return render_template('login.html')
+    # GET — gerar captcha para o formulário de cadastro no modal
+    a, b = random.randint(1, 9), random.randint(1, 9)
+    session['captcha_answer'] = str(a + b)
+    captcha_question = f"Quanto é {a} + {b}?"
+    return render_template('login.html', captcha_question=captcha_question)
 
 # Upload de avatar do usuário logado
 @app.route('/upload_avatar', methods=['POST'])
@@ -641,6 +695,13 @@ def cadastro_alunos():
             email = (request.form.get('email') or request.form.get('email_user') or '').strip()
             cpf = (request.form.get('cpf') or request.form.get('cpf_user') or '').strip()
             tipo_form = (request.form.get('tipo_usuario') or '').strip()
+            # Endereço (opcionais)
+            cep = (request.form.get('cep') or request.form.get('cep_user') or '').strip()
+            logradouro = (request.form.get('logradouro') or '').strip()
+            complemento = (request.form.get('complemento') or '').strip()
+            bairro = (request.form.get('bairro') or '').strip()
+            cidade = (request.form.get('cidade') or '').strip()
+            estado = (request.form.get('estado') or '').strip()
             if not id_usuario:
                 flash('Usuário inválido para edição.', 'error')
                 return redirect(url_for('cadastro_alunos'))
@@ -653,6 +714,7 @@ def cadastro_alunos():
             if not validar_cpf(cpf):
                 flash('CPF inválido.', 'error')
                 return redirect(url_for('cadastro_alunos'))
+            ensure_usuario_endereco_columns()
             conn = get_db_connection()
             if conn:
                 try:
@@ -667,8 +729,8 @@ def cadastro_alunos():
                     if (tipo_form or '').lower() == 'docente':
                         tipo_db = 'Professor'
                     cur.execute(
-                        "UPDATE usuario SET nome = %s, email = %s, cpf = %s, tipo = %s WHERE id_usuario = %s",
-                        (nome, email, cpf, tipo_db, id_usuario)
+                        "UPDATE usuario SET nome = %s, email = %s, cpf = %s, tipo = %s, cep = %s, logradouro = %s, complemento = %s, bairro = %s, cidade = %s, estado = %s WHERE id_usuario = %s",
+                        (nome, email, cpf, tipo_db, cep or None, logradouro or None, complemento or None, bairro or None, cidade or None, estado or None, id_usuario)
                     )
                     conn.commit()
                     cur.close(); conn.close()
@@ -691,6 +753,13 @@ def cadastro_alunos():
         curso = request.form.get('curso')
         tipo_form = (request.form.get('tipo_usuario') or '').strip()
         captcha = (request.form.get('captcha') or '').strip()
+        # Endereço (opcionais)
+        cep = (request.form.get('cep') or request.form.get('cep_user') or '').strip()
+        logradouro = (request.form.get('logradouro') or '').strip()
+        complemento = (request.form.get('complemento') or '').strip()
+        bairro = (request.form.get('bairro') or '').strip()
+        cidade = (request.form.get('cidade') or '').strip()
+        estado = (request.form.get('estado') or '').strip()
 
         # Validações básicas (criação)
         if not nome or not email or not cpf or not senha:
@@ -710,6 +779,7 @@ def cadastro_alunos():
             flash('Captcha incorreto.', 'error')
             return redirect(url_for('cadastro_alunos'))
 
+        ensure_usuario_endereco_columns()
         conn = get_db_connection()
         if conn:
             try:
@@ -729,8 +799,8 @@ def cadastro_alunos():
                 # Inserir novo usuário
                 senha_hash = generate_password_hash(senha)
                 cur.execute(
-                    "INSERT INTO usuario (nome, email, cpf, senha, tipo, curso_usuario) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (nome, email, cpf, senha_hash, tipo_db, curso)
+                    "INSERT INTO usuario (nome, email, cpf, senha, tipo, curso_usuario, cep, logradouro, complemento, bairro, cidade, estado) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (nome, email, cpf, senha_hash, tipo_db, curso, cep or None, logradouro or None, complemento or None, bairro or None, cidade or None, estado or None)
                 )
                 conn.commit()
                 flash('Usuário cadastrado com sucesso!', 'success')

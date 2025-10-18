@@ -96,22 +96,26 @@
       <h3 id="searchTitle">Busque por documentos</h3>
 
       <div class="search-row">
-        <div class="search-input">
-          <input id="searchInput" type="search" placeholder="Pesquisar..." aria-label="Pesquisar documentos">
-          <button id="searchBtn" class="icon-btn" aria-label="Buscar">
-            <span class="material-symbols-outlined" aria-hidden="true">search</span>
-          </button>
+        <div class="input-with-icon">
+          <span class="material-symbols-outlined" aria-hidden="true">search</span>
+          <input id="searchInput" type="text" placeholder="Buscar documentos..." aria-label="Buscar documentos">
         </div>
+        <span id="resultsCounterHome" class="results-counter" aria-live="polite"></span>
       </div>
 
-      <div class="filters-row" aria-label="Filtros de busca">
-        <span class="filters-label">Buscar por:</span>
-        <div class="filters">
-          <label><input type="checkbox" name="filter" value="autor" checked> Autor</label>
-          <label><input type="checkbox" name="filter" value="assunto" checked> Assunto</label>
-          <label><input type="checkbox" name="filter" value="curso" checked> Curso</label>
-          <label><input type="checkbox" name="filter" value="titulo" checked> Título</label>
-        </div>
+      <div class="filters-row" aria-label="Filtros da busca">
+        <label for="homeFilterField" class="filters-label">Filtrar por:</label>
+        <select id="homeFilterField" aria-label="Campo para filtrar">
+          <option value="all">Todos os campos</option>
+          <option value="titulo">Título</option>
+          <option value="autor">Autor</option>
+          <option value="tipo">Tipo</option>
+          <option value="curso">Curso</option>
+        </select>
+        <button type="button" id="btnClearHomeFilters" class="button is-sm with-icon" title="Limpar filtros">
+          <span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
+          Limpar filtros
+        </button>
       </div>
     </section>
 
@@ -134,6 +138,16 @@
       </div>
     </section>
 
+    <!-- Modal de detalhes do card -->
+    <div id="homeCardModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="homeCardModalTitle">
+      <div class="modal-content">
+        <button id="homeCardModalClose" class="modal-close" aria-label="Fechar">✕</button>
+        <h3 id="homeCardModalTitle" style="margin:0 0 8px 0">Detalhes da publicação</h3>
+        <div id="homeCardModalMeta" style="font-size:13px;color:#64748b;margin-bottom:8px"></div>
+        <div id="homeCardModalPreview" style="display:flex;align-items:center;justify-content:center;min-height:220px;border:1px solid #e5e7eb;border-radius:8px;background:#f8fafc"></div>
+      </div>
+    </div>
+
   </div>
 </main>
 
@@ -144,6 +158,9 @@
     window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
   </script>
   <script src="notifications.js?v=1"></script>
+  <script>
+    window.PUBLICACOES = {{ publicacoes|tojson|safe }};
+  </script>
   <script src="home.js?v=aval-fix-1"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
 </body>
