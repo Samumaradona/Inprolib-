@@ -266,6 +266,7 @@ def _normalize_role(tipo: str) -> str:
     mapping = {
         'Administrador': 'Administrador',
         'Funcionário': 'Administrador',
+        'Funcionario': 'Administrador',
         'Professor': 'Docente',
         'Docente': 'Docente',
         'Aluno': 'Aluno'
@@ -317,11 +318,41 @@ def setup_admin():
             cur.execute("SELECT id_usuario, tipo FROM usuario WHERE email = %s", (email,))
             user = cur.fetchone()
 
+            # Detectar o label válido para 'Funcionário' no enum (com ou sem acento)
+            cur_labels = conn.cursor()
+            cur_labels.execute("""
+                SELECT e.enumlabel
+                FROM pg_enum e
+                WHERE e.enumtypid = (
+                  SELECT a.atttypid
+                  FROM pg_attribute a
+                  JOIN pg_class c ON a.attrelid = c.oid
+                  WHERE c.relname = 'usuario' AND a.attname = 'tipo'
+                  LIMIT 1
+                )
+            """)
+            rows = cur_labels.fetchall() or []
+            labels = set()
+            for r in rows:
+                try:
+                    labels.add(r[0])
+                except Exception:
+                    try:
+                        labels.add(r.get('enumlabel'))
+                    except Exception:
+                        pass
+            cur_labels.close()
+            tipo_admin_label = 'Funcionário' if 'Funcionário' in labels else ('Funcionario' if 'Funcionario' in labels else None)
+            if not tipo_admin_label:
+                audit_log('setup_admin_error', {'error': 'Enum tipo_usuario sem Funcionário/Funcionario', 'labels': sorted(list(labels))})
+                cur.close(); conn.close()
+                return make_response(jsonify({'error': f"Enum tipo_usuario não possui 'Funcionário' ou 'Funcionario'. Labels: {sorted(list(labels))}"}), 500)
+
             if user:
                 cur2 = conn.cursor()
                 cur2.execute(
                     "UPDATE usuario SET nome = %s, cpf = %s, senha = %s, tipo = %s WHERE id_usuario = %s",
-                    (nome, cpf, senha_hash, 'Funcionário', user['id_usuario'])
+                    (nome, cpf, senha_hash, tipo_admin_label, user['id_usuario'])
                 )
                 conn.commit()
                 cur2.close()
@@ -330,7 +361,7 @@ def setup_admin():
                 cur2 = conn.cursor()
                 cur2.execute(
                     "INSERT INTO usuario (nome, email, cpf, senha, tipo, curso_usuario) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (nome, email, cpf, senha_hash, 'Funcionário', None)
+                    (nome, email, cpf, senha_hash, tipo_admin_label, None)
                 )
                 conn.commit()
                 cur2.close()
