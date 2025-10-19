@@ -1151,6 +1151,164 @@ def publicacao():
     captcha_question = f"Quanto é {a} + {b}?"
     return render_template('publicacao.html', cursos=cursos, tipos=tipos, publicacoes=publicacoes, captcha_question=captcha_question)
 
+# Rota de download da publicação com nome do arquivo igual ao título
+@app.route('/download_publicacao/<int:id_publicacao>')
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def download_publicacao(id_publicacao):
+    conn = get_db_connection()
+    if not conn:
+        flash('Falha ao obter conexão para download.', 'error')
+        return redirect(url_for('publicacao'))
+    try:
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute("""
+            SELECT nome_arquivo, titulo
+            FROM publicacao
+            WHERE id_publicacao = %s
+            LIMIT 1
+        """, (id_publicacao,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row or not row.get('nome_arquivo'):
+            flash('Publicação não encontrada ou sem arquivo.', 'error')
+            return redirect(url_for('publicacao'))
+        stored_name = row['nome_arquivo']
+        titulo = (row['titulo'] or 'publicacao').strip()
+        upload_dir = app.config['UPLOAD_FOLDER']
+        # Verifica se o arquivo existe fisicamente
+        full_path = os.path.join(upload_dir, stored_name)
+        if not os.path.exists(full_path):
+            flash('Arquivo não encontrado no servidor.', 'error')
+            return redirect(url_for('publicacao'))
+        # Preserva a extensão original para evitar problemas ao abrir o arquivo
+        ext = os.path.splitext(stored_name)[1]
+        safe_title = secure_filename(titulo) or 'publicacao'
+        download_name = f"{safe_title}{ext}"
+        resp = send_from_directory(upload_dir, stored_name, as_attachment=True, download_name=download_name)
+        # Define explicitamente Content-Length para permitir barra de progresso no front
+        try:
+            resp.headers['Content-Length'] = os.path.getsize(full_path)
+        except Exception:
+            pass
+        return resp
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        flash(f'Erro ao preparar download: {e}', 'error')
+        return redirect(url_for('publicacao'))
+
+# Rota de pré-visualização de publicação para formatos Office
+@app.route('/preview_publicacao/<int:id_publicacao>')
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def preview_publicacao(id_publicacao):
+    from html import escape
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute("""
+            SELECT titulo, nome_arquivo
+            FROM publicacao
+            WHERE id_publicacao = %s
+            LIMIT 1
+        """, (id_publicacao,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row or not row.get('nome_arquivo'):
+            return make_response('<div style="padding:12px;color:#dc2626;">Publicação não encontrada ou sem arquivo.</div>', 404)
+        titulo = (row.get('titulo') or '').strip()
+        stored_name = row['nome_arquivo']
+        upload_dir = app.config['UPLOAD_FOLDER']
+        full_path = os.path.join(upload_dir, stored_name)
+        if not os.path.exists(full_path):
+            return make_response('<div style="padding:12px;color:#dc2626;">Arquivo não encontrado no servidor.</div>', 404)
+        ext = os.path.splitext(stored_name)[1].lower()
+
+        html_content = ''
+        if ext == '.docx':
+            try:
+                from docx import Document
+                doc = Document(full_path)
+                parts = []
+                parts.append('<div style="font-family: ui-sans-serif, system-ui; color:#1f2937;">')
+                parts.append(f'<h3 style="margin:0 0 8px 0; font-weight:600;">{escape(titulo)}</h3>')
+                count = 0
+                for p in doc.paragraphs:
+                    text = p.text.strip()
+                    if text:
+                        parts.append(f'<p style="margin:6px 0;">{escape(text)}</p>')
+                        count += 1
+                        if count >= 120:
+                            parts.append('<p style="color:#6b7280;">Pré-visualização truncada…</p>')
+                            break
+                parts.append('</div>')
+                html_content = ''.join(parts)
+            except Exception as e:
+                html_content = f'<div style="padding:12px;color:#dc2626;">Falha ao gerar pré-visualização DOCX: {escape(str(e))}</div>'
+
+        elif ext in ('.xlsx',):
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(full_path, read_only=True, data_only=True)
+                ws = wb.active
+                parts = []
+                parts.append('<div style="font-family: ui-sans-serif, system-ui; color:#1f2937;">')
+                parts.append(f'<h3 style="margin:0 0 8px 0; font-weight:600;">{escape(titulo)}</h3>')
+                parts.append('<div style="overflow:auto; border:1px solid #e5e7eb; border-radius:6px;">')
+                parts.append('<table style="border-collapse:collapse; width:100%;">')
+                max_rows = 50
+                max_cols = 20
+                for row_cells in ws.iter_rows(min_row=1, max_row=max_rows, min_col=1, max_col=max_cols):
+                    parts.append('<tr>')
+                    for cell in row_cells:
+                        val = cell.value
+                        txt = '' if val is None else escape(str(val))
+                        parts.append(f'<td style="border:1px solid #e5e7eb; padding:6px; font-size:14px;">{txt}</td>')
+                    parts.append('</tr>')
+                parts.append('</table></div></div>')
+                html_content = ''.join(parts)
+            except Exception as e:
+                html_content = f'<div style="padding:12px;color:#dc2626;">Falha ao gerar pré-visualização XLSX: {escape(str(e))}</div>'
+
+        elif ext in ('.xls',):
+            try:
+                import xlrd
+                book = xlrd.open_workbook(full_path)
+                sheet = book.sheet_by_index(0)
+                parts = []
+                parts.append('<div style="font-family: ui-sans-serif, system-ui; color:#1f2937;">')
+                parts.append(f'<h3 style="margin:0 0 8px 0; font-weight:600;">{escape(titulo)}</h3>')
+                parts.append('<div style="overflow:auto; border:1px solid #e5e7eb; border-radius:6px;">')
+                parts.append('<table style="border-collapse:collapse; width:100%;">')
+                max_rows = min(50, sheet.nrows)
+                max_cols = min(20, sheet.ncols)
+                for r in range(max_rows):
+                    parts.append('<tr>')
+                    for c in range(max_cols):
+                        val = sheet.cell_value(r, c)
+                        txt = '' if val is None else escape(str(val))
+                        parts.append(f'<td style="border:1px solid #e5e7eb; padding:6px; font-size:14px;">{txt}</td>')
+                    parts.append('</tr>')
+                parts.append('</table></div></div>')
+                html_content = ''.join(parts)
+            except Exception as e:
+                html_content = f'<div style="padding:12px;color:#dc2626;">Falha ao gerar pré-visualização XLS: {escape(str(e))}</div>'
+        else:
+            return make_response('<div style="padding:12px;color:#6b7280;">Pré-visualização não suportada por esta rota.</div>', 400)
+
+        resp = make_response(html_content)
+        resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return resp
+    except Exception as e:
+        from html import escape as esc
+        return make_response(f'<div style="padding:12px;color:#dc2626;">Erro ao gerar pré-visualização: {esc(str(e))}</div>', 500)
+
 # Rota para a página de avaliação
 @app.route('/avaliacao')
 @login_required
