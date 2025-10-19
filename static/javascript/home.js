@@ -45,7 +45,7 @@ if (USER_ROLE === 'Administrador' || USER_ROLE === 'Docente') {
 }
 
 // Ordena rotas em uma sequência desejada para melhor UX
-const ORDER = ['/home','/cadastro_curso','/cadastro_alunos','/publicacao','/avaliacao','/relatorio','/suporte','/vinculacao_curso','/configuracao'];
+const ORDER = ['/home','/cadastro_curso','/cadastro_alunos','/publicacao','/avaliacao','/relatorio','/vinculacao_curso','/configuracao','/suporte'];
 ROUTES = ROUTES.sort((a,b) => ORDER.indexOf(a.path) - ORDER.indexOf(b.path));
 
 // Define rota padrão por perfil (Admin começa em Cadastro de Cursos)
