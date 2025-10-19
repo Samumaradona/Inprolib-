@@ -29,39 +29,19 @@
     if(url){
       const ext = getExt(url);
       if(['.doc','.docx','.xls','.xlsx'].includes(ext)){
-        const host = location.hostname.toLowerCase();
-        if(host !== 'localhost' && host !== '127.0.0.1'){
-          const absURL = new URL(url, location.origin).href;
-          const officeURL = 'https://view.officeapps.live.com/op/view.aspx?src=' + encodeURIComponent(absURL);
+        if(id){
           const frame = document.createElement('iframe');
-          frame.src = officeURL;
-          frame.title = titulo || 'Pré-visualização Office';
+          frame.src = `/preview_pdf_publicacao/${id}`;
+          frame.title = titulo || 'Pré-visualização PDF';
           frame.style.width = '100%';
           frame.style.height = '520px';
           frame.style.border = '0';
           preview.appendChild(frame);
         } else {
-          const msg = document.createElement('div');
-          msg.textContent = 'Gerando pré-visualização...';
-          msg.style.color = '#334155';
-          preview.appendChild(msg);
-          if(id){
-            fetch(`/preview_publicacao/${id}`).then(r=>r.text()).then(html=>{
-              preview.innerHTML = html;
-            }).catch(()=>{
-              preview.innerHTML = '';
-              const fail = document.createElement('div');
-              fail.textContent = 'Pré-visualização indisponível neste ambiente. Use o botão Fazer download.';
-              fail.style.color = '#334155';
-              preview.appendChild(fail);
-            });
-          } else {
-            preview.innerHTML = '';
-            const fail = document.createElement('div');
-            fail.textContent = 'Pré-visualização indisponível. Use o botão Fazer download.';
-            fail.style.color = '#334155';
-            preview.appendChild(fail);
-          }
+          const fail = document.createElement('div');
+          fail.textContent = 'Pré-visualização indisponível sem identificador. Use o botão Fazer download.';
+          fail.style.color = '#334155';
+          preview.appendChild(fail);
         }
       }else if(['.png','.jpg','.jpeg','.webp','.gif'].includes(ext)){
         const img = document.createElement('img');

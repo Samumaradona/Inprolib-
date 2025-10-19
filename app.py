@@ -16,10 +16,15 @@ import io
 import sys
 import smtplib
 from email.message import EmailMessage
+import mimetypes
 
 load_dotenv()
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
+# Tipos MIME explícitos para Office (garantem Content-Type correto em assets estáticos)
+mimetypes.add_type('application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.docx')
+mimetypes.add_type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx')
+mimetypes.add_type('application/vnd.ms-excel', '.xls')
 app.secret_key = os.getenv('SECRET_KEY', 'inprolib_secret_key_2024')
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
@@ -1189,9 +1194,23 @@ def download_publicacao(id_publicacao):
         resp = send_from_directory(upload_dir, stored_name, as_attachment=True, download_name=download_name)
         # Define explicitamente Content-Length para permitir barra de progresso no front
         try:
-            resp.headers['Content-Length'] = os.path.getsize(full_path)
+            size_bytes = os.path.getsize(full_path)
+            resp.headers['Content-Length'] = size_bytes
         except Exception:
+            size_bytes = None
             pass
+        try:
+            ctype = mimetypes.guess_type(full_path)[0] or 'application/octet-stream'
+        except Exception:
+            ctype = 'application/octet-stream'
+        # Auditoria de download: quem (via sessão), quando (timestamp no audit_log) e qual arquivo
+        audit_log('download_publicacao', {
+            'id_publicacao': id_publicacao,
+            'arquivo': stored_name,
+            'nome_download': download_name,
+            'size_bytes': size_bytes,
+            'content_type': ctype
+        })
         return resp
     except Exception as e:
         try:
@@ -1199,6 +1218,13 @@ def download_publicacao(id_publicacao):
         except Exception:
             pass
         flash(f'Erro ao preparar download: {e}', 'error')
+        try:
+            audit_log('download_publicacao_error', {
+                'id_publicacao': id_publicacao,
+                'error': str(e)
+            })
+        except Exception:
+            pass
         return redirect(url_for('publicacao'))
 
 # Rota de pré-visualização de publicação para formatos Office
@@ -1308,6 +1334,173 @@ def preview_publicacao(id_publicacao):
     except Exception as e:
         from html import escape as esc
         return make_response(f'<div style="padding:12px;color:#dc2626;">Erro ao gerar pré-visualização: {esc(str(e))}</div>', 500)
+
+# Utilitários para conversão automática para PDF
+
+def ensure_previews_dir() -> str:
+    d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'previews')
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def try_libreoffice_convert(input_path: str, outdir: str):
+    """Tenta converter via LibreOffice (soffice). Retorna (ok, caminho_pdf)."""
+    try:
+        import shutil, subprocess
+        soffice = shutil.which('soffice')
+        if not soffice:
+            return (False, None)
+        res = subprocess.run(
+            [soffice, '--headless', '--convert-to', 'pdf', '--outdir', outdir, input_path],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60
+        )
+        if res.returncode == 0:
+            base = os.path.splitext(os.path.basename(input_path))[0]
+            pdf_path = os.path.join(outdir, base + '.pdf')
+            if os.path.exists(pdf_path):
+                return (True, pdf_path)
+        return (False, None)
+    except Exception:
+        return (False, None)
+
+
+def docx_to_pdf_reportlab(input_path: str, out_pdf_path: str):
+    """Fallback simples DOCX→PDF usando ReportLab (texto plano)."""
+    from docx import Document
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.pagesizes import A4
+    styles = getSampleStyleSheet()
+    story = []
+    doc = Document(input_path)
+    for p in doc.paragraphs:
+        text = (p.text or '').strip()
+        if text:
+            story.append(Paragraph(text, styles['Normal']))
+            story.append(Spacer(1, 6))
+    SimpleDocTemplate(out_pdf_path, pagesize=A4).build(story)
+
+
+def excel_to_pdf_reportlab(input_path: str, out_pdf_path: str):
+    """Fallback simples Excel→PDF mostrando até 50 linhas e 20 colunas."""
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet
+    data = []
+    styles = getSampleStyleSheet()
+    ext = os.path.splitext(input_path)[1].lower()
+    if ext == '.xlsx':
+        import openpyxl
+        wb = openpyxl.load_workbook(input_path, read_only=True, data_only=True)
+        ws = wb.active
+        max_rows = 50
+        max_cols = 20
+        for r in ws.iter_rows(min_row=1, max_row=max_rows, min_col=1, max_col=max_cols):
+            row = []
+            for c in r:
+                val = c.value
+                row.append('' if val is None else str(val))
+            data.append(row)
+    else:
+        import xlrd
+        book = xlrd.open_workbook(input_path)
+        sheet = book.sheet_by_index(0)
+        max_rows = min(50, sheet.nrows)
+        max_cols = min(20, sheet.ncols)
+        for rr in range(max_rows):
+            row = []
+            for cc in range(max_cols):
+                val = sheet.cell_value(rr, cc)
+                row.append('' if val is None else str(val))
+            data.append(row)
+    doc = SimpleDocTemplate(out_pdf_path, pagesize=A4)
+    story = []
+    if data:
+        t = Table(data, repeatRows=1)
+        t.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.25, colors.lightgrey),
+            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
+            ('FONTSIZE', (0,0), (-1,-1), 10),
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('ROWHEIGHT', (0,0), (-1,-1), 16),
+        ]))
+        story.append(Paragraph('Pré-visualização de planilha (máx. 50 linhas, 20 colunas)', styles['Italic']))
+        story.append(Spacer(1, 8))
+        story.append(t)
+    else:
+        story.append(Paragraph('Sem dados para exibir.', styles['Normal']))
+    doc.build(story)
+
+
+# Rota de pré-visualização com PDF automático
+@app.route('/preview_pdf_publicacao/<int:id_publicacao>')
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def preview_pdf_publicacao(id_publicacao):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute("""
+            SELECT titulo, nome_arquivo
+            FROM publicacao
+            WHERE id_publicacao = %s
+            LIMIT 1
+        """, (id_publicacao,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row or not row.get('nome_arquivo'):
+            return make_response('<div style="padding:12px;color:#dc2626;">Publicação não encontrada ou sem arquivo.</div>', 404)
+        stored_name = row['nome_arquivo']
+        upload_dir = app.config['UPLOAD_FOLDER']
+        full_path = os.path.join(upload_dir, stored_name)
+        if not os.path.exists(full_path):
+            return make_response('<div style="padding:12px;color:#dc2626;">Arquivo não encontrado no servidor.</div>', 404)
+        ext = os.path.splitext(stored_name)[1].lower()
+        if ext not in ('.doc', '.docx', '.xls', '.xlsx'):
+            return make_response('<div style="padding:12px;color:#6b7280;">Formato não suportado para conversão automática.</div>', 400)
+
+        preview_dir = ensure_previews_dir()
+        preview_name = f'preview_pub_{id_publicacao}.pdf'
+        preview_path = os.path.join(preview_dir, preview_name)
+
+        # Cache simples: usa preview se for mais novo que a fonte
+        try:
+            if os.path.exists(preview_path):
+                src_m = os.path.getmtime(full_path)
+                dst_m = os.path.getmtime(preview_path)
+                if dst_m >= src_m:
+                    return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+        except Exception:
+            pass
+
+        # Tenta LibreOffice
+        ok, lo_pdf = try_libreoffice_convert(full_path, preview_dir)
+        if ok and lo_pdf and os.path.exists(lo_pdf):
+            try:
+                import shutil
+                shutil.copyfile(lo_pdf, preview_path)
+            except Exception:
+                preview_path = lo_pdf
+            return send_from_directory(os.path.dirname(preview_path), os.path.basename(preview_path), mimetype='application/pdf', as_attachment=False)
+
+        # Fallbacks
+        try:
+            if ext in ('.docx',):
+                docx_to_pdf_reportlab(full_path, preview_path)
+            elif ext in ('.xlsx', '.xls'):
+                excel_to_pdf_reportlab(full_path, preview_path)
+            else:
+                return make_response('<div style="padding:12px;color:#6b7280;">Converter este formato requer LibreOffice no servidor.</div>', 400)
+            return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+        except Exception as e:
+            from html import escape as esc
+            return make_response(f'<div style="padding:12px;color:#dc2626;">Falha ao gerar PDF: {esc(str(e))}</div>', 500)
+    except Exception as e:
+        from html import escape as esc
+        return make_response(f'<div style="padding:12px;color:#dc2626;">Erro ao preparar pré-visualização: {esc(str(e))}</div>', 500)
 
 # Rota para a página de avaliação
 @app.route('/avaliacao')
