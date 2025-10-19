@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory, make_response
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.errors import InvalidCatalogName
 import os
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
@@ -150,14 +151,38 @@ def serve_img(filename):
     return resp
 
 # Função para conectar ao banco de dados
+# Usa psycopg (v3) e cria o banco automaticamente se ele não existir
+SCHEMA_READY = False
+
 def get_db_connection():
+    global SCHEMA_READY
     try:
         db_url = os.getenv('DATABASE_URL')
         if db_url:
+            # Corrige prefixo antigo
+            if db_url.startswith("postgres://"):
+                db_url = db_url.replace("postgres://", "postgresql://", 1)
             conn = psycopg.connect(db_url)
-        else:
-            conn = psycopg.connect(**DB_CONFIG)
-        return conn
+            return conn
+
+        # Monta a conexão via dict (DB_CONFIG)
+        cfg = {k: (str(v).strip() if isinstance(v, str) else v) for k, v in DB_CONFIG.items()}
+        try:
+            conn = psycopg.connect(**cfg)
+            return conn
+        except InvalidCatalogName:
+            # Banco não existe: conecta no 'postgres' e cria
+            admin_cfg = {**cfg, 'dbname': 'postgres'}
+            admin = psycopg.connect(**admin_cfg)
+            admin.autocommit = True
+            with admin.cursor() as cur:
+                cur.execute("SELECT 1 FROM pg_database WHERE datname=%s", (cfg['dbname'],))
+                if not cur.fetchone():
+                    cur.execute(f'CREATE DATABASE "{cfg["dbname"]}"')
+            admin.close()
+            # Conecta ao banco recém-criado
+            conn = psycopg.connect(**cfg)
+            return conn
     except Exception as e:
         print(f"Erro ao conectar ao banco de dados: {e}")
         return None
