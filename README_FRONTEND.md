@@ -1,62 +1,52 @@
 # Frontend — INPROLIB
 
-Guia dos templates, estilos e JavaScript, incluindo UX/acessibilidade e as atualizações mais recentes.
+Guia dos templates, estilos e JavaScript, com foco nas funcionalidades de Publicação, preview universal e download com progresso.
+
+## Visão Geral
+- Modal de Publicação com preview universal via PDF (Office → PDF).
+- Barra de progresso no download com nome sugerido e conclusão.
+- Filtros de busca, status e ações no grid de publicações.
+- Mensagens de sucesso/erro renderizadas via `flash`.
 
 ## Estrutura
-- Templates: `templates/`
-  - `home.html`, `cadastro_alunos.html`, `cadastro_curso.html`, `publicacao.html`, `avaliacao.html`, `vinculacao_curso.html`, `suporte.html`, `relatorio.html`, `configuracao.html`, `login.html`, etc.
-- Estilos: `static/css/`
-  - `home.css`, `cadastro_alunos.css`, `cadastro_curso.css`, `publicacao.css`, `avaliacao.css`, `relatorio.css`, `suporte.css`, `vinculacao_curso.css`, `cadastro_login.css`.
-- JavaScript: `static/javascript/`
-  - `home.js`: menu lateral, perfil, notificações, máscaras/validações de formulários.
-  - `publicacao.js`: modal de visualização de publicações.
+- Templates: `templates/` — páginas como `home.html`, `publicacao.html`, `avaliacao.html`.
+- CSS: `static/css/` — estilos por página (`publicacao.css`, `home.css`, etc.).
+- JS: `static/javascript/` — scripts principais (`publicacao.js`, `home.js`).
 
-## Cabeçalho e Sessão
-- Exibe o nome do usuário via `session.user_name` quando autenticado.
-- Rotas internas usam `@login_required`, redirecionando não autenticados para `/login`.
+## Publicação e Preview
+- Ao clicar em uma linha (`.pub-row`), abre o modal com título, tipo, curso e data.
+- Preview por tipo:
+  - Imagens (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`): exibidas diretamente.
+  - PDF: carregado em `<iframe>`.
+  - Texto/CSV: lido via `fetch` e exibido em `<pre>`.
+  - Office (`.doc`, `.docx`, `.xls`, `.xlsx`): renderizado como PDF pelo backend em `/preview_pdf_publicacao/<id>` e exibido em `<iframe>`.
+- Sem `id_publicacao`, exibe aviso e recomenda download.
 
-## Menu Lateral e Rotas (Atualizado)
-- Correção de exibição do item “Avaliação” para perfis `Administrador` e `Docente`.
-- Reordenamos o menu para consistência.
-- Para garantir que o navegador carregue a versão atualizada do menu, adicionamos versionamento ao script: `home.js?v=aval-fix-1` em todos os templates que o importam.
+## Download com Barra de Progresso
+- Botão “Fazer download” usa `fetch` e, quando disponível, File System Access API para salvar com progresso.
+- Elementos:
+  - `#pubActions` (container), `#pubDlWrap` (criado dinamicamente), `#pubDlProgress` (progress), `#pubDlLabel`.
+- Mostra estados: iniciando, porcentagem, concluído, erro.
 
-## Mensagens de Sucesso/Erro (Atualizado)
-- Adicionamos em `home.html` o bloco de exibição de mensagens `get_flashed_messages(with_categories=True)`.
-- Após cadastrar aluno com sucesso, o backend redireciona para Home e a mensagem verde de sucesso aparece no topo.
+## Filtros e UX
+- Busca por texto (título/tipo/curso), filtro de status (ativo/inativo) e contador de resultados.
+- Modais/menus fecham com clique fora ou `Esc`. Atributos ARIA aplicados.
 
-## Publicação: Visualização via Modal
-- Em “Publicação”, ao clicar em uma linha da lista, abre um modal com:
-  - Título, Tipo, Curso, Data da publicação.
-  - Preview quando possível:
-    - Imagens (`.png`, `.jpg`, `.jpeg`, `.webp`): exibem no modal.
-    - PDF: abre em `<iframe>`.
-    - Outros tipos (DOC, XLS, CSV, etc.): mostram aviso e botão “Abrir/baixar conteúdo”.
-- JavaScript dedicado: `publicacao.js`.
+## Compatibilidade
+- Chrome/Edge: suporte à File System Access API; barra de progresso com escolha de local.
+- Firefox/Safari: fallback para download tradicional com progresso aproximado.
 
-## Validações e Máscaras
-- CPF: máscara `000.000.000-00`, `pattern` e validação de dígitos.
-- Portaria: apenas dígitos (`inputmode=numeric`).
-- Captcha: apenas dígitos (`pattern=\d+`).
-- Código do curso: maiúsculas sem espaços; `pattern` `[A-Z0-9-]+`.
-- Publicação: bloqueia envio sem título, tipo e arquivo; valida extensões permitidas.
+## IDs/Rotas relevantes
+- `#pubDownload`: botão principal de download no modal.
+- `#pubActions`: área onde a barra de progresso é inserida.
+- Rota de preview PDF: `/preview_pdf_publicacao/<id>`.
 
-## Estilos e UX
-- Ícone de notificações visível; badge oculto por padrão.
-- Atributos ARIA nos menus, modais e breadcrumbs.
-- Modais e menus fecham com clique fora ou tecla `Esc`.
-
-## Dicas de Cache
-- Durante desenvolvimento, o backend desativa cache para CSS/JS.
-- Mesmo assim, após alterar scripts, use `Ctrl+F5` (hard refresh) para garantir atualização.
-
-## Como Usar
-- Inicie o backend e acesse `http://127.0.0.1:5000/`.
-- Formulários:
-  - Cadastro de alunos: preencha nome, CPF, e-mail, senha (mín. 8) e captcha.
-  - Cadastro de cursos: nome, código e portaria.
-  - Publicação: selecione curso (opcional), informe título, tipo, anexe arquivo permitido e resolva o captcha.
+## Como Testar
+- Inicie o backend (`python app.py`) e acesse `http://127.0.0.1:5000/publicacao`.
+- Clique em publicações com `.docx`/`.xlsx` para ver o `<iframe>` com PDF.
+- Clique em “Fazer download” para ver a barra de progresso.
 
 ## Atualizações Recentes
-- Correção do menu “Avaliação” para Administrador/Docente em `home.js`.
-- Versionamento `home.js?v=aval-fix-1` em templates para forçar atualização.
-- Bloco de mensagens adicionado à Home para mostrar sucesso/erro.
+- Preview universal: Office convertido para PDF no backend e exibido no modal.
+- Barra de progresso de download com estados e nome sugerido.
+- Versionamento de scripts nos templates para cache busting.

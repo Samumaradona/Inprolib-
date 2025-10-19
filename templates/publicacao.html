@@ -20,7 +20,7 @@
       </button>
             <div class="profile-wrap" style="position:relative">
         <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
-          <img id="profileAvatar" class="avatar" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s" alt="Avatar usuário">
+          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário">
         </button>
         <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
           <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
@@ -198,6 +198,7 @@
           <tbody>
             {% for p in publicacoes %}
               <tr class="pub-row" style="cursor:pointer" 
+                  data-id="{{ p.id_publicacao }}"
                   data-titulo="{{ p.titulo }}" 
                   data-tipo="{{ p.tipo }}" 
                   data-curso="{{ p.curso }}" 
@@ -241,13 +242,16 @@
       <div style="padding:12px 16px">
         <div id="pubPreview" style="border:1px solid #e5e7eb;border-radius:8px;min-height:240px;display:flex;align-items:center;justify-content:center;background:#f8fafc"></div>
         <div id="pubActions" style="margin-top:12px;display:flex;gap:8px;align-items:center">
-          <a id="pubDownload" href="#" target="_blank" rel="noopener" style="text-decoration:none;background:#1d4ed8;color:#fff;padding:8px 12px;border-radius:6px">Abrir/baixar conteúdo</a>
+          <a id="pubDownload" href="#" rel="noopener" aria-label="Fazer download" title="Fazer download" style="text-decoration:none;background:#1d4ed8;color:#fff;padding:8px 12px;border-radius:6px">Fazer download</a>
         </div>
       </div>
     </div>
   </div>
 
-  <script>window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";</script>
+  <script>
+    window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
+    window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
+  </script>
   <script src="{{ url_for('serve_js', script_name='notifications') }}?v=1"></script>
   <script src="{{ url_for('serve_js', script_name='home') }}?v=aval-fix-1"></script>
   <script src="{{ url_for('serve_js', script_name='publicacao') }}?v=pub-ui-1"></script>

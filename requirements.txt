@@ -3,3 +3,11 @@ psycopg[binary]==3.2.10
 werkzeug==2.3.7
 python-dotenv==1.0.1
 gunicorn==21.2.0
+
+# Pré-visualização de arquivos Office no backend (localhost)
+python-docx==1.1.2
+openpyxl==3.1.5
+xlrd==2.0.1
+
+# Geração de PDF para previews universais
+reportlab==4.2.5

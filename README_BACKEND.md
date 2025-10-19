@@ -1,91 +1,61 @@
 # Backend — INPROLIB
 
-Documento de referência do backend Flask: requisitos, configuração, rotas, segurança e resumo das atualizações recentes.
+Referência do backend Flask: requisitos, configuração, rotas, segurança e funcionalidades recentes (preview PDF, barra de progresso e auditoria).
 
-## Stack
-- `Flask 2.3.3`
-- `Werkzeug 2.3.7` (uploads e hashing de senha)
-- `psycopg[binary] 3.2.10` (PostgreSQL)
-- `python-dotenv 1.0.1` (variáveis de ambiente)
-
-## Requisitos
-- Python 3.10+ (recomendado 3.11)
-- PostgreSQL 14+ (local ou remoto)
+## Stack e Dependências
+- `Flask 2.3.3`, `Werkzeug 2.3.7`, `psycopg[binary] 3.2.10`, `python-dotenv 1.0.1`.
+- Pré-visualização local de Office: `python-docx`, `openpyxl`, `xlrd`.
+- Conversão universal para PDF: `reportlab` (fallback) + `LibreOffice` se disponível.
 
 ## Configuração
-- Arquivo principal: `app.py`
-- Conexão PostgreSQL em `DB_CONFIG` (dbname, user, password, host, port).
-- `app.secret_key` via `.env` (fallback padrão para desenvolvimento).
-- Uploads em `static/uploads` com limite `MAX_CONTENT_LENGTH = 16MB`.
-- Pastas criadas automaticamente: `static/uploads` e `logs/`.
-- Rate limiting simples em memória por IP/rota.
+- App: `app.py`.
+- Uploads: `static/uploads` (criada automaticamente), limite `16MB`.
+- Previews PDF: `static/previews` (cache de PDFs gerados).
+- MIME types explícitos: `.docx`, `.xlsx`, `.xls` via `mimetypes.add_type`.
+- Rate limiting simples por IP/rota.
+- Logs: `logs/audit.log`.
 
-Variáveis de ambiente suportadas (`.env`):
-- `SECRET_KEY`: segredo da aplicação.
-- `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`: credenciais do banco.
-- `ADMIN_SETUP_TOKEN`: token para `/setup_admin` (default: `setup_admin_2024`).
-- `ADMIN_TEMP_PASSWORD`: senha temporária ao criar/atualizar admin (default: `Adm@2025!`).
-- `RESET_TOKEN_EXP_SECONDS`: expiração de token de reset de senha (segundos).
-
-## Segurança e Autenticação
-- `@login_required` protege rotas internas e redireciona para `/login` se não houver sessão:
-  - Protegidas: `/home`, `/cadastro_curso`, `/publicacao`, `/avaliacao`, `/vinculacao_curso`, `/relatorio`, `/suporte`, `/configuracao`.
-- `GET /logout`: limpa a sessão e redireciona para login.
-
-## Entrega de Assets e Cache (Atualizado)
-- CSS: `GET /<asset_name>.css` com cache desativado em desenvolvimento (`Cache-Control: no-cache, no-store, must-revalidate`).
-- JS: `GET /<script_name>.js` com cache desativado em desenvolvimento.
-- Imagens: `GET /img/<path:filename>` com cache público (`max-age=604800`).
-- Templates utilizam versionamento de script para forçar atualização: exemplo `home.js?v=aval-fix-1`.
+Variáveis `.env`:
+- `SECRET_KEY`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`.
+- `ADMIN_SETUP_TOKEN`, `ADMIN_TEMP_PASSWORD`, `RESET_TOKEN_EXP_SECONDS`.
 
 ## Rotas Principais
-- `GET /`: redireciona para login.
-- `GET /setup_admin`: cria/atualiza um usuário administrador.
-  - Uso: `http://127.0.0.1:5000/setup_admin?token=SEU_TOKEN&senha=NovaSenhaSegura`
-  - Parâmetros opcionais: `nome`, `email`, `cpf`, `senha` (ou `password`).
-  - Retorno JSON com `status` (`created`/`updated`) e `temp_password`.
-- `GET /home`: últimas publicações (`status = 'Publicado'`).
-- `GET/POST /cadastro_curso`: cadastro de curso com validações.
-- `GET/POST /cadastro_alunos`: cadastro de alunos com validações, captcha e hashing de senha.
-- `GET/POST /vinculacao_curso`: vínculo usuário-curso.
-- `GET /avaliacao`, `GET /relatorio`, `GET /suporte`, `GET /configuracao`: páginas internas.
-- `GET /api/publicacoes`: filtros por `autor`, `assunto`, `curso`, `titulo`; retorno JSON.
+- `GET /home`: últimas publicações.
+- `GET/POST /publicacao`: cria/lista publicações.
+- `GET /download_publicacao/<id>`: download com `Content-Length` e auditoria.
+- `GET /preview_publicacao/<id>`: preview em HTML (localhost) p/ DOCX/XLSX/XLS.
+- `GET /preview_pdf_publicacao/<id>`: conversão automática p/ PDF (Office) e inline.
+- `GET /setup_admin`: cria/atualiza admin.
+- Demais páginas: `/avaliacao`, `/relatorio`, `/suporte`, `/configuracao`.
 
-## Cadastro de Alunos (Atualizado)
-- Fluxo POST:
-  - Valida campos obrigatórios, compara `senha`/`confirmar_senha`, valida e-mail e CPF, aplica captcha simples.
-  - Verifica duplicidade de email, normaliza tipo do usuário (`Aluno`/`Professor`).
-  - Armazena senha com hash `pbkdf2:sha256`.
-  - Em caso de sucesso: `flash('Usuário cadastrado com sucesso!', 'success')` e redireciona para `/home`.
-  - Em caso de erro: `flash(..., 'error')` e redireciona para `/cadastro_alunos`.
+## Preview e Conversão para PDF
+- Pipeline:
+  - Cache: reutiliza PDF se mais novo que o arquivo original.
+  - Tenta `LibreOffice` (`soffice --headless --convert-to pdf`).
+  - Fallback:
+    - `.docx`: texto plano para PDF com `reportlab`.
+    - `.xlsx`/`.xls`: tabela (até 50 linhas × 20 colunas).
+- Resposta: `application/pdf` servido via `send_from_directory`.
 
-## Publicação de Conteúdo
-- `GET/POST /publicacao`:
-  - POST: valida `titulo`, `tipo`, `conteudo` (extensões permitidas), curso opcional e captcha; normaliza nome do arquivo com `secure_filename` e prefixo de timestamp.
-  - Salva publicação com `status='Publicado'`, caminho completo e `nome_arquivo`.
-  - GET: lista últimas publicações (inclui `nome_arquivo` e `data_publicacao`), utilizadas no preview do frontend.
+## Download com Auditoria
+- Registros em `audit_log`:
+  - `download_publicacao`: `{id_publicacao, arquivo, nome_download, size_bytes, content_type}`.
+  - `download_publicacao_error`: `{id_publicacao, error}`.
+- Cada linha do log: `timestamp\tip\tuser=<id>\tevento\tdetalhes`.
+
+## Entrega de Assets
+- CSS: `/<asset_name>.css` e JS: `/<script_name>.js` com cache desativado em dev.
+- Imagens: `GET /img/<path:filename>` com `Cache-Control: public`.
 
 ## Execução
-- Desenvolvimento:
-  - `python app.py`
-  - Acesse `http://127.0.0.1:5000/`
-- Rotinas auxiliares:
-  - `python app.py --validate` (se disponível no ambiente)
-  - `python app.py --hash-migrate` (migração de senhas em texto para hash)
+- Desenvolvimento: `python app.py` → `http://127.0.0.1:5000`.
+- Produção (Render): ver `render.yaml` — disco persistente montado em `static/uploads`.
 
-## Logs
-- `logs/audit.log` registra eventos (rate limit, publicação OK/erro, setup de admin, etc.).
-
-## Uploads e Segurança
-- Extensões permitidas: `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.csv`, `.txt`, `.png`, `.jpg`, `.jpeg`, `.webp`.
-- Nomes sanitizados com timestamp; tamanho máximo 16MB.
+## Segurança
+- Rotas internas com `@login_required` e `roles_required`.
+- Uploads validados por extensão; nomes sanitizados com `secure_filename` + timestamp.
 
 ## Atualizações Recentes
-- Menu lateral: correção para exibir “Avaliação” para perfis `Administrador` e `Docente` (via `home.js`).
-- Cache busting: inclusão de `?v=aval-fix-1` nas importações de `home.js` em todos os templates relevantes.
-- Cache desativado para CSS/JS via backend durante desenvolvimento.
-- Cadastro de alunos: redirecionamento para Home e mensagem de sucesso exibida na Home (bloco de mensagens adicionado em `home.html`).
-
-## Observações
-- Em produção, ajuste a política de cache de assets para melhorar performance.
-- Após alterações em scripts, use `Ctrl+F5` para garantir atualização no navegador.
+- Rota `preview_pdf_publicacao`: preview universal de Office via PDF.
+- `download_publicacao`: adiciona `Content-Length` e auditoria de download.
+- MIME types explícitos p/ Office em assets estáticos.
