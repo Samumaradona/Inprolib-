@@ -71,9 +71,9 @@
   --bs-font-color: var(--bs-body-color);
 }
 
-/* fundo geral: "branco com cinza MUITO leve" */
+/* fundo geral: sem cinza — tela totalmente branca */
 :root {
-  --page-bg: #ebebeb; /* muito leve */
+  --page-bg: #ffffff;
   --card-bg: #ffffff;
   --card-shadow: 0 6px 24px rgba(2,6,23,0.06);
 }
@@ -90,9 +90,12 @@ body{
 
 /* Topbar (simplificado para esta tela) */
 header.topbar{
-  background-color: var(--card-bg);
-  border-bottom: 1px solid rgba(0,70,225,0.06); /* sutil */
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: transparent; /* sem faixa branca/cinza */
+  border: 0;
+  box-shadow: none;
+  z-index: 100;
 }
 .logo{ height:24px; width:auto; display:inline-block; }
 .container{
@@ -129,9 +132,10 @@ header.topbar{
 
 /* Main + formulário */
 main{
-  max-width: 900px;
-  margin: 28px auto;
-  padding: 0 20px;
+  width: 100%;
+  max-width: none;   /* ocupa toda a largura */
+  margin: 0;         /* sem centralização com margem */
+  padding: 0;        /* sem padding */
 }
 .form-container {
   max-width: 900px;
@@ -226,35 +230,65 @@ main{
 /* ====== NOVO LAYOUT DE LOGIN (split view) ====== */
 .login-split {
   display: flex;
-  min-height: calc(100vh - 60px);
+  min-height: 100vh; /* cobre toda a tela */
+  width: 100vw;      /* ocupa 100% da largura da viewport */
 }
 
 .left-pane {
   flex: 0 0 50%;
-  background: #2C58A6;
+  background: #4B5BAA; /* mesmo tom do botão Entrar */
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
 }
 
+/* faixa branca superior (sólida, horizontal) no painel esquerdo */
+.left-pane::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 72px; /* ajuste conforme preferir */
+  background: #ffffff;
+  pointer-events: none;
+  z-index: 1;
+}
+
 .right-pane {
   flex: 1;
   position: relative;
   background: url('/img/Repositoriofisico.png') center/cover no-repeat;
+  min-height: inherit; /* igual à altura do split */
+}
+
+/* faixa branca superior (sólida, horizontal) */
+.right-pane::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 72px; /* ajuste conforme preferir */
+  background: #ffffff; /* sólido, sem gradiente */
+  pointer-events: none;
+  z-index: 1;
 }
 
 .brand-badge {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  display: block;
-  width: clamp(240px, 24vw, 340px);
-  height: auto;
-  border-radius: 18px;
-  box-shadow: 0 18px 36px rgba(0,0,0,0.30);
-}
+   position: absolute;
+   left: 50%;
+   top: 50%;
+   transform: translate(-50%, -50%);
+   display: block;
+   width: clamp(240px, 24vw, 340px);
+   height: auto;
+   border-radius: 18px;
+   box-shadow: 0 18px 36px rgba(0,0,0,0.30);
+   z-index: 2; /* acima da faixa branca */
+ }
 
 @media (max-width: 992px) {
   .left-pane { flex: 1; }
@@ -267,22 +301,30 @@ main{
 }
 
 .login-card {
-  width: 420px;
+  width: clamp(420px, 38vw, 560px);
   max-width: 92vw;
   background: #ffffff;
   border-radius: 16px;
   box-shadow: 0 12px 24px rgba(0,0,0,0.15);
-  padding: 20px 24px;
+  padding: 24px 28px;
+  color: var(--bs-body-color);
 }
 
 .login-card h3 {
   margin: 4px 0 16px;
   font-size: 22px;
   font-weight: 700;
-  color: #2C58A6;
+  color: #4B5BAA; /* mesma cor do botão Entrar */
   text-align: center;
+  text-shadow: none;
 }
 
+/* garante que o conteúdo do form não crie um "card" branco por cima */
+.login-card form {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+}
 .form-row {
   display: flex;
   flex-direction: column;
@@ -301,12 +343,16 @@ main{
   font-weight: 600;
   color: #374151;
 }
+/* overrides para card branco (texto escuro) */
+.login-card .form-row label { color: var(--bs-body-color); text-shadow: none; }
+.login-card .help, .login-card .checkbox { color: #374151; }
 
 .login-card input[type="text"],
 .login-card input[type="password"],
 .login-card input[type="email"] {
-  border: 1px solid #E5E7EB;
-  background: #F3F4F6;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: var(--bs-body-color);
   border-radius: 6px;
   padding: 10px 12px;
   font-size: 14px;
@@ -314,8 +360,9 @@ main{
 }
 
 .login-card input:focus {
-  border-color: #2C58A6;
-  background: #FFF;
+  border-color: rgba(0,70,225,0.25);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(0,70,225,0.18);
 }
 
 .help {
