@@ -488,6 +488,7 @@ renderRoutes();
 (function () {
   // dados reais vindos do backend
   const DOCS_RAW = Array.isArray(window.PUBLICACOES) ? window.PUBLICACOES : [];
+  console.log('DOCS_RAW carregados:', DOCS_RAW);
   function formatDate(v){
     try{
       if(!v) return '';
@@ -500,6 +501,7 @@ renderRoutes();
     }catch{ return String(v||''); }
   }
   const DOCS = DOCS_RAW.map(p => ({
+    id: p.id_publicacao || null,
     title: p.titulo || 'Sem título',
     author: p.autor_nome || '',
     tipo: p.tipo || '',
@@ -521,9 +523,14 @@ renderRoutes();
   const modalTitle = document.getElementById('homeCardModalTitle');
   const modalMeta = document.getElementById('homeCardModalMeta');
   const modalPreview = document.getElementById('homeCardModalPreview');
+  // Botão de download removido na Home; o usuário baixa pela tela Publicação.
 
   function openCardModal(doc){
     if(!modal) return;
+    // Abre o modal imediatamente para garantir visibilidade mesmo se a prévia falhar
+    modal.setAttribute('aria-hidden','false');
+    modal.classList.add('open');
+
     if(modalTitle) modalTitle.textContent = doc.title || 'Publicação';
     if(modalMeta){
       const parts = [
@@ -534,42 +541,91 @@ renderRoutes();
       ].filter(Boolean);
       modalMeta.textContent = parts.join(' • ');
     }
+
+    // Ação de download removida: a Home não possui botão de download
+    // O usuário deve usar a tela de Publicação para baixar o arquivo
+
+    // Pré-visualização similar à tela Publicação
     if(modalPreview){
       modalPreview.innerHTML = '';
-      const wrap = document.createElement('div');
-      wrap.style.display = 'flex';
-      wrap.style.flexDirection = 'column';
-      wrap.style.alignItems = 'center';
-      wrap.style.gap = '8px';
-      const img = document.createElement('img');
-      img.src = doc.thumb || '/img/logo.png';
-      img.alt = doc.title || 'Pré-visualização';
-      img.style.maxWidth = '160px';
-      img.style.borderRadius = '8px';
-      img.style.opacity = '0.9';
-      wrap.appendChild(img);
-      if(doc.url){
-        const a = document.createElement('a');
-        a.href = doc.url;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.textContent = 'Abrir/baixar conteúdo';
-        a.style.textDecoration = 'none';
-        a.style.background = '#1d4ed8';
-        a.style.color = '#fff';
-        a.style.padding = '8px 12px';
-        a.style.borderRadius = '6px';
-        wrap.appendChild(a);
-      } else {
-        const msg = document.createElement('div');
-        msg.textContent = 'Conteúdo não disponível.';
-        msg.style.color = '#64748b';
-        wrap.appendChild(msg);
+      try {
+        const getExt = (u)=>{ try{ const m = String(u||'').toLowerCase().match(/\.([a-z0-9]+)(?:\?|$)/); return m ? ('.'+m[1]) : ''; }catch{ return ''; } };
+
+        const url = doc && doc.url;
+        if(url){
+          const ext = getExt(url);
+          if(['.doc','.docx','.xls','.xlsx'].includes(ext)){
+            if(doc && doc.id){
+              const frame = document.createElement('iframe');
+              frame.src = `/preview_pdf_publicacao/${doc.id}`;
+              frame.title = doc.title || 'Pré-visualização PDF';
+              frame.style.width = '100%';
+              frame.style.height = '520px';
+              frame.style.border = '0';
+              modalPreview.appendChild(frame);
+            } else {
+              const fail = document.createElement('div');
+              fail.textContent = 'Pré-visualização indisponível sem identificador. Abra na tela Publicação para baixar.';
+              fail.style.color = '#334155';
+              modalPreview.appendChild(fail);
+            }
+          } else if(['.png','.jpg','.jpeg','.webp','.gif'].includes(ext)){
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = doc.title || 'Conteúdo da publicação';
+            img.style.maxWidth = '100%';
+            img.style.borderRadius = '8px';
+            modalPreview.appendChild(img);
+          } else if(ext === '.pdf'){
+            const frame = document.createElement('iframe');
+            frame.src = url;
+            frame.title = doc.title || 'Conteúdo da publicação';
+            frame.style.width = '100%';
+            frame.style.height = '520px';
+            frame.style.border = '0';
+            modalPreview.appendChild(frame);
+          } else if(ext === '.txt' || ext === '.csv'){
+            const msg = document.createElement('div');
+            msg.textContent = 'Carregando pré-visualização...';
+            msg.style.color = '#334155';
+            modalPreview.appendChild(msg);
+            fetch(url).then(r=>r.text()).then(text=>{
+              modalPreview.innerHTML = '';
+              const pre = document.createElement('pre');
+              pre.textContent = text;
+              pre.style.whiteSpace = 'pre-wrap';
+              pre.style.maxHeight = '520px';
+              pre.style.overflow = 'auto';
+              pre.style.background = '#fff';
+              pre.style.padding = '12px';
+              pre.style.borderRadius = '8px';
+              modalPreview.appendChild(pre);
+            }).catch(()=>{
+              modalPreview.innerHTML = '';
+              const fail = document.createElement('div');
+              fail.textContent = 'Falha ao carregar pré-visualização. Abra na tela Publicação para baixar.';
+              fail.style.color = '#334155';
+              modalPreview.appendChild(fail);
+            });
+          } else {
+            const msg = document.createElement('div');
+            msg.textContent = 'Pré-visualização indisponível para este tipo. Abra na tela Publicação para baixar.';
+            msg.style.color = '#334155';
+            modalPreview.appendChild(msg);
+          }
+        } else {
+          const msg = document.createElement('div');
+          msg.textContent = 'Nenhum arquivo anexado ou endereço indisponível.';
+          msg.style.color = '#334155';
+          modalPreview.appendChild(msg);
+        }
+      } catch(err){
+        const fail = document.createElement('div');
+        fail.textContent = 'Falha ao preparar a pré-visualização. Abra na tela Publicação para baixar.';
+        fail.style.color = '#334155';
+        modalPreview.appendChild(fail);
       }
-      modalPreview.appendChild(wrap);
     }
-    modal.setAttribute('aria-hidden','false');
-    modal.classList.add('open');
   }
   function closeCardModal(){
     if(!modal) return;
@@ -587,6 +643,7 @@ renderRoutes();
     item.className = 'carousel-item';
     item.setAttribute('role','listitem');
     item.tabIndex = 0; // acessível por teclado
+    item.dataset.idx = String(DOCS.indexOf(doc));
 
     const img = document.createElement('img');
     img.className = 'thumb';
@@ -701,25 +758,46 @@ renderRoutes();
   (function enableDragScroll(el) {
     if (!el) return;
     let isDown = false;
-    let startX, scrollLeft;
+    let startX = 0, scrollLeft = 0;
+    let moved = false;
+    let downTarget = null;
+
     el.addEventListener('pointerdown', (e) => {
       isDown = true;
       el.setPointerCapture(e.pointerId);
       startX = e.clientX;
       scrollLeft = el.scrollLeft;
+      moved = false;
+      downTarget = e.target && e.target.closest ? e.target.closest('.carousel-item') : null;
       el.classList.add('dragging');
     });
+
     el.addEventListener('pointermove', (e) => {
       if (!isDown) return;
       const dx = startX - e.clientX;
+      if (Math.abs(dx) > 5) moved = true;
       el.scrollLeft = scrollLeft + dx;
     });
+
     el.addEventListener('pointerup', (e) => {
       isDown = false;
-      el.releasePointerCapture(e.pointerId);
+      try { el.releasePointerCapture(e.pointerId); } catch(_) {}
       el.classList.remove('dragging');
+      if (!moved && downTarget) {
+        const idxAttr = downTarget.getAttribute('data-idx');
+        const doc = (idxAttr != null) ? DOCS[Number(idxAttr)] : null;
+        if (doc) openCardModal(doc);
+      }
+      downTarget = null;
     });
-    el.addEventListener('pointercancel', () => { isDown = false; el.classList.remove('dragging'); });
+
+    el.addEventListener('pointercancel', () => { 
+      isDown = false; 
+      moved = false; 
+      downTarget = null; 
+      el.classList.remove('dragging'); 
+    });
+
     // permitir navegação por teclado: setas esquerda/direita
     el.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowRight') { scrollByItem('next'); e.preventDefault(); }
