@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>INPROLIB - Home</title>
+  <link rel="stylesheet" href="topbar.css">
   <link rel="stylesheet" href="home.css">
   <link rel="stylesheet" href="notifications.css">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
@@ -12,12 +13,27 @@
   <div id="app">
 <header class="topbar">
   <div class="container">
-    <!-- LADO ESQUERDO: apenas hambúrguer -->
+    <!-- LADO ESQUERDO: hambúrguer + logo -->
     <div class="left">
       <button class="hamburger" id="btnHamburger" aria-controls="sideMenu" aria-expanded="false" aria-label="Abrir menu" title="Abrir menu">
         <span class="material-symbols-outlined" aria-hidden="true">menu</span>
       </button>
-            <div class="profile-wrap" style="position:relative">
+      <img class="logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="INPROLIB">
+    </div>
+    <!-- LADO DIREITO: notificações + avatar + nome -->
+    <div class="right" role="group" aria-label="Ações do usuário">
+      <!-- Notification button -->
+      <div class="notif-wrap" style="position:relative">
+        <button id="btnNotifications" class="notif-btn" aria-haspopup="true" aria-expanded="false" aria-label="Notificações">
+          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+          <span id="notifBadge" class="notif-badge" aria-hidden="true" style="display:none"></span>
+        </button>
+        <div id="notificationsDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <div class="dropdown-item">Você não tem novas notificações</div>
+        </div>
+      </div>
+      <!-- Profile -->
+      <div class="profile-wrap" style="position:relative">
         <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
           <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário">
         </button>
@@ -30,20 +46,6 @@
       <div>
         <p id="username">{{ session.get('user_name', '') }}</p>
       </div>
-    </div>
-    <!-- LADO DIREITO: notificações + avatar -->
-    <div class="right" role="group" aria-label="Ações do usuário">
-      <!-- Notification button -->
-      <div class="notif-wrap" style="position:relative">
-        <button id="btnNotifications" class="notif-btn" aria-haspopup="true" aria-expanded="false" aria-label="Notificações">
-          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
-          <span id="notifBadge" class="notif-badge" aria-hidden="true" style="display:none"></span>
-        </button>
-        <div id="notificationsDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
-          <div class="dropdown-item">Você não tem novas notificações</div>
-        </div>
-      </div>
-      <!-- profile avatar -->
     </div>
   </div>
 </header>
@@ -117,6 +119,8 @@
           Limpar filtros
         </button>
       </div>
+    </section>
+
     </section>
 
     <!-- Painel últimas publicações (card branco maior com carrossel) -->

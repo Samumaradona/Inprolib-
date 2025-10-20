@@ -1845,7 +1845,7 @@ def exportar_relatorio():
             )
         elif fmt == 'pdf':
             try:
-                from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+                from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
                 from reportlab.lib.pagesizes import landscape, A4
                 from reportlab.lib import colors
                 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1855,6 +1855,16 @@ def exportar_relatorio():
                 styles = getSampleStyleSheet()
                 title_style = ParagraphStyle('ReportTitle', parent=styles['Title'], fontSize=16, textColor=colors.HexColor('#1F4E79'), alignment=1, spaceAfter=12)
                 title = Paragraph('Relatório de publicações', title_style)
+                # Monta story com logo (se disponível)
+                story = []
+                try:
+                    logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'img', 'logo.png')
+                    if os.path.exists(logo_path):
+                        img = RLImage(logo_path, width=46, height=46)
+                        story.extend([img, Spacer(1, 6)])
+                except Exception:
+                    pass
+                story.extend([title, Spacer(1, 10)])
                 data = [headers]
                 for r in rows:
                     data.append([val_for(c, r) for c in selected_cols])
@@ -1868,7 +1878,7 @@ def exportar_relatorio():
                     ('ALIGN',(0,0),(-1,-1),'LEFT'),
                     ('VALIGN',(0,0),(-1,-1),'MIDDLE')
                 ]))
-                doc.build([title, Spacer(1, 10), table])
+                doc.build(story + [table])
                 buf.seek(0)
                 resp = send_file(
                     buf,
@@ -1901,6 +1911,7 @@ def exportar_relatorio():
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
             from openpyxl.utils import get_column_letter
+            from openpyxl.drawing.image import Image as XLImage
             wb = Workbook()
             ws = wb.active
             ws.title = 'Relatório'
@@ -1908,13 +1919,27 @@ def exportar_relatorio():
             if not excel_cols:
                 excel_cols = [c for c in valid_cols if c != 'id_publicacao']
             excel_headers = [col_map[c] for c in excel_cols]
-            # Título do relatório
+            # Título e logo do relatório
             title_text = 'Relatório de publicações'
-            ws.append([title_text])
-            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(excel_headers))
-            ws['A1'].font = Font(size=16, bold=True, color='1F4E79')
-            ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
-            ws.row_dimensions[1].height = 28
+            logo_added = False
+            try:
+                logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'img', 'logo.png')
+                if os.path.exists(logo_path):
+                    xlimg = XLImage(logo_path)
+                    xlimg.width = 36
+                    xlimg.height = 36
+                    ws.add_image(xlimg, 'A1')
+                    logo_added = True
+            except Exception:
+                pass
+            # Posiciona o título: em B1 se houver logo; caso contrário, em A1
+            title_col_start = 2 if logo_added else 1
+            title_cell = ws.cell(row=1, column=title_col_start)
+            title_cell.value = title_text
+            ws.merge_cells(start_row=1, start_column=title_col_start, end_row=1, end_column=len(excel_headers))
+            title_cell.font = Font(size=16, bold=True, color='1F4E79')
+            title_cell.alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[1].height = 30
             hdr_row = 2
             # Cabeçalhos
             ws.append(excel_headers)
@@ -2423,6 +2448,6 @@ if __name__ == '__main__':
         elif arg in ('--seed-admins', 'seed-admins'):
             run_seed_admins()
         else:
-            app.run(debug=True)
+            app.run(host='0.0.0.0', port=int(os.getenv('PORT', '5000')), debug=True)
     else:
         app.run(debug=True)

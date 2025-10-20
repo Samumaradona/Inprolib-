@@ -1,0 +1,143 @@
+/* Topbar padrão compartilhado — padroniza altura, espaçamentos e alinhamentos
+   Funciona em todas as páginas; mantém variáveis do tema já existentes */
+
+header.topbar {
+  background-color: var(--bs-body-bg);
+  border-bottom: 1px solid rgba(0,70,225,0.06);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  min-height: 56px;
+}
+
+header.topbar .container {
+  max-width: 1400px;
+  padding: 12px 20px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Lado esquerdo: hambúrguer + logo (e opcional breadcrumb curto) */
+header.topbar .left {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Lado direito: sino + perfil (avatar) */
+header.topbar .right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Logo padrão */
+header.topbar .logo {
+  height: 26px;
+  width: auto;
+  display: inline-block;
+}
+
+/* Ícones Material Symbols (base) */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Botão hambúrguer */
+.hamburger {
+  display: inline-flex;
+  padding: 8px;
+  border-radius: 8px;
+  background: transparent;
+  border: 0;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Sino de notificação */
+.notif-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 8px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  position: relative;
+}
+.notif-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  font-size: 12px;
+  line-height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bs-danger);
+  color: white;
+}
+
+/* Avatar / Perfil */
+.profile-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  object-fit: cover;
+  display: block;
+  border: 2px solid rgba(0,0,0,0.06);
+}
+
+/* Dropdowns do topo — sem alterações funcionais */
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--bs-body-bg);
+  border: 1px solid rgba(0,70,225,0.06);
+  box-shadow: 0 8px 24px rgba(2,6,23,0.08);
+  border-radius: 8px;
+  padding: 8px;
+  display: none;
+  z-index: 120;
+}
+.dropdown-menu[aria-hidden="false"], .dropdown-menu.open { display: block; }
+
+/* Responsividade: exibe navegação horizontal acima de 768px se existir */
+@media (min-width: 768px) {
+  nav.primary { display: inline-flex; gap: 14px; }
+  nav.primary a {
+    font-size: 14px;
+    color: var(--bs-body-color);
+    text-decoration: none;
+    padding: 6px 8px;
+    border-radius: 6px;
+  }
+  nav.primary a:hover, nav.primary a:focus {
+    background: #eef2ff;
+    outline: none;
+  }
+}
