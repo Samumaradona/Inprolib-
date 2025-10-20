@@ -75,26 +75,41 @@
       </footer>
     </aside>
     <main>
-  <form class="form-container">
-    <h3>Emissão de Relatórios</h3>
+  <form class="form-container" id="formRelatorio" autocomplete="off">
+     <h3>Emissão de Relatórios</h3>
     <!-- Coluna 1 -->
     <div class="container-grid">
     <div>
-      <label for="nome">Autor</label>
-      <select id="nome">
-        <option value="">Selecione o autor</option>
-        <option value="Samuel">Samuel</option>
+      <label for="autor">Autor</label>
+      <input type="text" id="autor" name="autor" placeholder="Digite o nome do autor">
+
+      <label for="orientador">Orientado/Professor</label>
+      <select id="orientador" name="orientador">
+        <option value="">Selecione o orientado/professor</option>
+        {% if autores %}
+          {% for a in autores %}
+            <option value="{{ a.id_usuario }}">{{ a.nome }}</option>
+          {% endfor %}
+        {% endif %}
       </select>
       <label for="curso">Curso</label>
-      <select id="curso">
+      <select id="curso" name="curso">
         <option value="">Selecione o curso</option>
-        <option>ADS</option>
+        {% if cursos %}
+          {% for c in cursos %}
+            <option value="{{ c.id_curso }}">{{ c.nome_curso }}</option>
+          {% endfor %}
+        {% endif %}
       </select>
 
       <label for="tipo">Tipo de publicação</label>
-      <select id="tipo">
-        <option value="">Selecione o tipo de publicação5</option>
-        <option>Artigo Científico</option>
+      <select id="tipo" name="tipo">
+        <option value="">Selecione o tipo de publicação</option>
+        {% if tipos %}
+          {% for t in tipos %}
+            <option value="{{ t.nome_tipo }}">{{ t.nome_tipo }}</option>
+          {% endfor %}
+        {% endif %}
       </select>
 
     </div>
@@ -102,14 +117,14 @@
     <!-- Coluna 2 -->
     <div>
       <label for="data_inicial">Data inicial</label>
-      <input type="date" id="data_inicial">
+      <input type="date" id="data_inicial" name="data_inicial">
       <label for="data_final">Data Final</label>
-      <input type="date" id="data_final">
+      <input type="date" id="data_final" name="data_final">
     </div>
 
     <!-- Botão centralizado -->
     <div class="full-width">
-      <button class="button" type="button">Gerar Relatório Excel</button>
+      <button class="button" id="btnPreviewReport" type="button">Visualizar relatórios</button>
     </div>
     </div>
   </form>
@@ -121,8 +136,151 @@
     window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
     window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
   </script>
+  <!-- Modal de visualização -->
+  <div id="reportModal" class="modal" style="display:none;position:fixed;inset:0;z-index:1000;">
+    <div class="backdrop" style="position:absolute;inset:0;background:rgba(15,23,42,.5)"></div>
+    <div role="dialog" aria-modal="true" aria-labelledby="reportModalTitle" class="modal-card" style="position:relative;margin:48px auto;background:#fff;border-radius:12px;max-width:960px;width:calc(100% - 32px);box-shadow:0 10px 30px rgba(0,0,0,.2);">
+      <header style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #e5e7eb">
+        <h4 id="reportModalTitle" style="margin:0">Pré-visualização do Relatório</h4>
+        <button id="closeReportModal" aria-label="Fechar" class="button is-sm" style="background:#e2e8f0;color:#0f172a">Fechar</button>
+      </header>
+      <section style="padding:16px 20px;max-height:60vh;overflow:auto">
+        <table id="reportTable" style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="background:#f8fafc">
+              <th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb">ID</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb">Título</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb">Tipo</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb">Autor</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb">Curso</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb">Data</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb">Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div id="reportEmpty" style="display:none;color:#475569;padding:12px">Nenhum resultado encontrado com os filtros informados.</div>
+      </section>
+      <footer style="padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
+        <small id="reportCount" style="color:#64748b">0 resultados</small>
+        <div style="display:flex;gap:8px">
+          <a id="btnDownloadExcel" class="button" href="#" role="button">Fazer download (Excel)</a>
+        </div>
+      </footer>
+    </div>
+  </div>
+
   <script src="notifications.js?v=1"></script>
   <script src="home.js?v=aval-fix-1"></script>
-  <script>window.initFlashToasts && window.initFlashToasts();</script>
+  <script>
+    window.initFlashToasts && window.initFlashToasts();
+
+    (function(){
+      const form = document.getElementById('formRelatorio');
+      const btn = document.getElementById('btnPreviewReport');
+      const modal = document.getElementById('reportModal');
+      const closeBtn = document.getElementById('closeReportModal');
+      const tableBody = document.querySelector('#reportTable tbody');
+      const empty = document.getElementById('reportEmpty');
+      const count = document.getElementById('reportCount');
+      const btnExcel = document.getElementById('btnDownloadExcel');
+
+      function qs(params){
+        const p = new URLSearchParams();
+        const add = (k) => { const v = (form.querySelector(`[name="${k}"]`) || {}).value || ''; if(v) p.set(k, v); };
+        ['autor','orientador','curso','tipo','data_inicial','data_final'].forEach(add);
+        return p.toString();
+      }
+
+      function openModal(){ modal.style.display = 'block'; document.body.style.overflow='hidden'; }
+      function closeModal(){ modal.style.display = 'none'; document.body.style.overflow=''; }
+
+      closeBtn.addEventListener('click', closeModal);
+      modal.querySelector('.backdrop').addEventListener('click', closeModal);
+
+      async function doPreview(){
+        const q = qs();
+        // Monta URL de excel para o botão (sem navegar)
+        btnExcel.dataset.url = '/relatorio/exportar' + (q ? ('?' + q) : '');
+
+        // Busca preview
+        const url = '/relatorio/preview' + (q ? ('?' + q) : '');
+        try{
+          tableBody.innerHTML = '';
+          empty.style.display = 'none';
+          count.textContent = 'Carregando...';
+          const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+          if(!resp.ok){ throw new Error('Falha ao obter preview'); }
+          const data = await resp.json();
+          const rows = data && Array.isArray(data.rows) ? data.rows : [];
+          if(!rows.length){
+            empty.style.display = 'block';
+            count.textContent = '0 resultados';
+          } else {
+            for(const r of rows){
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">${r.id_publicacao ?? ''}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">${r.titulo ?? ''}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">${r.tipo ?? ''}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">${r.autor ?? ''}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">${r.curso ?? ''}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">${r.data_publicacao ?? ''}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">${r.status ?? ''}</td>
+              `;
+              tableBody.appendChild(tr);
+            }
+            count.textContent = rows.length + (rows.length === 1 ? ' resultado' : ' resultados');
+          }
+          openModal();
+        } catch(err){
+          count.textContent = 'Erro ao carregar';
+          empty.style.display = 'block';
+          openModal();
+        }
+      }
+
+      btn.addEventListener('click', doPreview);
+      form.addEventListener('submit', function(e){ e.preventDefault(); doPreview(); });
+
+      btnExcel.addEventListener('click', async function(ev){
+        ev.preventDefault();
+        const q = qs();
+        const url = btnExcel.dataset.url || ('/relatorio/exportar' + (q ? ('?' + q) : ''));
+        let toast;
+        try{
+          toast = window.showToast && window.showToast('Efetuando o download...', 'info', { timeout: 0 });
+          btnExcel.setAttribute('aria-busy','true');
+          btnExcel.classList.add('is-disabled');
+
+          const resp = await fetch(url, { method: 'GET' });
+          if(!resp.ok) throw new Error('Falha ao iniciar download');
+
+          // tenta extrair o nome do arquivo do header
+          let filename = 'relatorio.xlsx';
+          const cd = resp.headers.get('Content-Disposition') || '';
+          const m = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(cd);
+          if(m && m[1]){ filename = decodeURIComponent(m[1].replace(/['"]/g, '')); }
+
+          const blob = await resp.blob();
+          const objectURL = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = objectURL; a.download = filename;
+          document.body.appendChild(a); a.click(); a.remove();
+          URL.revokeObjectURL(objectURL);
+
+          if(toast && toast.remove) toast.remove();
+          window.showToast && window.showToast('Efetuado com sucesso!', 'success');
+          closeModal();
+        } catch(err){
+          if(toast && toast.remove) toast.remove();
+          window.showToast && window.showToast('Falha no download', 'error');
+        } finally {
+          btnExcel.removeAttribute('aria-busy');
+          btnExcel.classList.remove('is-disabled');
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

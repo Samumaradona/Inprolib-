@@ -27,8 +27,8 @@ const ALL_ROUTES = [
 // Tabela de permissões por perfil (simplificada e robusta)
 const ALLOWED_BY_ROLE = {
   'Administrador': new Set(ALL_ROUTES.map(r => r.path)),
-  'Docente': new Set(['/home','/publicacao','/suporte','/vinculacao_curso','/avaliacao']),
-  'Aluno': new Set(['/home','/publicacao','/suporte'])
+  'Docente': new Set(['/home','/publicacao','/suporte','/vinculacao_curso','/avaliacao','/relatorio']),
+  'Aluno': new Set(['/home','/publicacao','/suporte','/relatorio'])
 };
 
 // Calcula rotas permitidas
