@@ -77,20 +77,27 @@
     </aside>
 
     <main>
-  <form class="form-container">
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+          <script>
+            window.FLASH_MESSAGES = {{ messages|tojson|safe }};
+          </script>
+        {% endif %}
+      {% endwith %}
+  <form class="form-container" method="POST" action="/suporte" enctype="multipart/form-data" novalidate>
       <h3>Suporte</h3>
     <!-- Coluna 1 -->
     <div class="container-grid">
     
       <label for="mensagem">Mensagem</label>
-      <textarea type="text" id="mensagem" placeholder="Insira a mensagem..."></textarea>
+      <textarea id="mensagem" name="mensagem" placeholder="Insira a mensagem..." required></textarea>
                     <!-- Botão centralizado -->
                     <div class="btn-group">
                         <input type="file" name="imagem" id="imagem" hidden>
-                        <label for="imagem" class="button">
-                          Anexar Imagem +
+                        <label for="imagem" class="button is-success">
+                          Anexar Imagem
                         </label>
-                        <button type="submit">Enviar</button>
+                        <button type="submit" class="button">Salvar</button>
                     </div>
                 </div>
             </form>

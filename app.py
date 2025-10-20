@@ -112,6 +112,59 @@ def send_reset_email(to_email: str, reset_url: str) -> bool:
         print('[SMTP] Link de redefinição:', reset_url)
         return False
 
+
+def send_support_email(body_text: str, attachment: tuple | None = None, reply_to: str | None = None, subject: str = 'INPROLIB - Suporte') -> bool:
+    """
+    Envia um e-mail de suporte.
+    - body_text: texto principal da mensagem
+    - attachment: tuple opcional (filename, data_bytes, mimetype)
+    - reply_to: e-mail do usuário para facilitar resposta
+    """
+    host = os.getenv('SMTP_HOST')
+    port = int(os.getenv('SMTP_PORT', '587'))
+    user = os.getenv('SMTP_USER')
+    password = os.getenv('SMTP_PASSWORD')
+    sender = os.getenv('SMTP_FROM', user or '')
+    use_ssl = os.getenv('SMTP_USE_SSL', '0').lower() in {'1','true','yes'}
+    to_email = os.getenv('SUPPORT_EMAIL', 'suporteinprolib@gmail.com')
+
+    if not host or not user or not password or not sender:
+        print('[SMTP] Configuração incompleta. Não foi possível enviar e-mail de suporte.')
+        return False
+
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = sender
+        msg['To'] = to_email
+        if reply_to:
+            msg['Reply-To'] = reply_to
+        msg.set_content(body_text)
+
+        if attachment:
+            filename, data_bytes, mimetype = attachment
+            try:
+                maintype, subtype = (mimetype or 'application/octet-stream').split('/', 1)
+            except Exception:
+                maintype, subtype = 'application', 'octet-stream'
+            msg.add_attachment(data_bytes, maintype=maintype, subtype=subtype, filename=filename)
+
+        if use_ssl:
+            with smtplib.SMTP_SSL(host, port) as smtp:
+                smtp.login(user, password)
+                smtp.send_message(msg)
+        else:
+            with smtplib.SMTP(host, port) as smtp:
+                smtp.ehlo()
+                smtp.starttls()
+                smtp.ehlo()
+                smtp.login(user, password)
+                smtp.send_message(msg)
+        return True
+    except Exception as e:
+        print('[SMTP] Erro ao enviar e-mail de suporte:', e)
+        return False
+
 def validar_cpf(cpf: str) -> bool:
     if not cpf:
         return False
@@ -1610,10 +1663,43 @@ def relatorio():
     return render_template('relatorio.html')
 
 # Rota para a página de suporte
-@app.route('/suporte')
+@app.route('/suporte', methods=['GET','POST'])
 @login_required
 @roles_required(['Administrador','Docente','Aluno'])
 def suporte():
+    if request.method == 'POST':
+        key = f"{request.remote_addr}:suporte"
+        if not check_rate_limit(key, limit=10, window=60):
+            flash('Muitas tentativas. Tente novamente em instantes.', 'error')
+            audit_log('rate_limit', {'route': 'suporte'})
+            return redirect(url_for('suporte'))
+        mensagem = (request.form.get('mensagem') or '').strip()
+        arquivo = request.files.get('imagem')
+        attach_tuple = None
+        try:
+            if arquivo and arquivo.filename:
+                filename = secure_filename(arquivo.filename)
+                data_bytes = arquivo.read()
+                mimetype = arquivo.mimetype or (mimetypes.guess_type(filename)[0] or 'application/octet-stream')
+                attach_tuple = (filename, data_bytes, mimetype)
+        except Exception:
+            attach_tuple = None
+        user_name = (session.get('user_name') or '').strip()
+        user_id = session.get('user_id')
+        role = (session.get('role') or session.get('user_tipo') or '').strip()
+        body_text = (
+            'Novo contato de suporte no INPROLIB:\n\n'
+            f'Usuário: {user_name or "Desconhecido"}\n'
+            f'Perfil: {role or "-"}\n'
+        )
+        ok = send_support_email(body_text, attach_tuple, None)
+        if ok:
+            flash('Mensagem de suporte enviada com sucesso!', 'success')
+            audit_log('suporte_email_ok', {'user_id': user_id})
+        else:
+            flash('Falha ao enviar o e-mail de suporte.', 'error')
+            audit_log('suporte_email_error', {'user_id': user_id})
+        return redirect(url_for('suporte'))
     return render_template('suporte.html')
 
 # Rota para a página de configuração
