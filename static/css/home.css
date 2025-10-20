@@ -445,7 +445,7 @@
   padding:24px;
 }
 .modal[aria-hidden="false"], .modal.open{
-  display:flex;
+  display:flex !important;
 }
 .modal-content{
   background:var(--bs-body-bg);
