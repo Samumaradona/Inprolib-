@@ -1788,53 +1788,224 @@ def exportar_relatorio():
         rows = cur.fetchall() or []
         cur.close(); conn.close()
 
-        # Monta Excel
-        import io
-        from openpyxl import Workbook
-        wb = Workbook()
-        ws = wb.active
-        ws.title = 'Relatório'
-        headers = [
-            'ID', 'Título', 'Tipo', 'Autor', 'Curso', 'Data Publicação', 'Status', 'Assuntos'
-        ]
-        ws.append(headers)
-        for r in rows:
-            ws.append([
-                r.get('id_publicacao'),
-                r.get('titulo'),
-                r.get('tipo'),
-                r.get('autor'),
-                r.get('curso'),
-                r.get('data_publicacao').strftime('%Y-%m-%d') if r.get('data_publicacao') else '',
-                r.get('status'),
-                r.get('assuntos')
-            ])
+        # Limite de taxa simples por usuário (10/min)
+        key = f"relatorio_export::{session.get('user_id') or 'anon'}"
+        if not check_rate_limit(key, limit=10, window=60):
+            return make_response('Muitas exportações. Tente novamente em instantes.', 429)
 
-        # Ajuste simples de largura
-        try:
+        # Colunas configuráveis
+        import re, io
+        fmt = (request.args.get('format') or 'xlsx').lower()
+        cols_param = (request.args.get('cols') or '').strip()
+        valid_cols = ['id_publicacao','titulo','tipo','autor','curso','data_publicacao','status','assuntos']
+        col_map = {
+            'id_publicacao':'ID',
+            'titulo':'Título',
+            'tipo':'Tipo',
+            'autor':'Autor',
+            'curso':'Curso',
+            'data_publicacao':'Data Publicação',
+            'status':'Status',
+            'assuntos':'Assuntos'
+        }
+        selected_cols = [c for c in re.split(r'[\s,;]+', cols_param) if c in valid_cols]
+        if not selected_cols:
+            selected_cols = valid_cols[:]
+
+        from datetime import datetime as _dt
+        fname_base = f"relatorio_inprolib_{_dt.now().strftime('%Y%m%d_%H%M%S')}"
+
+        def val_for(col_key, r):
+            v = r.get(col_key)
+            if col_key == 'data_publicacao' and v:
+                try:
+                    # psycopg returns date/datetime; for CSV/PDF use YYYY-MM-DD
+                    return v.strftime('%Y-%m-%d')
+                except Exception:
+                    return str(v)
+            return v if (v is not None) else ''
+
+        if fmt == 'csv':
+            import csv
+            headers = [col_map[c] for c in selected_cols]
+            text_buf = io.StringIO()
+            writer = csv.writer(text_buf, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            writer.writerow(headers)
+            for r in rows:
+                writer.writerow([val_for(c, r) for c in selected_cols])
+            csv_bytes = text_buf.getvalue().encode('utf-8-sig')  # BOM para Excel abrir corretamente
+            buf = io.BytesIO(csv_bytes)
+            buf.seek(0)
+            resp = send_file(
+                buf,
+                as_attachment=True,
+                download_name=f"{fname_base}.csv",
+                mimetype='text/csv',
+                max_age=0
+            )
+        elif fmt == 'pdf':
+            try:
+                from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+                from reportlab.lib.pagesizes import landscape, A4
+                from reportlab.lib import colors
+                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                headers = [col_map[c] for c in selected_cols]
+                buf = io.BytesIO()
+                doc = SimpleDocTemplate(buf, pagesize=landscape(A4), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
+                styles = getSampleStyleSheet()
+                title_style = ParagraphStyle('ReportTitle', parent=styles['Title'], fontSize=16, textColor=colors.HexColor('#1F4E79'), alignment=1, spaceAfter=12)
+                title = Paragraph('Relatório de publicações', title_style)
+                data = [headers]
+                for r in rows:
+                    data.append([val_for(c, r) for c in selected_cols])
+                table = Table(data, repeatRows=1)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND',(0,0),(-1,0),colors.HexColor('#f0f0f0')),
+                    ('TEXTCOLOR',(0,0),(-1,0),colors.black),
+                    ('GRID',(0,0),(-1,-1),0.25,colors.HexColor('#cccccc')),
+                    ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
+                    ('FONTSIZE',(0,0),(-1,-1),9),
+                    ('ALIGN',(0,0),(-1,-1),'LEFT'),
+                    ('VALIGN',(0,0),(-1,-1),'MIDDLE')
+                ]))
+                doc.build([title, Spacer(1, 10), table])
+                buf.seek(0)
+                resp = send_file(
+                    buf,
+                    as_attachment=True,
+                    download_name=f"{fname_base}.pdf",
+                    mimetype='application/pdf',
+                    max_age=0
+                )
+            except Exception as _e:
+                # Fallback simples para CSV se PDF falhar
+                import csv
+                headers = [col_map[c] for c in selected_cols]
+                text_buf = io.StringIO()
+                writer = csv.writer(text_buf, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+                writer.writerow(headers)
+                for r in rows:
+                    writer.writerow([val_for(c, r) for c in selected_cols])
+                csv_bytes = text_buf.getvalue().encode('utf-8-sig')
+                buf = io.BytesIO(csv_bytes)
+                buf.seek(0)
+                resp = send_file(
+                    buf,
+                    as_attachment=True,
+                    download_name=f"{fname_base}.csv",
+                    mimetype='text/csv',
+                    max_age=0
+                )
+        else:
+            # Excel sem a coluna ID e com formatação moderna
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
             from openpyxl.utils import get_column_letter
-            for col_idx, _ in enumerate(headers, start=1):
-                ws.column_dimensions[get_column_letter(col_idx)].width = 22
+            wb = Workbook()
+            ws = wb.active
+            ws.title = 'Relatório'
+            excel_cols = [c for c in selected_cols if c != 'id_publicacao']
+            if not excel_cols:
+                excel_cols = [c for c in valid_cols if c != 'id_publicacao']
+            excel_headers = [col_map[c] for c in excel_cols]
+            # Título do relatório
+            title_text = 'Relatório de publicações'
+            ws.append([title_text])
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(excel_headers))
+            ws['A1'].font = Font(size=16, bold=True, color='1F4E79')
+            ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[1].height = 28
+            hdr_row = 2
+            # Cabeçalhos
+            ws.append(excel_headers)
+            for r in rows:
+                row_vals = []
+                for c in excel_cols:
+                    v = r.get(c)
+                    if c == 'data_publicacao' and v:
+                        row_vals.append(v)  # manter como date/datetime para formatar
+                    else:
+                        row_vals.append(v if (v is not None) else '')
+                ws.append(row_vals)
+            # Estilo moderno
+            thin = Side(style='thin', color='D0D7DE')
+            hdr_fill = PatternFill('solid', fgColor='F1F5F9')
+            for col_idx in range(1, len(excel_headers)+1):
+                cell = ws.cell(row=hdr_row, column=col_idx)
+                cell.font = Font(bold=True)
+                cell.fill = hdr_fill
+                cell.alignment = Alignment(vertical='center')
+                cell.border = Border(top=thin, left=thin, right=thin, bottom=thin)
+            # Zebrado
+            for i in range(0, len(rows)):
+                if i % 2 == 0:
+                    row_num = i + hdr_row + 1
+                    for col_idx in range(1, len(excel_headers)+1):
+                        ws.cell(row=row_num, column=col_idx).fill = PatternFill('solid', fgColor='F9FAFB')
+            # Wrap em Título/Assuntos
+            wrap_cols = []
+            for idx, key in enumerate(excel_cols, start=1):
+                if key in {'titulo','assuntos'}:
+                    wrap_cols.append(idx)
+            for row_num in range(hdr_row+1, ws.max_row+1):
+                for idx in wrap_cols:
+                    ws.cell(row=row_num, column=idx).alignment = Alignment(wrap_text=True, vertical='top')
+            # Larguras de coluna
+            width_map = {
+                'titulo': 50,
+                'tipo': 18,
+                'autor': 24,
+                'curso': 24,
+                'data_publicacao': 14,
+                'status': 16,
+                'assuntos': 36
+            }
+            for idx, key in enumerate(excel_cols, start=1):
+                ws.column_dimensions[get_column_letter(idx)].width = width_map.get(key, 22)
+            # Congelar cabeçalho e filtro
+            ws.freeze_panes = f'A{hdr_row+1}'
+            ws.auto_filter.ref = f"A{hdr_row}:{get_column_letter(len(excel_headers))}{hdr_row}"
+            # Formato de data
+            if 'data_publicacao' in excel_cols:
+                d_idx = excel_cols.index('data_publicacao') + 1
+                for row_num in range(hdr_row+1, ws.max_row+1):
+                    ws.cell(row=row_num, column=d_idx).number_format = 'YYYY-MM-DD'
+            buf = io.BytesIO()
+            wb.save(buf)
+            buf.seek(0)
+            resp = send_file(
+                buf,
+                as_attachment=True,
+                download_name=f"{fname_base}.xlsx",
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                max_age=0
+            )
+
+        # Define Content-Length explícito para permitir barra de progresso no frontend
+        try:
+            resp.headers['Content-Length'] = buf.getbuffer().nbytes
         except Exception:
             pass
-
-        buf = io.BytesIO()
-        wb.save(buf)
-        buf.seek(0)
-
-        # Resposta com headers de download
-        from datetime import datetime as _dt
-        fname = f"relatorio_inprolib_{_dt.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        resp = send_file(
-            buf,
-            as_attachment=True,
-            download_name=fname,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            max_age=0
-        )
         resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         resp.headers['Pragma'] = 'no-cache'
         resp.headers['Expires'] = '0'
+        # Auditoria leve
+        try:
+            audit_log('relatorio_export', {
+                'format': fmt,
+                'cols': selected_cols,
+                'rows': len(rows),
+                'filters': {
+                    'autor': autor,
+                    'orientador': orientador,
+                    'curso': curso,
+                    'tipo': tipo,
+                    'data_inicial': data_inicial,
+                    'data_final': data_final
+                }
+            })
+        except Exception:
+            pass
         return resp
     except Exception as e:
         flash(f'Erro ao gerar Excel: {e}', 'error')
