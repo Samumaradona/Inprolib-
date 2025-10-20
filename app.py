@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory, make_response
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory, make_response, send_file
 import psycopg
 from psycopg.rows import dict_row
 from psycopg.errors import InvalidCatalogName
@@ -1168,6 +1168,7 @@ def publicacao():
     # Buscar cursos e tipos de publicação para o formulário e listar últimas publicações
     cursos = []
     tipos = []
+    professores = []
     publicacoes = []
     conn = get_db_connection()
     if conn:
@@ -1176,8 +1177,25 @@ def publicacao():
             cur.execute("SELECT * FROM curso ORDER BY nome_curso")
             cursos = cur.fetchall()
             
+            # Padroniza tipo 'Artigo Científico'
+            try:
+                cur_ins = conn.cursor()
+                # garante 'Artigo Científico'
+                cur_ins.execute("INSERT INTO tipos_de_publicacao (nome_tipo) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM tipos_de_publicacao WHERE nome_tipo = %s)", ('Artigo Científico','Artigo Científico'))
+                # atualiza publicações antigas
+                cur_ins.execute("UPDATE publicacao SET tipo = %s WHERE tipo = %s", ('Artigo Científico','Artigo'))
+                # remove 'Artigo' da lista se já existir 'Artigo Científico'
+                cur_ins.execute("DELETE FROM tipos_de_publicacao WHERE nome_tipo = %s AND EXISTS (SELECT 1 FROM tipos_de_publicacao WHERE nome_tipo = %s)", ('Artigo','Artigo Científico'))
+                conn.commit()
+                cur_ins.close()
+            except Exception:
+                pass
+
             cur.execute("SELECT * FROM tipos_de_publicacao ORDER BY nome_tipo")
             tipos = cur.fetchall()
+
+            cur.execute("SELECT id_usuario, nome FROM usuario WHERE tipo = 'Professor' ORDER BY nome")
+            professores = cur.fetchall()
 
             cur.execute("""
                 SELECT 
@@ -1207,7 +1225,7 @@ def publicacao():
     a, b = random.randint(1, 9), random.randint(1, 9)
     session['captcha_answer'] = str(a + b)
     captcha_question = f"Quanto é {a} + {b}?"
-    return render_template('publicacao.html', cursos=cursos, tipos=tipos, publicacoes=publicacoes, captcha_question=captcha_question)
+    return render_template('publicacao.html', cursos=cursos, tipos=tipos, professores=professores, publicacoes=publicacoes, captcha_question=captcha_question)
 
 # Rota de download da publicação com nome do arquivo igual ao título
 @app.route('/download_publicacao/<int:id_publicacao>')
@@ -1658,9 +1676,250 @@ def vinculacao_curso():
 # Rota para a página de relatório
 @app.route('/relatorio')
 @login_required
-@roles_required(['Administrador'])
+@roles_required(['Administrador','Docente','Aluno'])
 def relatorio():
-    return render_template('relatorio.html')
+    autores = []
+    cursos = []
+    tipos = []
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor(row_factory=dict_row)
+            # Autores: todos os professores cadastrados
+            cur.execute("SELECT id_usuario, nome FROM usuario WHERE tipo = 'Professor' ORDER BY nome")
+            autores = cur.fetchall()
+            # Cursos: todos os cursos
+            cur.execute("SELECT id_curso, nome_curso FROM curso ORDER BY nome_curso")
+            cursos = cur.fetchall()
+            # Padroniza tipo 'Artigo Científico'
+            try:
+                cur_ins = conn.cursor()
+                # garante 'Artigo Científico'
+                cur_ins.execute("INSERT INTO tipos_de_publicacao (nome_tipo) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM tipos_de_publicacao WHERE nome_tipo = %s)", ('Artigo Científico','Artigo Científico'))
+                # atualiza publicações antigas
+                cur_ins.execute("UPDATE publicacao SET tipo = %s WHERE tipo = %s", ('Artigo Científico','Artigo'))
+                # remove 'Artigo' da lista se já existir 'Artigo Científico'
+                cur_ins.execute("DELETE FROM tipos_de_publicacao WHERE nome_tipo = %s AND EXISTS (SELECT 1 FROM tipos_de_publicacao WHERE nome_tipo = %s)", ('Artigo','Artigo Científico'))
+                conn.commit()
+                cur_ins.close()
+            except Exception:
+                pass
+            # Tipos de publicação aceitos
+            cur.execute("SELECT nome_tipo FROM tipos_de_publicacao ORDER BY nome_tipo")
+            tipos = cur.fetchall()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            flash(f'Erro ao carregar filtros de relatório: {e}', 'error')
+    return render_template('relatorio.html', autores=autores, cursos=cursos, tipos=tipos)
+
+# Exportação de Relatório em Excel
+@app.route('/relatorio/exportar', methods=['GET'])
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def exportar_relatorio():
+    # Coleta de filtros
+    autor = (request.args.get('autor') or '').strip()
+    orientador = (request.args.get('orientador') or '').strip()
+    curso = (request.args.get('curso') or '').strip()
+    tipo = (request.args.get('tipo') or '').strip()
+    data_inicial = (request.args.get('data_inicial') or '').strip()
+    data_final = (request.args.get('data_final') or '').strip()
+
+    # Construção dinâmica do WHERE
+    where = ["1=1"]
+    params = []
+
+    if autor:
+        where.append("u.nome ILIKE %s")
+        params.append(f"%{autor}%")
+    if orientador:
+        where.append("p.id_autor = %s")
+        params.append(orientador)
+    if curso:
+        where.append("p.id_curso = %s")
+        params.append(curso)
+    if tipo:
+        where.append("p.tipo = %s")
+        params.append(tipo)
+    # Datas (YYYY-MM-DD)
+    try:
+        if data_inicial:
+            from datetime import datetime
+            di = datetime.strptime(data_inicial, '%Y-%m-%d').date()
+            where.append("p.data_publicacao >= %s")
+            params.append(di)
+        if data_final:
+            from datetime import datetime
+            df = datetime.strptime(data_final, '%Y-%m-%d').date()
+            where.append("p.data_publicacao <= %s")
+            params.append(df)
+    except Exception:
+        pass
+
+    sql = f"""
+        SELECT 
+          p.id_publicacao,
+          p.titulo,
+          p.tipo,
+          p.data_publicacao,
+          p.status,
+          COALESCE(u.nome, '') AS autor,
+          COALESCE(c.nome_curso, '') AS curso,
+          COALESCE(p.assuntos_relacionados, '') AS assuntos
+        FROM publicacao p
+        JOIN usuario u ON u.id_usuario = p.id_autor
+        LEFT JOIN curso c ON c.id_curso = p.id_curso
+        WHERE {' AND '.join(where)}
+        ORDER BY p.data_publicacao DESC, p.id_publicacao DESC
+    """
+
+    try:
+        conn = get_db_connection()
+        if not conn:
+            flash('Falha ao conectar para exportação.', 'error')
+            return redirect(url_for('relatorio'))
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute(sql, params)
+        rows = cur.fetchall() or []
+        cur.close(); conn.close()
+
+        # Monta Excel
+        import io
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Relatório'
+        headers = [
+            'ID', 'Título', 'Tipo', 'Autor', 'Curso', 'Data Publicação', 'Status', 'Assuntos'
+        ]
+        ws.append(headers)
+        for r in rows:
+            ws.append([
+                r.get('id_publicacao'),
+                r.get('titulo'),
+                r.get('tipo'),
+                r.get('autor'),
+                r.get('curso'),
+                r.get('data_publicacao').strftime('%Y-%m-%d') if r.get('data_publicacao') else '',
+                r.get('status'),
+                r.get('assuntos')
+            ])
+
+        # Ajuste simples de largura
+        try:
+            from openpyxl.utils import get_column_letter
+            for col_idx, _ in enumerate(headers, start=1):
+                ws.column_dimensions[get_column_letter(col_idx)].width = 22
+        except Exception:
+            pass
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        # Resposta com headers de download
+        from datetime import datetime as _dt
+        fname = f"relatorio_inprolib_{_dt.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        resp = send_file(
+            buf,
+            as_attachment=True,
+            download_name=fname,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            max_age=0
+        )
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+        return resp
+    except Exception as e:
+        flash(f'Erro ao gerar Excel: {e}', 'error')
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return redirect(url_for('relatorio'))
+
+# Visualização de Relatório (JSON)
+@app.route('/relatorio/preview', methods=['GET'])
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def preview_relatorio():
+    autor = (request.args.get('autor') or '').strip()
+    orientador = (request.args.get('orientador') or '').strip()
+    curso = (request.args.get('curso') or '').strip()
+    tipo = (request.args.get('tipo') or '').strip()
+    data_inicial = (request.args.get('data_inicial') or '').strip()
+    data_final = (request.args.get('data_final') or '').strip()
+
+    where = ["1=1"]
+    params = []
+    if autor:
+        where.append("u.nome ILIKE %s")
+        params.append(f"%{autor}%")
+    if orientador:
+        where.append("p.id_autor = %s")
+        params.append(orientador)
+    if curso:
+        where.append("p.id_curso = %s")
+        params.append(curso)
+    if tipo:
+        where.append("p.tipo = %s")
+        params.append(tipo)
+    try:
+        if data_inicial:
+            from datetime import datetime
+            di = datetime.strptime(data_inicial, '%Y-%m-%d').date()
+            where.append("p.data_publicacao >= %s")
+            params.append(di)
+        if data_final:
+            from datetime import datetime
+            df = datetime.strptime(data_final, '%Y-%m-%d').date()
+            where.append("p.data_publicacao <= %s")
+            params.append(df)
+    except Exception:
+        pass
+
+    where_clause = " AND ".join(where)
+    sql = f"""
+        SELECT 
+          p.id_publicacao, p.titulo, p.tipo, p.status, p.assuntos_relacionados as assuntos,
+          u.nome as autor, c.nome_curso as curso, p.data_publicacao
+        FROM publicacao p
+        LEFT JOIN usuario u ON u.id_usuario = p.id_autor
+        LEFT JOIN curso c ON c.id_curso = p.id_curso
+        WHERE {where_clause}
+        ORDER BY p.id_publicacao DESC
+    """
+
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return make_response(jsonify({'error': 'Falha ao conectar ao banco.'}), 500)
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute(sql, params)
+        rows = cur.fetchall() or []
+        cur.close(); conn.close()
+        # Normaliza datas para string
+        out = []
+        for r in rows:
+            out.append({
+                'id_publicacao': r.get('id_publicacao'),
+                'titulo': r.get('titulo'),
+                'tipo': r.get('tipo'),
+                'autor': r.get('autor'),
+                'curso': r.get('curso'),
+                'data_publicacao': r.get('data_publicacao').strftime('%Y-%m-%d') if r.get('data_publicacao') else '',
+                'status': r.get('status'),
+                'assuntos': r.get('assuntos')
+            })
+        return jsonify({'rows': out})
+    except Exception as e:
+        return make_response(jsonify({'error': str(e)}), 500)
 
 # Rota para a página de suporte
 @app.route('/suporte', methods=['GET','POST'])
