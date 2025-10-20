@@ -429,15 +429,31 @@
   .button:hover {
     background: var(--bs-new-dark);
   }
+
+  /* Variante de sucesso (verde) para botões como Anexar Imagem */
+  .button.is-success {
+    background: var(--bs-success);
+  }
+  .button.is-success:hover {
+    background: var(--bs-green);
+  }
   
-  .form-container .button{
-    background-color: var(--bs-success);
-    color: var(--card-bg);
-    width: 90%;
-  }
-  .form-container .button:hover{
-    background-color: var(--bs-green);
-  }
+  /* Alinhar estilo do botão Salvar com o padrão azul (largura reduzida) */
+   .form-container .button{
+     background: var(--bs-new-casual);
+     color: #fff;
+     width: auto; /* padrão das outras telas: não ocupar 100% */
+   }
+   .form-container .button:hover{
+     background: var(--bs-new-dark);
+   }
+   /* Garantir que o botão Anexar (verde) prevaleça mesmo dentro do form */
+   .form-container .button.is-success{
+     background: var(--bs-success);
+   }
+   .form-container .button.is-success:hover{
+     background: var(--bs-green);
+   }
   
   #btnClose {
       border: none;
