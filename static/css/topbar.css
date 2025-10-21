@@ -81,7 +81,11 @@ header.topbar .notif-btn {
 header.topbar .notif-btn:hover { background: #f4f6fb; }
 
 /* Dropdowns (perfil e notificações) mantém estilo atual, mas garantimos posicionamento */
-header.topbar .dropdown-menu { position: absolute; right: 0; top: calc(100% + 6px); }
+header.topbar .dropdown-menu { position: absolute; top: calc(100% + 6px); z-index: 1000; }
+/* Perfil: alinhar menu imediatamente abaixo e à esquerda do avatar */
+header.topbar .profile-wrap > .dropdown-menu { left: 0; right: auto; }
+/* Notificações: alinhar à direita do botão */
+header.topbar .notif-wrap > .dropdown-menu { right: 0; left: auto; }
 
 /* Ajustes de acessibilidade básicos */
 header.topbar .notif-btn:focus,

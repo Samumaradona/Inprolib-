@@ -447,7 +447,8 @@ data-id="{{ u.id_usuario }}">
         nomeInput.value = tr?.dataset.nome || '';
         cpfInput.value = formatCPF(tr?.dataset.cpf || '');
         emailInput.value = tr?.dataset.email || '';
-        tipoSelect.value = (tipo.toLowerCase() === 'professor' ? 'Docente' : 'Aluno');
+        const tipoNorm = tipo.toLowerCase();
+        tipoSelect.value = ((tipoNorm === 'professor' || tipoNorm === 'docente') ? 'Docente' : 'Aluno');
         // Oculta campos de senha/captcha na edição
         senhaInput.required = false; confirmarInput.required = false; captchaInput.required = false;
         senhaGroup.style.display = 'none'; confirmarGroup.style.display = 'none'; captchaGroup.style.display = 'none';

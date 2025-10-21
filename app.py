@@ -1610,15 +1610,20 @@ def preview_pdf_publicacao(id_publicacao):
         stored_name = row['nome_arquivo']
         upload_dir = app.config['UPLOAD_FOLDER']
         full_path = os.path.join(upload_dir, stored_name)
+
+        # Sempre tenta servir um PDF em cache se já existir
+        preview_dir = ensure_previews_dir()
+        preview_name = f'preview_pub_{id_publicacao}.pdf'
+        preview_path = os.path.join(preview_dir, preview_name)
+        if os.path.exists(preview_path):
+            return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+
+        # Se não houver cache, exige a fonte original
         if not os.path.exists(full_path):
             return make_response('<div style="padding:12px;color:#dc2626;">Arquivo não encontrado no servidor.</div>', 404)
         ext = os.path.splitext(stored_name)[1].lower()
         if ext not in ('.doc', '.docx', '.xls', '.xlsx'):
             return make_response('<div style="padding:12px;color:#6b7280;">Formato não suportado para conversão automática.</div>', 400)
-
-        preview_dir = ensure_previews_dir()
-        preview_name = f'preview_pub_{id_publicacao}.pdf'
-        preview_path = os.path.join(preview_dir, preview_name)
 
         # Cache simples: usa preview se for mais novo que a fonte
         try:
@@ -2235,6 +2240,38 @@ def configuracao():
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+# API de CEP (proxy ViaCEP)
+@app.route('/api/cep/<cep>', methods=['GET'])
+def api_cep(cep):
+    key = f"{request.remote_addr}:api_cep"
+    if not check_rate_limit(key, limit=40, window=60):
+        return make_response(jsonify({'erro': 'rate_limit'}), 429)
+    digits = re.sub(r'[^0-9]', '', (cep or ''))
+    if len(digits) != 8:
+        return make_response(jsonify({'erro': 'CEP inválido'}), 400)
+    import urllib.request
+    import ssl
+    url = f"https://viacep.com.br/ws/{digits}/json/"
+    try:
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(url, timeout=5, context=ctx) as resp:
+            payload = resp.read().decode('utf-8')
+        data = json.loads(payload or '{}')
+        if data.get('erro'):
+            return make_response(jsonify({'erro': 'CEP não encontrado'}), 404)
+        out = {
+            'cep': data.get('cep', ''),
+            'logradouro': data.get('logradouro', ''),
+            'complemento': data.get('complemento', ''),
+            'bairro': data.get('bairro', ''),
+            'localidade': data.get('localidade', ''),
+            'uf': data.get('uf', '')
+        }
+        return jsonify(out)
+    except Exception as e:
+        print(f'[CEP] Falha ao consultar ViaCEP: {e}')
+        return make_response(jsonify({'erro': 'Falha ao consultar CEP'}), 502)
 
 # API para buscar publicações
 @app.route('/api/publicacoes', methods=['GET'])
