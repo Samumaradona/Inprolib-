@@ -1,0 +1,89 @@
+/* Topbar padrão moderno para todas as telas */
+:root {
+  --topbar-height: 64px;
+  --topbar-padding-x: 24px;
+  --topbar-gap: 16px;
+  --topbar-border: rgba(0,70,225,0.06);
+}
+
+header.topbar {
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--topbar-border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  min-height: var(--topbar-height);
+  display: flex;
+  align-items: center;
+}
+
+header.topbar .container {
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 var(--topbar-padding-x);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--topbar-gap);
+}
+
+header.topbar .left,
+header.topbar .right {
+  display: flex;
+  align-items: center;
+  gap: var(--topbar-gap);
+}
+
+/* Botão hambúrguer */
+header.topbar .hamburger {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+header.topbar .hamburger:hover { background: #f4f6fb; }
+
+/* Avatar + menu de perfil */
+header.topbar .profile-wrap { position: relative; display: inline-flex; align-items: center; }
+header.topbar .profile-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+header.topbar .avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+#username { font-weight: 500; color: #0f172a; }
+
+/* Notificações */
+header.topbar .notif-btn {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+header.topbar .notif-btn:hover { background: #f4f6fb; }
+
+/* Dropdowns (perfil e notificações) mantém estilo atual, mas garantimos posicionamento */
+header.topbar .dropdown-menu { position: absolute; right: 0; top: calc(100% + 6px); }
+
+/* Ajustes de acessibilidade básicos */
+header.topbar .notif-btn:focus,
+header.topbar .hamburger:focus,
+header.topbar .profile-btn:focus { outline: 2px solid #99ACF7; outline-offset: 2px; }

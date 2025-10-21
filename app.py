@@ -630,7 +630,7 @@ def login():
                 rel_photo = _norm_photo_path(fallback_rel) or fallback_rel
             session['user_photo'] = rel_photo
             audit_log('login_ok', {'email': email or '', 'cpf': cpf or ''})
-            return redirect(url_for('home'))
+            return redirect(url_for('home'), code=303)
         except Exception as e:
             try:
                 conn.close()

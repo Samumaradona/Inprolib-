@@ -165,9 +165,13 @@ function setCurrentRoute(path){
  */
 function navigateTo(path){
   try {
-    window.location.href = path;
+    if (typeof window !== 'undefined' && window.location && window.location.pathname === path) {
+      closeMenu();
+      return;
+    }
+    window.location.assign(path);
   } catch(e){
-    console.log('Navegar para', path);
+    window.location.href = path;
   }
   closeMenu();
 }

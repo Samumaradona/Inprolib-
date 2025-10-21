@@ -6,6 +6,7 @@
   <title>Login - INPROLIB</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/cadastro_login.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
 <body>
@@ -13,7 +14,7 @@
     <div class="container">
       <div class="left">
         <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" height="28" />
-        <span style="font-weight:700;color:#0f172a;">INPROLIB</span>
+        <!-- Removido texto duplicado INPROLIB para manter apenas a imagem -->
       </div>
       <button class="notif-btn" aria-label="Notificações">
         <span class="material-symbols-outlined">notifications</span>
