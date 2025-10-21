@@ -83,9 +83,9 @@
       <label for="autor">Autor</label>
       <input type="text" id="autor" name="autor" placeholder="Digite o nome do autor">
 
-      <label for="orientador">Orientado/Professor</label>
+      <label for="orientador">Orientador/ Professor</label>
       <select id="orientador" name="orientador">
-        <option value="">Selecione o orientado/professor</option>
+        <option value="">Selecione o orientador/professor</option>
         {% if autores %}
           {% for a in autores %}
             <option value="{{ a.id_usuario }}">{{ a.nome }}</option>
@@ -156,10 +156,9 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
         <table id="reportTable" style="width:100%;border-collapse:collapse">
           <thead>
             <tr style="background:#f8fafc">
-              <th data-sort="id_publicacao" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">ID</th>
+              <th data-sort="autor" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Orientador/ Professor</th>
               <th data-sort="titulo" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Título</th>
               <th data-sort="tipo" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Tipo</th>
-              <th data-sort="autor" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Autor</th>
               <th data-sort="curso" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Curso</th>
               <th data-sort="data_publicacao" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Data</th>
               <th data-sort="status" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Status</th>
@@ -225,10 +224,9 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
       const FILTERS_KEY = 'inprolib_relatorio_filters::' + (window.USER_NAME || 'anon');
       const COLS_KEY = 'inprolib_relatorio_cols::' + (window.USER_NAME || 'anon');
       const ALL_COLS = [
-        { key: 'id_publicacao', label: 'ID' },
+        { key: 'autor', label: 'Orientador/ Professor' },
         { key: 'titulo', label: 'Título' },
         { key: 'tipo', label: 'Tipo' },
-        { key: 'autor', label: 'Autor' },
         { key: 'curso', label: 'Curso' },
         { key: 'data_publicacao', label: 'Data' },
         { key: 'status', label: 'Status' },
@@ -484,8 +482,14 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
         const colsParam = selectedCols.join(',');
         const base = '/relatorio/exportar';
         const common = q ? ('?' + q + '&cols=' + encodeURIComponent(colsParam)) : ('?cols=' + encodeURIComponent(colsParam));
-        if(btnExcel) btnExcel.dataset.url = base + common;
-        if(btnPDF) btnPDF.dataset.url = base + common + '&format=pdf';
+        if(btnExcel){
+          btnExcel.dataset.url = base + common;
+          btnExcel.dataset.format = 'xlsx';
+        }
+        if(btnPDF){
+          btnPDF.dataset.url = base + common + '&format=pdf';
+          btnPDF.dataset.format = 'pdf';
+        }
       }
 
       async function doPreview(){
@@ -570,57 +574,34 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
         let toast;
         const url = btn && btn.dataset && btn.dataset.url ? btn.dataset.url : btn.getAttribute('href') || '#';
         if(!url || url === '#') return;
+        const fmt = (btn && btn.dataset && btn.dataset.format) || ((url.match(/(?:[?&])format=([^&]+)/) || [])[1]) || 'xlsx';
 
         btn.setAttribute('aria-busy','true');
         btn.classList.add('is-disabled');
         toast = window.showToast && window.showToast('Efetuando o download...', 'info', { timeout: 0 });
 
-        // Fluxo FS API primeiro: perguntar onde salvar ANTES de iniciar a rede
+        // Se disponível, usar File System Access API para salvar e só então exibir sucesso
         if(window.showSaveFilePicker){
           try{
             const pick = await window.showSaveFilePicker({
-              suggestedName: 'relatorio',
-              types: [{ description: 'Arquivo', accept: { 'application/octet-stream': ['.xlsx','.csv','.pdf'] } }]
+              suggestedName: fmt === 'pdf' ? 'relatorio.pdf' : 'relatorio.xlsx',
+              types: fmt === 'pdf'
+                ? [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }]
+                : [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
             });
             const writable = await pick.createWritable();
 
             const resp = await fetch(url, { method: 'GET' });
             if(!resp.ok) throw new Error('Falha ao iniciar download');
 
-            const total = parseInt(resp.headers.get('Content-Length') || '0', 10);
-            const reader = resp.body && resp.body.getReader ? resp.body.getReader() : null;
-
-            let received = 0;
-            const startMs = Date.now();
             if(progress) progress.show();
-            function updateEta(){
-              if(!total || !progress) return;
-              const elapsed = (Date.now() - startMs) / 1000;
-              const speed = elapsed > 0 ? (received / elapsed) : 0;
-              const remaining = total - received;
-              const eta = (speed > 0 && remaining > 0) ? (remaining / speed) : null;
-              progress.update((received/total)*100, eta);
-            }
-
-            if(reader){
-              while(true){
-                const {done, value} = await reader.read();
-                if(done) break;
-                await writable.write(value);
-                received += (value && value.length) ? value.length : 0;
-                updateEta();
-              }
-            } else {
-              const blob = await resp.blob();
-              await writable.write(blob);
-              received = total || (blob && blob.size) || received;
-              updateEta();
-            }
+            const blob = await resp.blob();
+            await writable.write(blob);
             await writable.close();
 
             if(progress) progress.done();
             if(toast && toast.remove) toast.remove();
-            window.showToast && window.showToast('Efetuado com sucesso!', 'success');
+            window.showToast && window.showToast('Concluído com sucesso!', 'success');
             closeModal();
           } catch(err){
             const msg = String((err && err.message) || '').toLowerCase();
@@ -639,10 +620,10 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
             btn.removeAttribute('aria-busy');
             btn.classList.remove('is-disabled');
           }
-          return; // não segue para fallback se FS API existe
+          return; // Não segue para fallback se a FS API existir
         }
 
-        // Fallback: sem File System Access API, baixa via blob/ancora
+        // Fallback: sem File System Access API, baixa via fetch + blob/âncora
         try{
           const resp = await fetch(url, { method: 'GET' });
           if(!resp.ok) throw new Error('Falha ao iniciar download');
@@ -655,56 +636,27 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
           const rawName = (mStar && mStar[1]) || (m && m[1]);
           if(rawName){
             try{ filename = decodeURIComponent(String(rawName).replace(/['"]/g, '')); }catch(_){ filename = String(rawName).replace(/['"]/g, ''); }
-          }
-
-          const mime = resp.headers.get('Content-Type') || '';
-          const total = parseInt(resp.headers.get('Content-Length') || '0', 10);
-          const reader = resp.body && resp.body.getReader ? resp.body.getReader() : null;
-
-          let received = 0;
-          const startMs = Date.now();
-          if(progress) progress.show();
-          function updateEta(){
-            if(!total || !progress) return;
-            const elapsed = (Date.now() - startMs) / 1000;
-            const speed = elapsed > 0 ? (received / elapsed) : 0;
-            const remaining = total - received;
-            const eta = (speed > 0 && remaining > 0) ? (remaining / speed) : null;
-            progress.update((received/total)*100, eta);
-          }
-
-          if(reader){
-            const chunks = [];
-            while(true){
-              const {done, value} = await reader.read();
-              if(done) break;
-              chunks.push(value);
-              received += (value && value.length) ? value.length : 0;
-              updateEta();
-            }
-            const blob = new Blob(chunks, { type: mime || 'application/octet-stream' });
-            const objectURL = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = objectURL; a.download = filename || 'relatorio';
-            document.body.appendChild(a); a.click(); a.remove();
-            URL.revokeObjectURL(objectURL);
           } else {
-            const blob = await resp.blob();
-            const objectURL = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = objectURL; a.download = filename || 'relatorio';
-            document.body.appendChild(a); a.click(); a.remove();
-            URL.revokeObjectURL(objectURL);
+            filename = fmt === 'pdf' ? 'relatorio.pdf' : 'relatorio.xlsx';
           }
+
+          if(progress) progress.show();
+          const blob = await resp.blob();
+          const objectURL = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = objectURL; a.download = filename || 'relatorio';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(()=>{ URL.revokeObjectURL(objectURL); }, 0);
 
           if(progress) progress.done();
           if(toast && toast.remove) toast.remove();
-          window.showToast && window.showToast('Efetuado com sucesso!', 'success');
+          window.showToast && window.showToast('Concluído com sucesso!', 'success');
           closeModal();
         } catch(err){
           if(progress) progress.fail();
           if(toast && toast.remove) toast.remove();
-          window.showToast && window.showToast('Falha no download', 'error');
+          const msg = (err && err.message) ? String(err.message) : 'Falha no download';
+          window.showToast && window.showToast(msg, 'error');
         } finally {
           btn.removeAttribute('aria-busy');
           btn.classList.remove('is-disabled');

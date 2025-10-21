@@ -353,6 +353,34 @@ def ensure_usuario_endereco_columns():
             pass
         print(f"Falha ao garantir colunas de endereço em usuario: {e}")
 
+# Helper para garantir coluna 'id_orientador' em publicacao
+def ensure_publicacao_orientador_column():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT current_schema()")
+        schema = (cur.fetchone() or ['public'])[0] or 'public'
+        # adiciona coluna se não existir
+        cur.execute("SELECT 1 FROM information_schema.columns WHERE table_schema=%s AND table_name='publicacao' AND column_name='id_orientador'", (schema,))
+        if not cur.fetchone():
+            cur.execute(f'ALTER TABLE "{schema}".publicacao ADD COLUMN id_orientador INTEGER NULL')
+            conn.commit()
+        # tenta criar FK (ignora erro se já existir)
+        try:
+            cur.execute(f'ALTER TABLE "{schema}".publicacao ADD CONSTRAINT fk_publicacao_orientador FOREIGN KEY (id_orientador) REFERENCES "{schema}".usuario(id_usuario) ON DELETE SET NULL')
+            conn.commit()
+        except Exception:
+            pass
+        cur.close(); conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao garantir coluna publicacao.id_orientador: {e}")
+
 # Inicialização do schema na primeira requisição
 SCHEMA_INIT_DONE = False
 @app.before_request
@@ -363,8 +391,9 @@ def init_schema_once():
     try:
         ensure_usuario_ativo_column()
         ensure_usuario_endereco_columns()
+        ensure_publicacao_orientador_column()
         SCHEMA_INIT_DONE = True
-        print("Schema inicial garantido: usuario.ativo e colunas de endereço.")
+        print("Schema inicial garantido: usuario.ativo, endereço e publicacao.id_orientador.")
     except Exception as e:
         print(f"Falha ao garantir schema inicial: {e}")
 
@@ -1739,8 +1768,14 @@ def relatorio():
     if conn:
         try:
             cur = conn.cursor(row_factory=dict_row)
-            # Autores: todos os professores cadastrados
-            cur.execute("SELECT id_usuario, nome FROM usuario WHERE tipo = 'Professor' ORDER BY nome")
+            # Orientadores/Professores vinculados como orientadores
+            cur.execute("""
+                SELECT DISTINCT u.id_usuario, u.nome
+                FROM usuario u
+                JOIN publicacao p ON p.id_orientador = u.id_usuario
+                WHERE u.tipo = 'Professor'
+                ORDER BY u.nome
+            """)
             autores = cur.fetchall()
             # Cursos: todos os cursos
             cur.execute("SELECT id_curso, nome_curso FROM curso ORDER BY nome_curso")
@@ -1792,7 +1827,7 @@ def exportar_relatorio():
         where.append("u.nome ILIKE %s")
         params.append(f"%{autor}%")
     if orientador:
-        where.append("p.id_autor = %s")
+        where.append("p.id_orientador = %s")
         params.append(orientador)
     if curso:
         where.append("p.id_curso = %s")
@@ -1822,11 +1857,12 @@ def exportar_relatorio():
           p.tipo,
           p.data_publicacao,
           p.status,
-          COALESCE(u.nome, '') AS autor,
+          COALESCE(u_orient.nome, u_autor.nome, '') AS autor,
           COALESCE(c.nome_curso, '') AS curso,
           COALESCE(p.assuntos_relacionados, '') AS assuntos
         FROM publicacao p
-        JOIN usuario u ON u.id_usuario = p.id_autor
+        LEFT JOIN usuario u_autor ON u_autor.id_usuario = p.id_autor
+        LEFT JOIN usuario u_orient ON u_orient.id_usuario = p.id_orientador
         LEFT JOIN curso c ON c.id_curso = p.id_curso
         WHERE {' AND '.join(where)}
         ORDER BY p.data_publicacao DESC, p.id_publicacao DESC
@@ -1856,7 +1892,7 @@ def exportar_relatorio():
             'id_publicacao':'ID',
             'titulo':'Título',
             'tipo':'Tipo',
-            'autor':'Autor',
+            'autor':'Orientador/ Professor',
             'curso':'Curso',
             'data_publicacao':'Data Publicação',
             'status':'Status',
@@ -2087,7 +2123,7 @@ def preview_relatorio():
         where.append("u.nome ILIKE %s")
         params.append(f"%{autor}%")
     if orientador:
-        where.append("p.id_autor = %s")
+        where.append("p.id_orientador = %s")
         params.append(orientador)
     if curso:
         where.append("p.id_curso = %s")
@@ -2113,9 +2149,10 @@ def preview_relatorio():
     sql = f"""
         SELECT 
           p.id_publicacao, p.titulo, p.tipo, p.status, p.assuntos_relacionados as assuntos,
-          u.nome as autor, c.nome_curso as curso, p.data_publicacao
+          COALESCE(u_orient.nome, u_autor.nome) as autor, c.nome_curso as curso, p.data_publicacao
         FROM publicacao p
-        LEFT JOIN usuario u ON u.id_usuario = p.id_autor
+        LEFT JOIN usuario u_autor ON u_autor.id_usuario = p.id_autor
+        LEFT JOIN usuario u_orient ON u_orient.id_usuario = p.id_orientador
         LEFT JOIN curso c ON c.id_curso = p.id_curso
         WHERE {where_clause}
         ORDER BY p.id_publicacao DESC
