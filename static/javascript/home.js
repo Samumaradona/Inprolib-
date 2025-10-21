@@ -298,7 +298,9 @@ renderRoutes();
 (function () {
   // URL padrão do avatar (sem backend)
   const DEFAULT_AVATAR = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s';
-  const SERVER_PHOTO = (typeof window !== 'undefined' ? (window.USER_PHOTO || '') : '');
+const SERVER_PHOTO = (typeof window !== 'undefined' ? (window.USER_PHOTO || '') : '');
+const USER_ID = (typeof window !== 'undefined' ? (window.USER_ID || '') : '');
+const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
 
   // elementos do perfil / notificações
   const btnNotifications = document.getElementById('btnNotifications');
@@ -338,8 +340,21 @@ renderRoutes();
    * - Fallback para DEFAULT_AVATAR
    */
   function loadAvatar(){
-    if (avatarImg){
-      avatarImg.src = SERVER_PHOTO || DEFAULT_AVATAR;
+    try{
+      if (avatarImg){
+        if (SERVER_PHOTO){
+          avatarImg.src = SERVER_PHOTO;
+          return;
+        }
+        const stored = (typeof localStorage !== 'undefined') ? localStorage.getItem(AVATAR_KEY) : null;
+        if (stored){
+          avatarImg.src = stored;
+          return;
+        }
+        avatarImg.src = DEFAULT_AVATAR;
+      }
+    }catch(_){
+      if (avatarImg) avatarImg.src = SERVER_PHOTO || DEFAULT_AVATAR;
     }
   }
 
@@ -352,6 +367,20 @@ renderRoutes();
     if(!f) return;
     const fd = new FormData();
     fd.append('avatar', f);
+
+    // Salva fallback local (offline) enquanto atualiza no servidor
+    try{
+      const reader = new FileReader();
+      reader.onload = function(){
+        try{
+          if (typeof localStorage !== 'undefined'){
+            localStorage.setItem(AVATAR_KEY, reader.result);
+          }
+        }catch(_){ /* storage pode estar indisponível */ }
+      };
+      reader.readAsDataURL(f);
+    }catch(_){ }
+
     fetch('/upload_avatar', { method: 'POST', body: fd })
       .then(r => r.json())
       .then(json => {

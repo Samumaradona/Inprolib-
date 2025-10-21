@@ -135,6 +135,7 @@
   <script>
     window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
     window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
+window.USER_ID = "{{ session.get('user_id', '') }}";
     window.USER_NAME = "{{ (session.get('user_name') or '') }}";
   </script>
   <!-- Modal de visualização -->
@@ -567,18 +568,86 @@
       async function handleDownload(btn){
         const progress = ensureRelProgressUI();
         let toast;
+        const url = btn && btn.dataset && btn.dataset.url ? btn.dataset.url : btn.getAttribute('href') || '#';
+        if(!url || url === '#') return;
+
+        btn.setAttribute('aria-busy','true');
+        btn.classList.add('is-disabled');
+        toast = window.showToast && window.showToast('Efetuando o download...', 'info', { timeout: 0 });
+
+        // Fluxo FS API primeiro: perguntar onde salvar ANTES de iniciar a rede
+        if(window.showSaveFilePicker){
+          try{
+            const pick = await window.showSaveFilePicker({
+              suggestedName: 'relatorio',
+              types: [{ description: 'Arquivo', accept: { 'application/octet-stream': ['.xlsx','.csv','.pdf'] } }]
+            });
+            const writable = await pick.createWritable();
+
+            const resp = await fetch(url, { method: 'GET' });
+            if(!resp.ok) throw new Error('Falha ao iniciar download');
+
+            const total = parseInt(resp.headers.get('Content-Length') || '0', 10);
+            const reader = resp.body && resp.body.getReader ? resp.body.getReader() : null;
+
+            let received = 0;
+            const startMs = Date.now();
+            if(progress) progress.show();
+            function updateEta(){
+              if(!total || !progress) return;
+              const elapsed = (Date.now() - startMs) / 1000;
+              const speed = elapsed > 0 ? (received / elapsed) : 0;
+              const remaining = total - received;
+              const eta = (speed > 0 && remaining > 0) ? (remaining / speed) : null;
+              progress.update((received/total)*100, eta);
+            }
+
+            if(reader){
+              while(true){
+                const {done, value} = await reader.read();
+                if(done) break;
+                await writable.write(value);
+                received += (value && value.length) ? value.length : 0;
+                updateEta();
+              }
+            } else {
+              const blob = await resp.blob();
+              await writable.write(blob);
+              received = total || (blob && blob.size) || received;
+              updateEta();
+            }
+            await writable.close();
+
+            if(progress) progress.done();
+            if(toast && toast.remove) toast.remove();
+            window.showToast && window.showToast('Efetuado com sucesso!', 'success');
+            closeModal();
+          } catch(err){
+            const msg = String((err && err.message) || '').toLowerCase();
+            const name = (err && err.name) || '';
+            if(name === 'AbortError' || /abort|cancel/.test(msg)){
+              const wrapEl = document.getElementById('relDlWrap');
+              if(wrapEl) wrapEl.style.display = 'none';
+              if(toast && toast.remove) toast.remove();
+              window.showToast && window.showToast('Operação cancelada pelo usuário', 'info');
+            } else {
+              if(progress) progress.fail();
+              if(toast && toast.remove) toast.remove();
+              window.showToast && window.showToast('Falha no download', 'error');
+            }
+          } finally {
+            btn.removeAttribute('aria-busy');
+            btn.classList.remove('is-disabled');
+          }
+          return; // não segue para fallback se FS API existe
+        }
+
+        // Fallback: sem File System Access API, baixa via blob/ancora
         try{
-          const url = btn && btn.dataset && btn.dataset.url ? btn.dataset.url : btn.getAttribute('href') || '#';
-          if(!url || url === '#') return;
-
-          toast = window.showToast && window.showToast('Efetuando o download...', 'info', { timeout: 0 });
-          btn.setAttribute('aria-busy','true');
-          btn.classList.add('is-disabled');
-
           const resp = await fetch(url, { method: 'GET' });
           if(!resp.ok) throw new Error('Falha ao iniciar download');
 
-          // Nome do arquivo
+          // Nome do arquivo (sugerido pelo servidor)
           let filename = 'relatorio';
           const cd = resp.headers.get('Content-Disposition') || '';
           const mStar = /filename\*=(?:UTF-8''|)([^;]+)/i.exec(cd);
@@ -587,6 +656,7 @@
           if(rawName){
             try{ filename = decodeURIComponent(String(rawName).replace(/['"]/g, '')); }catch(_){ filename = String(rawName).replace(/['"]/g, ''); }
           }
+
           const mime = resp.headers.get('Content-Type') || '';
           const total = parseInt(resp.headers.get('Content-Length') || '0', 10);
           const reader = resp.body && resp.body.getReader ? resp.body.getReader() : null;
@@ -594,55 +664,30 @@
           let received = 0;
           const startMs = Date.now();
           if(progress) progress.show();
-
           function updateEta(){
             if(!total || !progress) return;
             const elapsed = (Date.now() - startMs) / 1000;
-            const speed = elapsed > 0 ? (received / elapsed) : 0; // bytes/s
+            const speed = elapsed > 0 ? (received / elapsed) : 0;
             const remaining = total - received;
             const eta = (speed > 0 && remaining > 0) ? (remaining / speed) : null;
             progress.update((received/total)*100, eta);
           }
 
           if(reader){
-            // Tente salvar via File System Access API; se falhar, faz fallback para blob
-            let usedFSAP = false;
-            if(window.showSaveFilePicker){
-              try{
-                const fileHandle = await window.showSaveFilePicker({
-                  suggestedName: filename || 'relatorio',
-                  types: [{ description: 'Arquivo', accept: { [mime || 'application/octet-stream']: ['.xlsx','.csv','.pdf'] } }]
-                });
-                const writable = await fileHandle.createWritable();
-                while(true){
-                  const {done, value} = await reader.read();
-                  if(done) break;
-                  await writable.write(value);
-                  received += (value && value.length) ? value.length : 0;
-                  updateEta();
-                }
-                await writable.close();
-                usedFSAP = true;
-              }catch(_fsErr){
-                // segue para fallback com blob abaixo
-              }
+            const chunks = [];
+            while(true){
+              const {done, value} = await reader.read();
+              if(done) break;
+              chunks.push(value);
+              received += (value && value.length) ? value.length : 0;
+              updateEta();
             }
-            if(!usedFSAP){
-              const chunks = [];
-              while(true){
-                const {done, value} = await reader.read();
-                if(done) break;
-                chunks.push(value);
-                received += (value && value.length) ? value.length : 0;
-                updateEta();
-              }
-              const blob = new Blob(chunks, { type: mime || 'application/octet-stream' });
-              const objectURL = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = objectURL; a.download = filename || 'relatorio';
-              document.body.appendChild(a); a.click(); a.remove();
-              URL.revokeObjectURL(objectURL);
-            }
+            const blob = new Blob(chunks, { type: mime || 'application/octet-stream' });
+            const objectURL = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = objectURL; a.download = filename || 'relatorio';
+            document.body.appendChild(a); a.click(); a.remove();
+            URL.revokeObjectURL(objectURL);
           } else {
             const blob = await resp.blob();
             const objectURL = URL.createObjectURL(blob);
@@ -661,10 +706,8 @@
           if(toast && toast.remove) toast.remove();
           window.showToast && window.showToast('Falha no download', 'error');
         } finally {
-          if(btn){
-            btn.removeAttribute('aria-busy');
-            btn.classList.remove('is-disabled');
-          }
+          btn.removeAttribute('aria-busy');
+          btn.classList.remove('is-disabled');
         }
       }
 

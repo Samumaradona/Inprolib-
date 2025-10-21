@@ -179,6 +179,7 @@
   <script>
     window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
     window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
+window.USER_ID = "{{ session.get('user_id', '') }}";
   </script>
   <script src="{{ url_for('serve_js', script_name='notifications') }}?v=1"></script>
   <script src="{{ url_for('serve_js', script_name='home') }}?v=aval-fix-1"></script>

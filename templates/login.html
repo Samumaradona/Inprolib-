@@ -1,18 +1,19 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>INPROLIB - Login</title>
-  <link rel="stylesheet" href="cadastro_login.css?v=3">
-   <link rel="stylesheet" href="notifications.css?v=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login - INPROLIB</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/cadastro_login.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
 <body>
   <header class="topbar">
     <div class="container">
       <div class="left">
-        <img src="/img/logo.png?v=1" alt="INPROLIB" height="36" />
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" height="28" />
+        <span style="font-weight:700;color:#0f172a;">INPROLIB</span>
       </div>
       <button class="notif-btn" aria-label="Notificações">
         <span class="material-symbols-outlined">notifications</span>
@@ -20,116 +21,50 @@
     </div>
   </header>
 
-  <main>
-    {% with messages = get_flashed_messages(with_categories=True) %}
-      {% if messages %}
-        <script>
-          window.FLASH_MESSAGES = {{ messages|tojson|safe }};
-        </script>
-      {% endif %}
-    {% endwith %}
+  <main class="login-wrapper">
+    <!-- Lado esquerdo: card de login -->
+    <section class="left-pane">
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+          <script>
+            window.FLASH_MESSAGES = {{ messages|tojson|safe }};
+          </script>
+        {% endif %}
+      {% endwith %}
+      <div class="login-card" role="form">
+        <h2 class="welcome">Bem-vindo!</h2>
+        <!-- Mensagens flash antigas removidas; toasts padronizados via notifications.js -->
+        <form id="loginForm" method="POST" action="/login" novalidate>
+          <label for="cpf" class="label">CPF:</label>
+          <input type="text" id="cpf" name="cpf" placeholder="000.000.000-00" inputmode="numeric" maxlength="14" class="input" autocomplete="username" />
 
-    <div class="login-split">
-      <!-- Lado esquerdo: fundo azul e card de login -->
-      <section class="left-pane">
-        <div class="login-card" role="dialog" aria-labelledby="loginTitle">
-          <h3 id="loginTitle">Bem-vindo!</h3>
-          <form id="loginForm" method="POST" action="/login" novalidate>
-            <div class="form-row">
-              <label for="cpf">CPF:</label>
-              <input type="text" id="cpf" name="cpf" placeholder="Digite seu CPF" inputmode="numeric" autocomplete="username" required />
-            </div>
-            <div class="form-row">
-              <label for="senha">Senha:</label>
-              <input type="password" id="senha" name="senha" placeholder="Digite sua senha" autocomplete="current-password" required />
-            </div>
-            <div class="form-row inline">
-              <label class="checkbox">
-                <input type="checkbox" id="rememberMe" />
-                <span>Lembrar-me</span>
-              </label>
-            </div>
-            <div class="actions">
-              <button type="submit" class="button">Entrar</button>
-            </div>
-            <div class="links">
-              <a href="#" id="openAlunoModal" class="link">Cadastro</a>
-            </div>
-            <div class="links">
-              <a href="/esqueci_senha" class="link">Esqueci minha senha</a>
-            </div>
-          </form>
-        </div>
-      </section>
+          <label for="senha" class="label">Senha:</label>
+          <input type="password" id="senha" name="senha" placeholder="Digite sua senha" class="input" autocomplete="current-password" />
 
-      <!-- Lado direito: imagem de estante com logo -->
-      <section class="right-pane" aria-hidden="true">
-        <img src="/img/Design sem nome (1).png" alt="INPROLIB" class="brand-badge" />
-      </section>
-    </div>
+          <div class="remember-line">
+            <label class="remember"><input type="checkbox" id="rememberMe"> Lembrar-me</label>
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="btn-primary">Entrar</button>
+          </div>
+
+          <div class="links">
+            <a href="/cadastro_alunos">Cadastro</a>
+            <a href="/esqueci_senha">Esqueci minha senha</a>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Lado direito: imagem e badge -->
+    <section class="right-pane">
+      <div class="brand-badge" aria-hidden="true"></div>
+    </section>
   </main>
 
-  <!-- Modal: Cadastro de Aluno -->
-  <div id="alunoModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="alunoModalTitle">
-    <div class="modal-content modal-large">
-      <button id="closeAlunoModal" class="modal-close" aria-label="Fechar">✕</button>
-      <h3 id="alunoModalTitle" style="margin:0 0 12px 0">Cadastro de usuário</h3>
-      <form id="cadastroForm" class="form-container" method="POST" action="/cadastro_alunos" novalidate>
-        <input type="hidden" name="action" value="create" />
-        <div>
-          <label for="nome_user">Nome</label>
-          <input type="text" id="nome_user" name="nome_user" placeholder="Insira o seu nome completo" required maxlength="255" />
-
-          <label for="cpf_user">CPF</label>
-          <input type="text" id="cpf_user" name="cpf_user" placeholder="000.000.000-00" required inputmode="numeric" maxlength="14" />
-
-          <label for="email_user">Email</label>
-          <input type="email" id="email_user" name="email_user" placeholder="email@exemplo.com" required autocomplete="email" />
-
-          <label for="tipo_usuario">Tipo de Usuário</label>
-          <select id="tipo_usuario" name="tipo_usuario" required>
-            <option value="Aluno" selected>Aluno</option>
-            <option value="Docente">Docente</option>
-          </select>
-
-          <label for="cep_user">CEP</label>
-          <input type="text" id="cep_user" name="cep_user" placeholder="00000-000" inputmode="numeric" maxlength="9" autocomplete="postal-code" />
-          <div id="cepFeedback" style="font-size:12px;color:#64748b;margin:4px 0" aria-live="polite"></div>
-
-          <label for="logradouro">Rua (Logradouro)</label>
-          <input type="text" id="logradouro" name="logradouro" placeholder="Ex.: Avenida Brasil, 1000" autocomplete="address-line1" />
-
-          <label for="complemento">Complemento</label>
-          <input type="text" id="complemento" name="complemento" placeholder="Ex.: Apto 202" autocomplete="address-line2" />
-
-          <label for="bairro">Bairro</label>
-          <input type="text" id="bairro" name="bairro" placeholder="Ex.: Centro" autocomplete="address-level3" />
-
-          <label for="cidade">Cidade</label>
-          <input type="text" id="cidade" name="cidade" placeholder="Ex.: São Paulo" autocomplete="address-level2" />
-
-          <label for="estado">Estado</label>
-          <input type="text" id="estado" name="estado" placeholder="UF" maxlength="2" style="text-transform:uppercase" autocomplete="address-level1" />
-
-          <label for="senha_new">Senha</label>
-          <input type="password" id="senha_new" name="senha" placeholder="Mínimo de 8 caracteres" required minlength="8" autocomplete="new-password" />
-
-          <label for="confirmar_senha">Confirmar senha</label>
-          <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Repita a senha" required autocomplete="new-password" />
-
-          <label for="captcha">Captcha: {{ captcha_question }}</label>
-          <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required inputmode="numeric" pattern="\d+" title="Digite apenas números" />
-
-          <div class="actions" style="justify-content:flex-end; margin-top:16px">
-            <button class="button" type="submit">Salvar</button>
-          </div>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <script src="notifications.js?v=1"></script>
-  <script src="login.js"></script>
+  <script src="{{ url_for('static', filename='javascript/notifications.js') }}"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
+  <script src="{{ url_for('static', filename='javascript/login.js') }}"></script>
 </body>
 </html>

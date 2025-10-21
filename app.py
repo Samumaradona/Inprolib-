@@ -17,6 +17,7 @@ import sys
 import smtplib
 from email.message import EmailMessage
 import mimetypes
+import json
 
 load_dotenv()
 
@@ -48,6 +49,42 @@ os.makedirs(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs'), ex
 
 # Rate limiting simples em memória: chave por IP+rota
 RATE_LIMIT = {}
+
+# Índice local de avatares (fallback quando banco estiver indisponível)
+def _avatar_index_path():
+    return os.path.join(app.config['UPLOAD_FOLDER'], 'avatars', '_index.json')
+
+def _update_avatar_index(uid: int, rel_path: str) -> None:
+    try:
+        avatars_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'avatars')
+        os.makedirs(avatars_dir, exist_ok=True)
+        idx_path = _avatar_index_path()
+        data = {}
+        if os.path.exists(idx_path):
+            try:
+                with open(idx_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f) or {}
+            except Exception:
+                data = {}
+        data[str(uid)] = {'path': rel_path, 'ts': int(time.time())}
+        with open(idx_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+def _read_avatar_index(uid: int) -> str:
+    try:
+        idx_path = _avatar_index_path()
+        if os.path.exists(idx_path):
+            with open(idx_path, 'r', encoding='utf-8') as f:
+                data = json.load(f) or {}
+            obj = data.get(str(uid))
+            if obj and isinstance(obj, dict):
+                p = obj.get('path') or ''
+                return str(p)
+    except Exception:
+        pass
+    return ''
 
 def check_rate_limit(key: str, limit: int = 20, window: int = 60) -> bool:
     now = time.time()
@@ -554,7 +591,15 @@ def login():
                 if fp.startswith('uploads/'):
                     return fp
                 return ''
-            session['user_photo'] = _norm_photo_path(foto)
+            rel_photo = _norm_photo_path(foto)
+            if not rel_photo:
+                # tenta índice local (fallback quando upload ocorreu sem DB)
+                try:
+                    fallback_rel = _read_avatar_index(user['id_usuario'])
+                except Exception:
+                    fallback_rel = ''
+                rel_photo = _norm_photo_path(fallback_rel) or fallback_rel
+            session['user_photo'] = rel_photo
             audit_log('login_ok', {'email': email or '', 'cpf': cpf or ''})
             return redirect(url_for('home'))
         except Exception as e:
@@ -604,30 +649,39 @@ def upload_avatar():
 
     # caminho relativo para servir via static
     rel_path = f"uploads/avatars/{out_name}"
+    # Atualiza índice local (fallback sem banco)
+    try:
+        _update_avatar_index(uid, rel_path)
+    except Exception:
+        pass
 
     # Atualiza no banco
+    db_saved = False
     conn = get_db_connection()
-    if not conn:
-        return jsonify({'ok': False, 'error': 'Falha de conexão com o banco'}), 500
-    try:
-        cur = conn.cursor()
-        cur.execute("UPDATE usuario SET foto_perfil = %s WHERE id_usuario = %s", (rel_path, uid))
-        conn.commit()
-        cur.close()
-        conn.close()
-    except Exception as e:
+    if conn:
         try:
+            cur = conn.cursor()
+            cur.execute("UPDATE usuario SET foto_perfil = %s WHERE id_usuario = %s", (rel_path, uid))
+            conn.commit()
+            cur.close()
             conn.close()
+            db_saved = True
         except Exception:
-            pass
-        return jsonify({'ok': False, 'error': f'Falha ao atualizar perfil: {e}'}), 500
+            try:
+                conn.close()
+            except Exception:
+                pass
+            # segue com índice local e sessão
+    else:
+        # sem conexão, segue com índice local e sessão
+        pass
 
     # Atualiza sessão
     session['user_photo'] = rel_path
 
     # URL acessível
     photo_url = url_for('static', filename=rel_path)
-    return jsonify({'ok': True, 'photo_url': photo_url})
+    return jsonify({'ok': True, 'photo_url': photo_url, 'db_saved': db_saved})
 
 # Esqueci a senha: solicitar token
 @app.route('/esqueci_senha', methods=['GET', 'POST'])
