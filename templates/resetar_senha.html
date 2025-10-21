@@ -1,56 +1,102 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>INPROLIB - Redefinir senha</title>
-  <link rel="stylesheet" href="cadastro_login.css">
-  <link rel="stylesheet" href="notifications.css">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nova senha</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Material+Symbols+Outlined:wght@400" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #111827;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --primary-1: #667eea;
+      --primary-2: #764ba2;
+      --border: #1f2937;
+      --success: #22c55e;
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto;
+      background: radial-gradient(1200px 1200px at 20% 0%, rgba(102,126,234,.15), transparent),
+                  radial-gradient(1200px 1200px at 80% 100%, rgba(118,75,162,.15), transparent),
+                  var(--bg);
+      color: var(--text);
+      display: grid; place-items: center;
+    }
+    .container { width: 100%; max-width: 480px; padding: 24px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px 24px;
+      box-shadow: 0 10px 25px rgba(0,0,0,.35);
+    }
+    .header { display:flex; align-items:center; gap:12px; margin-bottom: 6px; }
+    .key-icon { font-family: 'Material Symbols Outlined'; font-size: 28px; color: var(--primary-1); }
+    .title { font-size: 22px; font-weight: 600; margin: 0; }
+    .subtitle { color: var(--muted); margin: 4px 0 20px; }
+    label { display:block; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+    input[type=password] {
+      width: 100%; padding: 12px 14px; border-radius: 10px;
+      border: 1px solid var(--border); background: #0b1220; color: var(--text);
+      transition: all .2s ease;
+    }
+    input[type=password]:focus { outline: none; border-color: var(--primary-1); box-shadow: 0 0 0 3px rgba(102,126,234,.12); background:#0e1626; }
+    .space { height: 14px; }
+    .actions { display:flex; gap:12px; margin-top: 18px; }
+    .modern-btn {
+      flex:1; border: none; cursor: pointer; border-radius: 10px;
+      padding: 12px 16px; font-weight: 600; color: white;
+      background: linear-gradient(135deg, var(--primary-1), var(--primary-2));
+      box-shadow: 0 8px 20px rgba(102,126,234,.25);
+      transition: transform .08s ease, box-shadow .2s ease;
+    }
+    .modern-btn:hover { box-shadow: 0 10px 26px rgba(102,126,234,.32); }
+    .modern-btn:active { transform: translateY(1px); }
+    .back-link {
+      display:flex; align-items:center; justify-content:center; text-decoration:none;
+      padding: 12px 16px; border-radius: 10px; font-weight: 600;
+      background:#1f2937; color:#e5e7eb; border:1px solid var(--border);
+    }
+  </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="container">
-      <div class="left" style="display:flex;align-items:center;gap:8px">
-        <strong>INPROLIB</strong>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <span class="key-icon">key</span>
+        <h1 class="title">Nova senha</h1>
       </div>
-      <button class="notif-btn" aria-label="Notificações">
-        <span class="material-symbols-outlined">notifications</span>
-      </button>
-    </div>
-  </header>
+      <p class="subtitle">Código validado com sucesso! Agora defina sua nova senha.</p>
 
-  <main>
-    {% with messages = get_flashed_messages(with_categories=True) %}
-      {% if messages %}
-        <script>
-          window.FLASH_MESSAGES = {{ messages|tojson|safe }};
-        </script>
-      {% endif %}
-    {% endwith %}
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+          <script>window.FLASH_MESSAGES = {{ messages|tojson|safe }};</script>
+        {% endif %}
+      {% endwith %}
 
-    <div class="form-container">
-      <h3>Redefinir senha</h3>
       <form method="POST" action="/resetar_senha" novalidate>
         <input type="hidden" name="token" value="{{ token }}" />
         <input type="hidden" name="email" value="{{ email }}" />
-        <div class="container-grid">
-          <div>
-            <label for="nova_senha">Nova senha</label>
-            <input type="password" id="nova_senha" name="nova_senha" placeholder="Mínimo 8 caracteres" required />
-          </div>
-          <div>
-            <label for="confirmar_senha">Confirmar senha</label>
-            <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Repita a senha" required />
-          </div>
-          <div class="btn-group">
-            <button type="submit" class="button">Salvar nova senha</button>
-            <a href="/login" class="button" style="text-decoration:none;background:#6c757d;">Voltar ao login</a>
-          </div>
+
+        <label for="nova_senha">Nova senha</label>
+        <input type="password" id="nova_senha" name="nova_senha" placeholder="Digite sua nova senha" required />
+        <div class="space"></div>
+
+        <label for="confirmar_senha">Confirmar senha</label>
+        <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme sua nova senha" required />
+
+        <div class="actions">
+          <button type="submit" class="modern-btn">Salvar nova senha</button>
+          <a href="/login" class="back-link">Voltar ao login</a>
         </div>
       </form>
     </div>
-  </main>
+  </div>
+
   <script src="notifications.js?v=1"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
 </body>

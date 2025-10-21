@@ -59,3 +59,28 @@ Variáveis `.env`:
 - Rota `preview_pdf_publicacao`: preview universal de Office via PDF.
 - `download_publicacao`: adiciona `Content-Length` e auditoria de download.
 - MIME types explícitos p/ Office em assets estáticos.
+
+## E-mail (SMTP)
+- Variáveis `.env` obrigatórias para envio:
+  - `SMTP_HOST` (ex.: `smtp.gmail.com` ou `smtp.office365.com`)
+  - `SMTP_PORT` (`587` com STARTTLS; `465` com SSL)
+  - `SMTP_USER` (e-mail da conta)
+  - `SMTP_PASSWORD` (senha do app ou chave SMTP)
+  - `SMTP_FROM` (remetente; use o mesmo do `SMTP_USER`)
+  - `SMTP_USE_SSL` (`0` para STARTTLS em 587; `1` para SSL em 465)
+
+### Gmail — como configurar
+- Ative 2FA na conta.
+- Gere uma "Senha de app" em `Minha Conta > Segurança`.
+- Use `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USE_SSL=0`.
+- `SMTP_USER` = seu e-mail Gmail; `SMTP_PASSWORD` = senha de app.
+
+### Outlook/Office365
+- `SMTP_HOST=smtp.office365.com`, `SMTP_PORT=587`, `SMTP_USE_SSL=0`.
+- `SMTP_USER` = e-mail corporativo; `SMTP_PASSWORD` = senha da conta (ou token de app).
+
+### Teste local
+- Reinicie o app: `python app.py`.
+- Na página `Recuperar senha`, envie seu e-mail.
+- Se o envio falhar, o app mostra o código de teste no modal (para validação e fluxo).
+- Verifique o terminal: mensagens `[SMTP]` detalham erros de autenticação/porta/host.

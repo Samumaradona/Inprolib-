@@ -7,47 +7,665 @@
   <link rel="stylesheet" href="cadastro_login.css">
   <link rel="stylesheet" href="notifications.css?v=1">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <style>
+    /* Estilos modernos para a página de recuperação */
+    .recovery-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bs-new-casual);
+      padding: 20px;
+    }
+    
+    .recovery-card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+      padding: 40px;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+    
+    .modern-input {
+      width: 100%;
+      padding: 16px 20px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      margin-bottom: 24px;
+      background: #f8fafc;
+    }
+    
+    .modern-input:focus {
+      outline: none;
+      border-color: var(--bs-new-casual);
+      background: white;
+      box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+    }
+    
+    .modern-btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--bs-new-casual);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 16px;
+    }
+    
+    .modern-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    
+    .modern-btn:active {
+      transform: translateY(0);
+    }
+    
+    .recovery-icon {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      color: white;
+      font-size: 36px;
+    }
+    
+    .recovery-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--bs-new-casual);
+      margin-bottom: 8px;
+    }
+    
+    .recovery-subtitle {
+      color: #718096;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+    
+    .modern-input {
+      width: 100%;
+      padding: 16px 20px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      margin-bottom: 24px;
+      background: #f8fafc;
+    }
+    
+    .modern-input:focus {
+      outline: none;
+      border-color: var(--bs-new-casual);
+      background: white;
+      box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+    }
+    
+    .modern-btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--bs-new-casual);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 16px;
+    }
+    
+    .modern-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    
+    .modern-btn:active {
+      transform: translateY(0);
+    }
+    
+    .back-link {
+      color: #718096;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+    
+    .back-link:hover {
+      color: #667eea;
+    }
+    
+    /* Modal moderno */
+    .modern-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      width: 90%;
+      max-width: 450px;
+      text-align: center;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+      animation: modalSlideIn 0.3s ease-out;
+    }
+    
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-30px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    
+    .modal-icon {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      color: white;
+      font-size: 24px;
+    }
+    
+    .modal-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #2d3748;
+      margin-bottom: 12px;
+    }
+    
+    .modal-subtitle {
+      color: #718096;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+    
+    .code-input {
+      width: 100%;
+      padding: 16px 20px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      font-size: 18px;
+      text-align: center;
+      letter-spacing: 4px;
+      font-weight: 600;
+      margin-bottom: 24px;
+      background: #f8fafc;
+    }
+    
+    .code-input:focus {
+      outline: none;
+      border-color: #48bb78;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(72, 187, 120, 0.1);
+    }
+    
+    .modal-btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 16px;
+    }
+    
+    .modal-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(72, 187, 120, 0.3);
+    }
+    
+    .close-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #a0aec0;
+      cursor: pointer;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+    
+    .close-btn:hover {
+      background: #f7fafc;
+      color: #4a5568;
+    }
+    
+    /* Modal de alterar senha */
+    .password-modal .modal-icon {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .password-modal .modal-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .password-modal .modal-btn:hover {
+      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+    }
+    
+    .password-modal .code-input:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .input-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    
+    .input-label {
+      display: block;
+      color: #4a5568;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .password-input {
+      width: 100%;
+      padding: 16px 20px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      font-size: 16px;
+      background: #f8fafc;
+      transition: all 0.3s ease;
+    }
+    
+    .password-input:focus {
+      outline: none;
+      border-color: #667eea;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+  </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="container">
-      <div class="left" style="display:flex;align-items:center;gap:8px">
-        <span class="material-symbols-outlined" aria-hidden="true">library_books</span>
-        <span style="font-weight:700;color:#0f172a;">INPROLIB</span>
-      </div>
-      <button class="notif-btn" aria-label="Notificações">
-        <span class="material-symbols-outlined">notifications</span>
-      </button>
-    </div>
-  </header>
-
-  <main>
-    {% with messages = get_flashed_messages(with_categories=True) %}
-      {% if messages %}
-        <script>
-          window.FLASH_MESSAGES = {{ messages|tojson|safe }};
-        </script>
-      {% endif %}
-    {% endwith %}
-
-    <div class="form-container">
-      <h3>Recuperar senha</h3>
+  <!-- Remover header para design mais limpo -->
+  
+  <div class="recovery-container">
+    <div class="recovery-card">
+      <h1 class="recovery-title">Esqueceu sua senha?</h1>
+      <p class="recovery-subtitle">
+        Não se preocupe! Digite seu e-mail e enviaremos um código de verificação para redefinir sua senha.
+      </p>
+      
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+          <script>
+            window.FLASH_MESSAGES = {{ messages|tojson|safe }};
+          </script>
+        {% endif %}
+      {% endwith %}
+      
       <form method="POST" action="/esqueci_senha" novalidate>
-        <div class="container-grid">
-          <div>
-            <label for="email">E-mail</label>
-            <input type="email" id="email" name="email" placeholder="seuemail@dominio.com" required />
-          </div>
-          <div class="btn-group">
-            <button type="submit" class="button">Enviar</button>
-            <a href="/login" class="button" style="text-decoration:none;background:#6c757d;">Voltar ao login</a>
-          </div>
-        </div>
+        <input 
+          type="email" 
+          id="email" 
+          name="email" 
+          class="modern-input"
+          placeholder="Digite seu e-mail"
+          required 
+        />
+        
+        <button type="submit" class="modern-btn">
+          Enviar código de verificação
+        </button>
+        
+        <a href="/login" class="back-link">← Voltar para o login</a>
       </form>
     </div>
-  </main>
+  </div>
+
+  <!-- Modal para validar código -->
+  <div id="codigoModal" class="modern-modal" aria-hidden="true">
+    <div class="modal-content">
+      <button class="close-btn" id="closeCodigoModal" aria-label="Fechar">×</button>
+      
+      <div class="modal-icon">
+        <span class="material-symbols-outlined">mail</span>
+      </div>
+      
+      <h2 class="modal-title">Código enviado!</h2>
+      <p class="modal-subtitle">
+        Enviamos um código de 6 dígitos para seu e-mail. Digite-o abaixo para continuar.
+      </p>
+      
+      <input 
+        type="text" 
+        id="codigo" 
+        class="code-input"
+        placeholder="000000"
+        maxlength="6"
+        pattern="[0-9]{6}"
+      />
+      
+      <button class="modal-btn" id="validarCodigoBtn">
+        Validar código
+      </button>
+      
+      <p style="color: #a0aec0; font-size: 14px;">
+        Não recebeu o código? <a href="#" style="color: #48bb78;">Reenviar</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Modal para alterar senha -->
+  <div id="alterarSenhaModal" class="modern-modal password-modal" aria-hidden="true">
+    <div class="modal-content">
+      <button class="close-btn" id="closeAlterarModal" aria-label="Fechar">×</button>
+      
+      <div class="modal-icon">
+        <span class="material-symbols-outlined">key</span>
+      </div>
+      
+      <h2 class="modal-title">Nova senha</h2>
+      <p class="modal-subtitle">
+        Código validado com sucesso! Agora defina sua nova senha.
+      </p>
+      
+      <div class="input-group">
+        <label class="input-label" for="novaSenha">Nova senha</label>
+        <input 
+          type="password" 
+          id="novaSenha" 
+          class="password-input"
+          placeholder="Digite sua nova senha"
+          required
+        />
+      </div>
+      
+      <div class="input-group">
+        <label class="input-label" for="confirmarSenha">Confirmar senha</label>
+        <input 
+          type="password" 
+          id="confirmarSenha" 
+          class="password-input"
+          placeholder="Confirme sua nova senha"
+          required
+        />
+      </div>
+      
+      <button class="modal-btn" id="salvarSenhaBtn">
+        Salvar nova senha
+      </button>
+    </div>
+  </div>
 
   <script src="notifications.js?v=1"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){
+      const form = document.querySelector('form[action="/esqueci_senha"]');
+      const emailInput = document.getElementById('email');
+
+      const codigoModal = document.getElementById('codigoModal');
+      const closeCodigoModal = document.getElementById('closeCodigoModal');
+      const validarCodigoBtn = document.getElementById('validarCodigoBtn');
+      const inputCodigo = document.getElementById('codigo');
+
+      const alterarSenhaModal = document.getElementById('alterarSenhaModal');
+      const closeAlterarModal = document.getElementById('closeAlterarModal');
+      const novaSenha = document.getElementById('novaSenha');
+      const confirmarSenha = document.getElementById('confirmarSenha');
+      const salvarSenhaBtn = document.getElementById('salvarSenhaBtn');
+
+      function open(modal){ 
+        modal.style.display = 'flex'; 
+        modal.setAttribute('aria-hidden','false');
+        // Adicionar animação suave
+        setTimeout(() => {
+          modal.querySelector('.modal-content').style.transform = 'translateY(0) scale(1)';
+          modal.querySelector('.modal-content').style.opacity = '1';
+        }, 10);
+      }
+      
+      function close(modal){ 
+        modal.style.display = 'none'; 
+        modal.setAttribute('aria-hidden','true'); 
+      }
+
+      closeCodigoModal && closeCodigoModal.addEventListener('click', ()=>close(codigoModal));
+      closeAlterarModal && closeAlterarModal.addEventListener('click', ()=>close(alterarSenhaModal));
+      codigoModal && codigoModal.addEventListener('click', (e)=>{ if(e.target === codigoModal) close(codigoModal); });
+      alterarSenhaModal && alterarSenhaModal.addEventListener('click', (e)=>{ if(e.target === alterarSenhaModal) close(alterarSenhaModal); });
+
+
+
+      // Formatação automática do código (apenas números)
+      inputCodigo && inputCodigo.addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        if (value.length > 6) value = value.slice(0, 6);
+        e.target.value = value;
+      });
+
+      // 1) Enviar e-mail: abre modal de código - melhorado
+      if (form){
+        form.addEventListener('submit', async function(e){
+          e.preventDefault();
+          const email = (emailInput && emailInput.value || '').trim();
+          if(!email){
+            window.showToast ? window.showToast('error','Por favor, informe seu e-mail.') : alert('Por favor, informe seu e-mail.');
+            return;
+          }
+          
+          // Validação básica de email
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(email)) {
+            window.showToast ? window.showToast('error','Por favor, informe um e-mail válido.') : alert('Por favor, informe um e-mail válido.');
+            return;
+          }
+
+          // Desabilitar botão durante o envio
+          const submitBtn = form.querySelector('button[type="submit"]');
+          const originalText = submitBtn.textContent;
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Enviando...';
+
+          const fd = new FormData(form);
+          try{
+            const resp = await fetch('/esqueci_senha', { 
+              method: 'POST', 
+              body: fd, 
+              headers: { 'X-Requested-With': 'XMLHttpRequest' } 
+            });
+            const data = await resp.json().catch(()=>({}));
+            
+            if(resp.ok && data && data.ok){
+              const sent = !!data.email_sent;
+              if(sent){
+                window.showToast ? window.showToast('success','Código enviado! Verifique seu e-mail.') : alert('Código enviado! Verifique seu e-mail.');
+                open(codigoModal);
+                // Focar no input do código
+                setTimeout(() => inputCodigo && inputCodigo.focus(), 300);
+              } else {
+                const msg = (data && data.error) ? data.error : 'Falha ao enviar e-mail. Verifique a configuração SMTP.';
+                window.showToast ? window.showToast('error', msg) : alert(msg);
+                // Modo desenvolvimento: se o backend disponibilizar dev_token, mostrar modal e preencher o campo
+                if (data && data.dev_token) {
+                  window.showToast ? window.showToast('info','Modo desenvolvimento: use o código exibido no campo.') : console.info('Modo desenvolvimento: código de teste disponível.');
+                  open(codigoModal);
+                  if (inputCodigo) {
+                    inputCodigo.value = data.dev_token;
+                    setTimeout(() => inputCodigo && inputCodigo.focus(), 300);
+                  }
+                }
+              }
+            } else {
+              const msg = (data && data.error) ? data.error : 'Falha ao processar solicitação.';
+              window.showToast ? window.showToast('error', msg) : alert(msg);
+            }
+          } catch(err){
+            window.showToast ? window.showToast('error','Erro de conexão. Tente novamente.') : alert('Erro de conexão. Tente novamente.');
+          } finally {
+            // Reabilitar botão
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+          }
+        });
+      }
+
+      // 2) Validar código: abre modal de alteração de senha - melhorado
+      validarCodigoBtn && validarCodigoBtn.addEventListener('click', async function(){
+        const token = (inputCodigo && inputCodigo.value || '').trim();
+        const email = (emailInput && emailInput.value || '').trim();
+        
+        if(!token){
+          window.showToast ? window.showToast('error','Por favor, informe o código recebido.') : alert('Por favor, informe o código recebido.');
+          inputCodigo && inputCodigo.focus();
+          return;
+        }
+        
+        if(token.length !== 6){
+          window.showToast ? window.showToast('error','O código deve ter 6 dígitos.') : alert('O código deve ter 6 dígitos.');
+          inputCodigo && inputCodigo.focus();
+          return;
+        }
+
+        // Desabilitar botão durante validação
+        const originalText = validarCodigoBtn.textContent;
+        validarCodigoBtn.disabled = true;
+        validarCodigoBtn.textContent = 'Validando...';
+
+        try{
+          const resp = await fetch('/api/reset/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ email, token })
+          });
+          const data = await resp.json().catch(()=>({}));
+          
+          if(resp.ok && data.ok){
+            close(codigoModal);
+            alterarSenhaModal.dataset.email = email;
+            alterarSenhaModal.dataset.token = token;
+            open(alterarSenhaModal);
+            // Focar no primeiro campo de senha
+            setTimeout(() => novaSenha && novaSenha.focus(), 300);
+          } else {
+            const msg = (data && data.error) ? data.error : 'Código inválido ou expirado.';
+            window.showToast ? window.showToast('error', msg) : alert(msg);
+            inputCodigo && inputCodigo.focus();
+          }
+        } catch(err){
+          window.showToast ? window.showToast('error','Erro de conexão ao validar código.') : alert('Erro de conexão ao validar código.');
+        } finally {
+          // Reabilitar botão
+          validarCodigoBtn.disabled = false;
+          validarCodigoBtn.textContent = originalText;
+        }
+      });
+
+      // 3) Salvar nova senha - melhorado
+      salvarSenhaBtn && salvarSenhaBtn.addEventListener('click', async function(){
+        const senha1 = (novaSenha && novaSenha.value || '').trim();
+        const senha2 = (confirmarSenha && confirmarSenha.value || '').trim();
+        const email = alterarSenhaModal.dataset.email || '';
+        const token = alterarSenhaModal.dataset.token || '';
+        
+        if(!senha1 || !senha2){
+          window.showToast ? window.showToast('error','Por favor, preencha ambos os campos de senha.') : alert('Por favor, preencha ambos os campos de senha.');
+          return;
+        }
+        
+        if(senha1 !== senha2){
+          window.showToast ? window.showToast('error','As senhas não coincidem.') : alert('As senhas não coincidem.');
+          confirmarSenha && confirmarSenha.focus();
+          return;
+        }
+        
+        if(senha1.length < 6){
+          window.showToast ? window.showToast('error','A senha deve ter pelo menos 6 caracteres.') : alert('A senha deve ter pelo menos 6 caracteres.');
+          novaSenha && novaSenha.focus();
+          return;
+        }
+
+        // Desabilitar botão durante salvamento
+        const originalText = salvarSenhaBtn.textContent;
+        salvarSenhaBtn.disabled = true;
+        salvarSenhaBtn.textContent = 'Salvando...';
+
+        try{
+          const resp = await fetch('/api/reset/change', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ email, token, new_password: senha1, confirm_password: senha2 })
+          });
+          const data = await resp.json().catch(()=>({}));
+          
+          if(resp.ok && data.ok){
+            window.showToast ? window.showToast('success','Alterada com sucesso! Redirecionando...') : alert('Alterada com sucesso!');
+            close(alterarSenhaModal);
+            setTimeout(() => { window.location.href = '/login'; }, 2000);
+          } else {
+            const msg = (data && data.error) ? data.error : 'Erro ao alterar senha.';
+            window.showToast ? window.showToast('error', msg) : alert(msg);
+          }
+        } catch(err){
+          window.showToast ? window.showToast('error','Erro de conexão ao alterar senha.') : alert('Erro de conexão ao alterar senha.');
+        } finally {
+          // Reabilitar botão
+          salvarSenhaBtn.disabled = false;
+          salvarSenhaBtn.textContent = originalText;
+        }
+      });
+
+      // Permitir validar código com Enter
+      inputCodigo && inputCodigo.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          validarCodigoBtn && validarCodigoBtn.click();
+        }
+      });
+
+      // Permitir salvar senha com Enter nos campos de senha
+      [novaSenha, confirmarSenha].forEach(input => {
+        input && input.addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') {
+            salvarSenhaBtn && salvarSenhaBtn.click();
+          }
+        });
+      });
+    });
+  </script>
 </body>
 </html>

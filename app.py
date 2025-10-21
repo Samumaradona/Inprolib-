@@ -31,8 +31,8 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__fil
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 ADMIN_SETUP_TOKEN = os.getenv('ADMIN_SETUP_TOKEN', 'setup_admin_2024')
 ADMIN_TEMP_PASSWORD = os.getenv('ADMIN_TEMP_PASSWORD', 'Adm@2025!')
-# Expiração do token de recuperação em segundos (padrão: 8 segundos)
-RESET_TOKEN_EXP_SECONDS = int(os.getenv('RESET_TOKEN_EXP_SECONDS', '8'))
+# Expiração do token de recuperação em segundos (padrão: 60 segundos)
+RESET_TOKEN_EXP_SECONDS = int(os.getenv('RESET_TOKEN_EXP_SECONDS', '60'))
 
 # Configuração do banco de dados PostgreSQL (via variáveis de ambiente)
 DB_CONFIG = {
@@ -106,7 +106,7 @@ def audit_log(event: str, details: dict):
     except Exception:
         pass
 
-def send_reset_email(to_email: str, reset_url: str) -> bool:
+def send_reset_email(to_email: str, reset_url: str, token: str | None = None) -> bool:
     host = os.getenv('SMTP_HOST')
     port = int(os.getenv('SMTP_PORT', '587'))
     user = os.getenv('SMTP_USER')
@@ -116,37 +116,67 @@ def send_reset_email(to_email: str, reset_url: str) -> bool:
 
     if not host or not user or not password or not sender:
         print('[SMTP] Configuração incompleta. Não foi possível enviar e-mail.')
-        print('[SMTP] Link de redefinição:', reset_url)
+        print('[SMTP] Dica: configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD e SMTP_FROM.')
+        print('[SMTP] Código de redefinição:', token)
         return False
 
     try:
         msg = EmailMessage()
         msg['Subject'] = 'INPROLIB - Redefinição de senha'
-        msg['From'] = sender
+        msg['From'] = user if user else sender
         msg['To'] = to_email
         msg.set_content(
             (
                 'Olá,\n\nVocê solicitou a redefinição de senha no INPROLIB.\n'
-                f'Acesse o link abaixo para criar uma nova senha (expira em {RESET_TOKEN_EXP_SECONDS} segundos):\n\n{reset_url}\n\n'
+                f'Use o código abaixo para criar uma nova senha (expira em {RESET_TOKEN_EXP_SECONDS} segundos):\n\n{token or "[token indisponível]"}\n\n'
+                'Acesse a página "Recuperar senha" e insira o código recebido.\n'
                 'Se você não solicitou, ignore este e-mail.'
             )
         )
 
         if use_ssl:
-            with smtplib.SMTP_SSL(host, port) as smtp:
-                smtp.login(user, password)
-                smtp.send_message(msg)
+            try:
+                with smtplib.SMTP_SSL(host, port) as smtp:
+                    smtp.ehlo()
+                    smtp.login(user, password)
+                    smtp.send_message(msg)
+            except Exception as e1:
+                print('[SMTP] Tentativa SSL falhou:', e1)
+                # Fallback para STARTTLS em 587
+                try:
+                    with smtplib.SMTP(host, 587) as smtp:
+                        smtp.ehlo()
+                        smtp.starttls()
+                        smtp.ehlo()
+                        smtp.login(user, password)
+                        smtp.send_message(msg)
+                except Exception as e2:
+                    raise e2
         else:
-            with smtplib.SMTP(host, port) as smtp:
-                smtp.ehlo()
-                smtp.starttls()
-                smtp.ehlo()
-                smtp.login(user, password)
-                smtp.send_message(msg)
+            try:
+                with smtplib.SMTP(host, port) as smtp:
+                    smtp.ehlo()
+                    smtp.starttls()
+                    smtp.ehlo()
+                    smtp.login(user, password)
+                    smtp.send_message(msg)
+            except Exception as e1:
+                print('[SMTP] Tentativa STARTTLS falhou:', e1)
+                # Fallback para SSL em 465
+                try:
+                    with smtplib.SMTP_SSL(host, 465) as smtp:
+                        smtp.ehlo()
+                        smtp.login(user, password)
+                        smtp.send_message(msg)
+                except Exception as e2:
+                    raise e2
         return True
     except Exception as e:
         print('[SMTP] Erro ao enviar e-mail:', e)
-        print('[SMTP] Link de redefinição:', reset_url)
+        if 'Username and Password not accepted' in str(e) or '5.7.8' in str(e):
+            print('[SMTP] Dica: no Gmail, habilite 2FA e use uma "Senha de app".')
+            print('[SMTP] Ajuda: https://support.google.com/accounts/answer/185833')
+        print('[SMTP] Código de redefinição:', token)
         return False
 
 
@@ -717,52 +747,135 @@ def upload_avatar():
 def esqueci_senha():
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip()
+        # Caso o front envie via AJAX, responder JSON em vez de redirect
         if not email:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'ok': False, 'error': 'Informe seu e-mail.'}), 400
             flash('Informe seu e-mail.', 'error')
             return redirect(url_for('esqueci_senha'))
 
         conn = get_db_connection()
         if not conn:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco.'}), 500
             flash('Falha ao conectar ao banco.', 'error')
             return redirect(url_for('esqueci_senha'))
         try:
             cur = conn.cursor()
-            # Verifica se usuário existe
-            cur.execute("SELECT 1 FROM usuario WHERE email = %s", (email,))
-            if not cur.fetchone():
+            # Garantir validação pelo cadastro: busca case-insensitive e usa e-mail canônico do banco
+            norm_email = email.lower()
+            cur.execute("SELECT email FROM usuario WHERE LOWER(email) = %s", (norm_email,))
+            row = cur.fetchone()
+            if not row:
+                cur.close(); conn.close()
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({'ok': False, 'error': 'E-mail não cadastrado.'}), 404
                 flash('E-mail não cadastrado.', 'error')
-                cur.close()
-                conn.close()
                 return redirect(url_for('esqueci_senha'))
-            # Expira tokens anteriores
-            cur.execute("UPDATE esqueci_senha SET status = 'Expirado' WHERE email = %s AND status = 'Ativo'", (email,))
-            # Gera novo token
-            token = secrets.token_urlsafe(32)
+            canonical_email = row[0]
+
+            # Expira tokens anteriores vinculados a este e-mail
+            cur.execute("UPDATE esqueci_senha SET status = 'Expirado' WHERE email = %s AND status = 'Ativo'", (canonical_email,))
+            # Gera novo token numérico (6 dígitos) para fácil digitação
+            token = f"{random.randint(100000, 999999)}"
             cur.execute(
                 "INSERT INTO esqueci_senha (email, token, data_solicitacao, status) VALUES (%s, %s, %s, %s)",
-                (email, token, datetime.utcnow(), 'Ativo')
+                (canonical_email, token, datetime.utcnow(), 'Ativo')
             )
             conn.commit()
-            cur.close()
-            conn.close()
-            reset_url = url_for('resetar_senha', token=token, email=email, _external=True)
-            if send_reset_email(email, reset_url):
-                flash('Solicitação registrada. Verifique seu e-mail para criar uma nova senha.', 'success')
+            cur.close(); conn.close()
+
+            reset_url = url_for('resetar_senha', token=token, email=canonical_email, _external=True)
+            send_ok = send_reset_email(canonical_email, reset_url, token)
+            audit_log('forgot_ok', {'email': canonical_email, 'email_sent': bool(send_ok)})
+
+            # Suporte a AJAX: se requisitado via XHR, retorna JSON
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                smtp_config_ok = bool(os.getenv('SMTP_HOST') and os.getenv('SMTP_USER') and os.getenv('SMTP_PASSWORD') and (os.getenv('SMTP_FROM') or os.getenv('SMTP_USER')))
+                payload = {'ok': True, 'email_sent': bool(send_ok)}
+                if not send_ok:
+                    # Não expõe token por padrão; só quando habilitado via env
+                    show_token = os.getenv('SHOW_RESET_TOKEN_IN_UI', '0').lower() in {'1','true','yes'}
+                    if show_token:
+                        payload['dev_token'] = token
+                    payload['error'] = 'Falha ao enviar e-mail. Verifique a configuração SMTP.'
+                    if not smtp_config_ok:
+                        payload['dev_mode'] = True
+                return jsonify(payload)
+            # Fluxo tradicional: ajusta mensagem conforme resultado
+            if send_ok:
+                flash('Código enviado! Verifique seu e-mail.', 'success')
             else:
-                # Não exibir o link na interface; manter registro em log via send_reset_email
-                flash('Solicitação registrada. Verifique seu e-mail para criar uma nova senha.', 'success')
-            audit_log('forgot_ok', {'email': email})
+                show_token = os.getenv('SHOW_RESET_TOKEN_IN_UI', '0').lower() in {'1','true','yes'}
+                if show_token:
+                    flash(f'Falha ao enviar e-mail. Código: {token}', 'info')
+                else:
+                    flash('Falha ao enviar e-mail. Verifique a configuração SMTP.', 'error')
             return redirect(url_for('esqueci_senha'))
         except Exception as e:
             try:
                 conn.close()
             except Exception:
                 pass
-            flash(f'Erro ao gerar token: {e}', 'error')
             audit_log('forgot_error', {'error': str(e)})
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'ok': False, 'error': f'Erro ao gerar token: {e}'}), 500
+            flash(f'Erro ao gerar token: {e}', 'error')
             return redirect(url_for('esqueci_senha'))
 
     return render_template('esqueci_senha.html')
+
+# Endpoint de diagnóstico SMTP
+@app.route('/api/smtp/self_test', methods=['GET'])
+def smtp_self_test():
+    host = os.getenv('SMTP_HOST')
+    port = int(os.getenv('SMTP_PORT', '587'))
+    user = os.getenv('SMTP_USER')
+    password = os.getenv('SMTP_PASSWORD')
+    use_ssl = os.getenv('SMTP_USE_SSL', '0').lower() in {'1','true','yes'}
+
+    if not host or not user or not password:
+        return jsonify({
+            'ok': False,
+            'error': 'Configuração incompleta: defina SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASSWORD.'
+        }), 400
+
+    try:
+        if use_ssl:
+            try:
+                with smtplib.SMTP_SSL(host, port) as smtp:
+                    smtp.ehlo()
+                    smtp.login(user, password)
+                    code, _ = smtp.noop()
+            except Exception as e1:
+                # Fallback: tenta STARTTLS na porta 587
+                with smtplib.SMTP(host, 587) as smtp:
+                    smtp.ehlo()
+                    smtp.starttls()
+                    smtp.ehlo()
+                    smtp.login(user, password)
+                    code, _ = smtp.noop()
+        else:
+            try:
+                with smtplib.SMTP(host, port) as smtp:
+                    smtp.ehlo()
+                    smtp.starttls()
+                    smtp.ehlo()
+                    smtp.login(user, password)
+                    code, _ = smtp.noop()
+            except Exception as e1:
+                # Fallback: tenta SSL na porta 465
+                with smtplib.SMTP_SSL(host, 465) as smtp:
+                    smtp.ehlo()
+                    smtp.login(user, password)
+                    code, _ = smtp.noop()
+        return jsonify({'ok': True, 'message': 'Login SMTP OK', 'noop_code': code})
+    except Exception as e:
+        msg = str(e)
+        hint = None
+        if 'Username and Password not accepted' in msg or '5.7.8' in msg:
+            hint = 'Gmail exige 2FA e "Senha de app". Gere uma senha de app e use em SMTP_PASSWORD.'
+        return jsonify({'ok': False, 'error': msg, 'hint': hint}), 500
 
 # Resetar senha via token
 @app.route('/resetar_senha', methods=['GET', 'POST'])
@@ -781,32 +894,46 @@ def resetar_senha():
             return redirect(url_for('resetar_senha', token=token, email=email))
         try:
             cur = conn.cursor(row_factory=dict_row)
-            cur.execute("SELECT * FROM esqueci_senha WHERE email = %s AND token = %s AND status = 'Ativo'", (email, token))
+            # Resolve e-mail canônico e valida usuário ativo
+            norm_email = (email or '').strip().lower()
+            cur.execute("SELECT email, ativo FROM usuario WHERE LOWER(email) = %s", (norm_email,))
+            urow = cur.fetchone()
+            if not urow:
+                flash('E-mail não cadastrado.', 'error')
+                cur.close(); conn.close()
+                return redirect(url_for('esqueci_senha'))
+            ativo_val = urow.get('ativo')
+            is_active = bool(ativo_val) if ativo_val is not None else True
+            if not is_active:
+                flash('Usuário inativo. Entre em contato com o administrador.', 'error')
+                cur.close(); conn.close()
+                return redirect(url_for('esqueci_senha'))
+            canonical_email = urow['email']
+
+            # Valida token vinculado ao e-mail canônico
+            cur.execute("SELECT * FROM esqueci_senha WHERE email = %s AND token = %s AND status = 'Ativo'", (canonical_email, token))
             req = cur.fetchone()
             if not req:
                 flash('Token inválido ou expirado.', 'error')
-                cur.close()
-                conn.close()
+                cur.close(); conn.close()
                 return redirect(url_for('esqueci_senha'))
-            # Validade configurável (padrão: 8 segundos)
+            # Validade configurável
             requested_at = req['data_solicitacao']
             if isinstance(requested_at, datetime):
                 age_seconds = (datetime.utcnow() - requested_at).total_seconds()
                 if age_seconds > RESET_TOKEN_EXP_SECONDS:
-                    # expira
                     cur2 = conn.cursor()
                     cur2.execute("UPDATE esqueci_senha SET status = 'Expirado' WHERE id_solicitacao = %s", (req['id_solicitacao'],))
                     conn.commit()
                     cur2.close()
-                    cur.close()
-                    conn.close()
+                    cur.close(); conn.close()
                     flash('Token expirado. Solicite um novo.', 'error')
                     return redirect(url_for('esqueci_senha'))
-            # Atualiza senha do usuário
+            # Atualiza senha do usuário usando e-mail canônico
             nova_hash = generate_password_hash(nova)
             cur2 = conn.cursor()
-            cur2.execute("UPDATE usuario SET senha = %s WHERE email = %s", (nova_hash, email))
-            # Expira e remove o token imediatamente após redefinir a senha
+            cur2.execute("UPDATE usuario SET senha = %s WHERE email = %s", (nova_hash, canonical_email))
+            # Expira e remove o token após redefinir
             cur2.execute("UPDATE esqueci_senha SET status = 'Expirado' WHERE id_solicitacao = %s", (req['id_solicitacao'],))
             cur2.execute("DELETE FROM esqueci_senha WHERE id_solicitacao = %s", (req['id_solicitacao'],))
             conn.commit()
@@ -814,7 +941,9 @@ def resetar_senha():
             cur.close()
             conn.close()
             flash('Senha redefinida com sucesso. Faça login.', 'success')
-            audit_log('reset_ok', {'email': email})
+            audit_log('reset_ok', {'email': canonical_email})
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'ok': True})
             return redirect(url_for('login'))
         except Exception as e:
             try:
@@ -830,6 +959,123 @@ def resetar_senha():
         flash('Token ou e-mail ausente.', 'error')
         return redirect(url_for('esqueci_senha'))
     return render_template('resetar_senha.html', token=token, email=email)
+
+# Validação de código (AJAX)
+@app.route('/api/reset/validate', methods=['POST'])
+def api_reset_validate():
+    email = (request.form.get('email') or '').strip()
+    token = (request.form.get('token') or '').strip()
+    if not email or not token:
+        return jsonify({'ok': False, 'error': 'Informe e-mail e código.'}), 400
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco.'}), 500
+    try:
+        cur = conn.cursor(row_factory=dict_row)
+        # Resolve e-mail canônico do usuário e valida se está ativo
+        norm_email = email.lower()
+        cur.execute("SELECT email, ativo FROM usuario WHERE LOWER(email) = %s", (norm_email,))
+        urow = cur.fetchone()
+        if not urow:
+            cur.close(); conn.close()
+            return jsonify({'ok': False, 'error': 'E-mail não cadastrado.'}), 404
+        ativo_val = urow.get('ativo')
+        is_active = bool(ativo_val) if ativo_val is not None else True
+        if not is_active:
+            cur.close(); conn.close()
+            return jsonify({'ok': False, 'error': 'Usuário inativo.'}), 403
+        canonical_email = urow['email']
+
+        # Valida o token vinculado ao e-mail canônico
+        cur.execute("SELECT * FROM esqueci_senha WHERE email = %s AND token = %s AND status = 'Ativo'", (canonical_email, token))
+        req = cur.fetchone()
+        if not req:
+            cur.close(); conn.close()
+            return jsonify({'ok': False, 'error': 'Código inválido ou expirado.'}), 404
+        requested_at = req['data_solicitacao']
+        if isinstance(requested_at, datetime):
+            age_seconds = (datetime.utcnow() - requested_at).total_seconds()
+            if age_seconds > RESET_TOKEN_EXP_SECONDS:
+                cur2 = conn.cursor()
+                cur2.execute("UPDATE esqueci_senha SET status = 'Expirado' WHERE id_solicitacao = %s", (req['id_solicitacao'],))
+                conn.commit()
+                cur2.close()
+                cur.close(); conn.close()
+                return jsonify({'ok': False, 'error': 'Código expirado. Solicite novamente.'}), 410
+        cur.close(); conn.close()
+        return jsonify({'ok': True})
+    except Exception as e:
+        try: conn.close()
+        except Exception: pass
+        return jsonify({'ok': False, 'error': f'Erro ao validar código: {e}'}), 500
+
+# Alterar senha via API (AJAX)
+@app.route('/api/reset/change', methods=['POST'])
+def api_reset_change():
+    email = (request.form.get('email') or '').strip()
+    token = (request.form.get('token') or '').strip()
+    new_password = (request.form.get('new_password') or request.form.get('nova_senha') or '').strip()
+    confirm = (request.form.get('confirm_password') or request.form.get('confirmar_senha') or '').strip()
+    if not email or not token:
+        return jsonify({'ok': False, 'error': 'Token ou e-mail ausente.'}), 400
+    if not new_password:
+        return jsonify({'ok': False, 'error': 'Informe a nova senha.'}), 400
+    if confirm and new_password != confirm:
+        return jsonify({'ok': False, 'error': 'As senhas devem coincidir.'}), 400
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco.'}), 500
+    try:
+        cur = conn.cursor(row_factory=dict_row)
+        # Resolve e-mail canônico e valida usuário ativo
+        norm_email = email.lower()
+        cur.execute("SELECT email, ativo FROM usuario WHERE LOWER(email) = %s", (norm_email,))
+        urow = cur.fetchone()
+        if not urow:
+            cur.close(); conn.close()
+            return jsonify({'ok': False, 'error': 'E-mail não cadastrado.'}), 404
+        ativo_val = urow.get('ativo')
+        is_active = bool(ativo_val) if ativo_val is not None else True
+        if not is_active:
+            cur.close(); conn.close()
+            return jsonify({'ok': False, 'error': 'Usuário inativo.'}), 403
+        canonical_email = urow['email']
+
+        # Valida token vinculado ao e-mail canônico
+        cur.execute("SELECT * FROM esqueci_senha WHERE email = %s AND token = %s AND status = 'Ativo'", (canonical_email, token))
+        req = cur.fetchone()
+        if not req:
+            cur.close(); conn.close()
+            return jsonify({'ok': False, 'error': 'Token inválido ou expirado.'}), 400
+        # Checa expiração
+        requested_at = req['data_solicitacao']
+        if isinstance(requested_at, datetime):
+            age_seconds = (datetime.utcnow() - requested_at).total_seconds()
+            if age_seconds > RESET_TOKEN_EXP_SECONDS:
+                cur2 = conn.cursor()
+                cur2.execute("UPDATE esqueci_senha SET status = 'Expirado' WHERE id_solicitacao = %s", (req['id_solicitacao'],))
+                conn.commit()
+                cur2.close()
+                cur.close(); conn.close()
+                return jsonify({'ok': False, 'error': 'Token expirado. Solicite um novo.'}), 400
+
+        # Atualiza senha e expira token
+        nova_hash = generate_password_hash(new_password)
+        cur2 = conn.cursor()
+        cur2.execute("UPDATE usuario SET senha = %s WHERE email = %s", (nova_hash, canonical_email))
+        cur2.execute("UPDATE esqueci_senha SET status = 'Expirado' WHERE id_solicitacao = %s", (req['id_solicitacao'],))
+        cur2.execute("DELETE FROM esqueci_senha WHERE id_solicitacao = %s", (req['id_solicitacao'],))
+        conn.commit()
+        cur2.close(); cur.close(); conn.close()
+        audit_log('reset_ok_api', {'email': canonical_email})
+        return jsonify({'ok': True})
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        audit_log('reset_change_error', {'error': str(e)})
+        return jsonify({'ok': False, 'error': f'Erro ao redefinir senha: {str(e)}'}), 500
 
 # Rota para a página de cadastro de alunos
 @app.route('/cadastro_alunos', methods=['GET', 'POST'])
