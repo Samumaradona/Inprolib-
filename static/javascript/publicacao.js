@@ -15,8 +15,8 @@
     const {id, titulo, tipo, curso, data: dataPublicacao, url} = data;
     titleEl.textContent = titulo || 'Publicação';
     meta.textContent = [tipo, curso, dataPublicacao].filter(Boolean).join(' • ');
-    // usa rota de download quando houver id; caso contrário, usa a URL direta
-    link.href = (id ? `/download_publicacao/${id}` : (url || '#'));
+    // usa rota de download (PDF) quando houver id; caso contrário, usa a URL direta
+    link.href = (id ? `/download_pdf_publicacao/${id}` : (url || '#'));
     try {
       // Remove alvo em nova aba para evitar navegação interrompida
       link.removeAttribute('target');
@@ -24,26 +24,22 @@
       link.setAttribute('download', (titulo || 'publicacao'));
     } catch(e){}
 
+
     // preview
     preview.innerHTML = '';
-    if(url){
+    // Sempre usa a rota de preview em PDF quando há id
+    if(id){
+      const frame = document.createElement('iframe');
+      frame.src = `/preview_pdf_publicacao/${id}`;
+      frame.title = titulo || 'Pré-visualização PDF';
+      frame.style.width = '100%';
+      frame.style.height = '520px';
+      frame.style.border = '0';
+      preview.appendChild(frame);
+    } else if(url){
+      // Fallback sem id: usa URL direta conforme tipo
       const ext = getExt(url);
-      if(['.doc','.docx','.xls','.xlsx'].includes(ext)){
-        if(id){
-          const frame = document.createElement('iframe');
-          frame.src = `/preview_pdf_publicacao/${id}`;
-          frame.title = titulo || 'Pré-visualização PDF';
-          frame.style.width = '100%';
-          frame.style.height = '520px';
-          frame.style.border = '0';
-          preview.appendChild(frame);
-        } else {
-          const fail = document.createElement('div');
-          fail.textContent = 'Pré-visualização indisponível sem identificador. Use o botão Fazer download.';
-          fail.style.color = '#334155';
-          preview.appendChild(fail);
-        }
-      }else if(['.png','.jpg','.jpeg','.webp','.gif'].includes(ext)){
+      if(['.png','.jpg','.jpeg','.webp','.gif'].includes(ext)){
         const img = document.createElement('img');
         img.src = url;
         img.alt = titulo || 'Conteúdo da publicação';
@@ -152,7 +148,7 @@
         return {
           show(){ wrap.style.display='flex'; bar.value=0; label.textContent='Baixando... 0%'; },
           update(p){ bar.value=p; label.textContent = `Baixando... ${Math.max(0, Math.min(100, Math.round(p)))}%`; },
-          done(){ bar.value=100; label.textContent='Download concluído com sucesso'; setTimeout(()=>{ wrap.style.display='none'; }, 1600); },
+          done(name){ bar.value=100; label.textContent = name ? `Download concluído: ${name}` : 'Download concluído com sucesso'; /* mantém visível para o usuário */ wrap.style.display='flex'; },
           fail(){ label.textContent='Falha no download'; wrap.style.display='flex'; }
         };
       };
@@ -160,16 +156,33 @@
       link.addEventListener('click', async (ev)=>{
         ev.preventDefault();
         const url = link.href;
-        const suggested = (link.getAttribute('download') || 'arquivo');
+        let suggested = (link.getAttribute('download') || 'arquivo');
         const progress = ensureProgressUI();
         try {
-          const resp = await fetch(url);
+          const resp = await fetch(url, { credentials: 'same-origin' });
           if(!resp.ok) throw new Error('Falha ao iniciar download');
-          const total = parseInt(resp.headers.get('Content-Length') || '0', 10);
-          const reader = resp.body && resp.body.getReader ? resp.body.getReader() : null;
 
-          if(window.showSaveFilePicker && reader){
-            const fileHandle = await window.showSaveFilePicker({ suggestedName: suggested });
+          // Tenta obter nome sugerido do servidor (Content-Disposition)
+          try{
+            const cd = resp.headers.get('Content-Disposition') || resp.headers.get('content-disposition') || '';
+            const rfc5987 = cd.match(/filename\*=UTF-8''([^;]+)/);
+            const classic = cd.match(/filename="?([^";]+)"?/);
+            const serverName = rfc5987 ? decodeURIComponent(rfc5987[1]) : (classic ? classic[1] : null);
+            if(serverName){ suggested = serverName; }
+          }catch(e){ /* ignore */ }
+
+          const total = parseInt(resp.headers.get('Content-Length') || resp.headers.get('content-length') || '0', 10);
+          let mime = resp.headers.get('Content-Type') || resp.headers.get('content-type') || 'application/octet-stream';
+          const reader = resp.body && resp.body.getReader ? resp.body.getReader() : null;
+          // garante extensão .pdf quando o conteúdo é PDF
+          if(/pdf/i.test(mime) && !/\.pdf$/i.test(suggested)){ suggested = `${suggested}.pdf`; }
+
+          if(window.showSaveFilePicker && reader && window.isSecureContext){
+            const fileHandle = await window.showSaveFilePicker({ 
+              suggestedName: suggested,
+              types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
+              excludeAcceptAllOption: true
+            });
             const writable = await fileHandle.createWritable();
             let received = 0;
             progress.show();
@@ -181,7 +194,7 @@
               if(total){ progress.update((received/total)*100); }
             }
             await writable.close();
-            progress.done();
+            progress.done(suggested);
           } else {
             const chunks = [];
             let received = 0;
@@ -199,16 +212,22 @@
               chunks.push(blob);
               progress.update(100);
             }
-            const blob = new Blob(chunks);
-            const objectURL = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = objectURL;
-            a.download = suggested;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(objectURL);
-            progress.done();
+            // fallback para salvar via âncora ou API msSaveOrOpenBlob
+            const blob = new Blob(chunks, { type: /pdf/i.test(mime) ? 'application/pdf' : mime });
+            if(navigator.msSaveOrOpenBlob){
+              navigator.msSaveOrOpenBlob(blob, suggested);
+              progress.done(suggested);
+            } else {
+              const objectURL = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = objectURL;
+              a.download = suggested;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(objectURL);
+              progress.done(suggested);
+            }
           }
         } catch(err){
           console.error('Erro no download', err);

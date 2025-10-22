@@ -1585,8 +1585,29 @@ def download_publicacao(id_publicacao):
         # Verifica se o arquivo existe fisicamente
         full_path = os.path.join(upload_dir, stored_name)
         if not os.path.exists(full_path):
-            flash('Arquivo não encontrado no servidor.', 'error')
-            return redirect(url_for('publicacao'))
+            # Arquivo ausente: sempre retorna um PDF explicando o problema
+            preview_dir = ensure_previews_dir()
+            preview_name = f'preview_pub_{id_publicacao}.pdf'
+            preview_path = os.path.join(preview_dir, preview_name)
+            safe_title = secure_filename(titulo) or 'publicacao'
+            download_name = f"{safe_title}.pdf"
+            try:
+                make_error_pdf(preview_path, 'Arquivo não encontrado', f'O arquivo da publicação (id {id_publicacao}) não está disponível no servidor.')
+                resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                try:
+                    resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                except Exception:
+                    pass
+                return resp
+            except Exception:
+                # Último recurso: PDF mínimo
+                from reportlab.platypus import SimpleDocTemplate, Paragraph
+                from reportlab.lib.pagesizes import A4
+                from reportlab.lib.styles import getSampleStyleSheet
+                doc = SimpleDocTemplate(preview_path, pagesize=A4)
+                doc.build([Paragraph('Arquivo da publicação não encontrado.', getSampleStyleSheet()['Normal'])])
+                resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                return resp
         # Preserva a extensão original para evitar problemas ao abrir o arquivo
         ext = os.path.splitext(stored_name)[1]
         safe_title = secure_filename(titulo) or 'publicacao'
@@ -1637,7 +1658,7 @@ def preview_publicacao(id_publicacao):
         conn = get_db_connection()
         cur = conn.cursor(row_factory=dict_row)
         cur.execute("""
-            SELECT titulo, nome_arquivo
+            SELECT titulo, nome_arquivo, arquivo
             FROM publicacao
             WHERE id_publicacao = %s
             LIMIT 1
@@ -1765,20 +1786,82 @@ def try_libreoffice_convert(input_path: str, outdir: str):
 
 
 def docx_to_pdf_reportlab(input_path: str, out_pdf_path: str):
-    """Fallback simples DOCX→PDF usando ReportLab (texto plano)."""
+    """Fallback robusto DOCX→PDF usando ReportLab (texto e tabelas)."""
     from docx import Document
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+
     styles = getSampleStyleSheet()
+    normal = styles['Normal']
+    title_style = ParagraphStyle('title', parent=styles['Heading2'])
+
+    def safe_text(s: str) -> str:
+        try:
+            return (s or '').replace('\xa0', ' ').replace('\u200b', ' ').strip()
+        except Exception:
+            try:
+                return str(s).strip()
+            except Exception:
+                return ''
+
     story = []
-    doc = Document(input_path)
-    for p in doc.paragraphs:
-        text = (p.text or '').strip()
-        if text:
-            story.append(Paragraph(text, styles['Normal']))
-            story.append(Spacer(1, 6))
-    SimpleDocTemplate(out_pdf_path, pagesize=A4).build(story)
+
+    # Tenta abrir o DOCX; se falhar, gera nota em PDF
+    try:
+        doc = Document(input_path)
+    except Exception:
+        doc = None
+        story.append(Paragraph('Falha ao abrir o arquivo DOCX.', title_style))
+        story.append(Spacer(1, 12))
+
+    if doc:
+        # Parágrafos
+        for p in doc.paragraphs:
+            text = safe_text(p.text)
+            if text:
+                try:
+                    story.append(Paragraph(text, normal))
+                    story.append(Spacer(1, 6))
+                except Exception:
+                    # Se houver caracteres não suportados, remove-os
+                    text_ascii = text.encode('ascii', 'ignore').decode('ascii')
+                    story.append(Paragraph(text_ascii, normal))
+                    story.append(Spacer(1, 6))
+        # Tabelas (conteúdo textual)
+        try:
+            for t in getattr(doc, 'tables', []):
+                data = []
+                for row in t.rows:
+                    cells = []
+                    for cell in row.cells:
+                        cells.append(safe_text(cell.text))
+                    data.append(cells)
+                if data:
+                    tbl = Table(data)
+                    tbl.setStyle(TableStyle([
+                        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#94a3b8')),
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT')
+                    ]))
+                    story.append(tbl)
+                    story.append(Spacer(1, 8))
+        except Exception:
+            pass
+
+    if not story:
+        story.append(Paragraph('Documento DOCX sem conteúdo textual suportado.', normal))
+
+    SimpleDocTemplate(
+        out_pdf_path,
+        pagesize=A4,
+        rightMargin=24,
+        leftMargin=24,
+        topMargin=24,
+        bottomMargin=24
+    ).build(story)
 
 
 def excel_to_pdf_reportlab(input_path: str, out_pdf_path: str):
@@ -1833,6 +1916,100 @@ def excel_to_pdf_reportlab(input_path: str, out_pdf_path: str):
         story.append(Paragraph('Sem dados para exibir.', styles['Normal']))
     doc.build(story)
 
+# ---------- Fallbacks adicionais: imagem, texto e CSV em PDF ----------
+
+def image_to_pdf_reportlab(input_path: str, out_pdf_path: str):
+    """Converte PNG/JPG para PDF em uma página."""
+    from reportlab.platypus import SimpleDocTemplate, Image, Spacer
+    from reportlab.lib.pagesizes import A4
+    doc = SimpleDocTemplate(out_pdf_path, pagesize=A4, rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
+    page_width = A4[0] - 48
+    img = Image(input_path, width=page_width, height=None)
+    story = [img, Spacer(1, 6)]
+    doc.build(story)
+
+
+def text_to_pdf_reportlab(input_path: str, out_pdf_path: str):
+    """Converte TXT em PDF como texto simples."""
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.pagesizes import A4
+    styles = getSampleStyleSheet()
+    doc = SimpleDocTemplate(out_pdf_path, pagesize=A4, rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
+    story = []
+    try:
+        with open(input_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    except Exception:
+        with open(input_path, 'r', encoding='latin-1') as f:
+            lines = f.readlines()
+    for ln in lines[:2000]:
+        text = (ln or '').rstrip('\n')
+        if text:
+            story.append(Paragraph(text, styles['Normal']))
+            story.append(Spacer(1, 6))
+    doc.build(story)
+
+
+def csv_to_pdf_reportlab(input_path: str, out_pdf_path: str):
+    """Converte CSV simples em PDF com tabela."""
+    import csv
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet
+    styles = getSampleStyleSheet()
+    rows = []
+    try:
+        with open(input_path, 'r', encoding='utf-8') as f:
+            sample = f.read(1024)
+            f.seek(0)
+            try:
+                dialect = csv.Sniffer().sniff(sample)
+            except Exception:
+                dialect = csv.excel
+            reader = csv.reader(f, dialect)
+            for r in reader:
+                rows.append([str(c) for c in r])
+    except Exception:
+        with open(input_path, 'r', encoding='latin-1') as f:
+            reader = csv.reader(f)
+            for r in reader:
+                rows.append([str(c) for c in r])
+    doc = SimpleDocTemplate(out_pdf_path, pagesize=A4, rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
+    story = []
+    if rows:
+        t = Table(rows[:200])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#94a3b8')),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT')
+        ]))
+        story.append(Paragraph('CSV (preview)', styles['Heading5']))
+        story.append(Spacer(1, 8))
+        story.append(t)
+    else:
+        story.append(Paragraph('CSV vazio.', styles['Normal']))
+    doc.build(story)
+
+
+def make_error_pdf(out_pdf_path: str, title: str, message: str):
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('title', parent=styles['Heading2'], textColor=colors.HexColor('#dc2626'))
+    doc = SimpleDocTemplate(out_pdf_path, pagesize=A4, rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
+    story = [Paragraph(title, title_style), Spacer(1, 12), Paragraph(message, styles['Normal'])]
+    try:
+        doc.build(story)
+    except Exception:
+        # Último recurso: tenta texto simples
+        doc = SimpleDocTemplate(out_pdf_path, pagesize=A4)
+        doc.build([Paragraph(message, styles['Normal'])])
 
 # Rota de pré-visualização com PDF automático
 @app.route('/preview_pdf_publicacao/<int:id_publicacao>')
@@ -1843,7 +2020,7 @@ def preview_pdf_publicacao(id_publicacao):
         conn = get_db_connection()
         cur = conn.cursor(row_factory=dict_row)
         cur.execute("""
-            SELECT titulo, nome_arquivo
+            SELECT titulo, nome_arquivo, arquivo
             FROM publicacao
             WHERE id_publicacao = %s
             LIMIT 1
@@ -1851,22 +2028,61 @@ def preview_pdf_publicacao(id_publicacao):
         row = cur.fetchone()
         cur.close()
         conn.close()
-        if not row or not row.get('nome_arquivo'):
-            return make_response('<div style="padding:12px;color:#dc2626;">Publicação não encontrada ou sem arquivo.</div>', 404)
-        stored_name = row['nome_arquivo']
+        if not row:
+            return make_response('<div style="padding:12px;color:#dc2626;">Publicação não encontrada.</div>', 404)
         upload_dir = app.config['UPLOAD_FOLDER']
-        full_path = os.path.join(upload_dir, stored_name)
+        stored_name = (row.get('nome_arquivo') or '').strip()
+        full_path = os.path.join(upload_dir, stored_name) if stored_name else ''
+        # Fallback: usa caminho completo armazenado em 'arquivo' ou procura pelo nome dentro de uploads
+        if not full_path or not os.path.exists(full_path):
+            alt = (row.get('arquivo') or '').strip()
+            if alt and os.path.exists(alt):
+                full_path = alt
+            elif stored_name:
+                # procura por arquivo com o mesmo nome em subpastas de uploads
+                try:
+                    for root, dirs, files in os.walk(upload_dir):
+                        if stored_name in files:
+                            full_path = os.path.join(root, stored_name)
+                            break
+                except Exception:
+                    pass
+        # Se ainda não encontrado, deixamos seguir para cache/erro
 
         # Sempre tenta servir um PDF em cache se já existir
         preview_dir = ensure_previews_dir()
         preview_name = f'preview_pub_{id_publicacao}.pdf'
         preview_path = os.path.join(preview_dir, preview_name)
         if os.path.exists(preview_path):
-            return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+            # Usa cache se estiver mais novo que a fonte; se a fonte não existir, serve cache
+            try:
+                if (os.path.exists(full_path) and os.path.getmtime(preview_path) >= os.path.getmtime(full_path)):
+                    return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+            except Exception:
+                pass
+            # Se a fonte não existir, ainda assim entrega o cache
+            if not os.path.exists(full_path):
+                return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+            # Cache antigo: força regeneração removendo arquivo
+            try:
+                os.remove(preview_path)
+            except Exception:
+                pass
 
-        # Se não houver cache, exige a fonte original
+        # Se não houver cache e a fonte não existir, gera PDF de erro
         if not os.path.exists(full_path):
-            return make_response('<div style="padding:12px;color:#dc2626;">Arquivo não encontrado no servidor.</div>', 404)
+            try:
+                make_error_pdf(preview_path, 'Arquivo não encontrado', f'O arquivo da publicação (id {id_publicacao}) não está disponível no servidor.')
+                resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+                return resp
+            except Exception:
+                # PDF mínimo
+                from reportlab.platypus import SimpleDocTemplate, Paragraph
+                from reportlab.lib.pagesizes import A4
+                from reportlab.lib.styles import getSampleStyleSheet
+                doc = SimpleDocTemplate(preview_path, pagesize=A4)
+                doc.build([Paragraph('Arquivo da publicação não encontrado.', getSampleStyleSheet()['Normal'])])
+                return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
         ext = os.path.splitext(stored_name)[1].lower()
         if ext not in ('.doc', '.docx', '.xls', '.xlsx'):
             return make_response('<div style="padding:12px;color:#6b7280;">Formato não suportado para conversão automática.</div>', 400)
@@ -1906,6 +2122,335 @@ def preview_pdf_publicacao(id_publicacao):
     except Exception as e:
         from html import escape as esc
         return make_response(f'<div style="padding:12px;color:#dc2626;">Erro ao preparar pré-visualização: {esc(str(e))}</div>', 500)
+
+# Download como PDF (força PDF em vez do arquivo original)
+@app.route('/download_pdf_publicacao/<int:id_publicacao>')
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def download_pdf_publicacao(id_publicacao):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute("""
+            SELECT titulo, nome_arquivo, arquivo
+            FROM publicacao
+            WHERE id_publicacao = %s
+            LIMIT 1
+        """, (id_publicacao,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        if not row:
+            # gera PDF mínimo informando que não encontrou a publicação
+            pdf_bytes = generate_error_pdf(f'Publicação {id_publicacao} não encontrada.')
+            return send_file(io.BytesIO(pdf_bytes), mimetype='application/pdf', as_attachment=True, download_name=f'publicacao_{id_publicacao}.pdf')
+        titulo = (row.get('titulo') or 'publicacao').strip()
+        stored_name = (row.get('nome_arquivo') or '').strip()
+        upload_dir = app.config['UPLOAD_FOLDER']
+        full_path = os.path.join(upload_dir, stored_name) if stored_name else ''
+        # Fallback: tenta usar caminho completo em 'arquivo' ou localizar em subpastas
+        if not full_path or not os.path.exists(full_path):
+            alt = (row.get('arquivo') or '').strip()
+            if alt and os.path.exists(alt):
+                full_path = alt
+            elif stored_name:
+                try:
+                    for root, dirs, files in os.walk(upload_dir):
+                        if stored_name in files:
+                            full_path = os.path.join(root, stored_name)
+                            break
+                except Exception:
+                    pass
+        if not os.path.exists(full_path):
+            # Arquivo ausente: usa cache de preview se existir; caso contrário, gera PDF de erro
+            preview_dir = ensure_previews_dir()
+            preview_name = f'preview_pub_{id_publicacao}.pdf'
+            preview_path = os.path.join(preview_dir, preview_name)
+            safe_title = secure_filename(titulo) or 'publicacao'
+            download_name = f"{safe_title}.pdf"
+            if os.path.exists(preview_path):
+                resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                try:
+                    resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                except Exception:
+                    pass
+                return resp
+            try:
+                make_error_pdf(preview_path, 'Arquivo não encontrado', f'O arquivo da publicação (id {id_publicacao}) não está disponível no servidor.')
+                resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                try:
+                    resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                except Exception:
+                    pass
+                return resp
+            except Exception:
+                from reportlab.platypus import SimpleDocTemplate, Paragraph
+                from reportlab.lib.pagesizes import A4
+                from reportlab.lib.styles import getSampleStyleSheet
+                doc = SimpleDocTemplate(preview_path, pagesize=A4)
+                doc.build([Paragraph('Arquivo da publicação não encontrado.', getSampleStyleSheet()['Normal'])])
+                resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                return resp
+
+        preview_dir = ensure_previews_dir()
+        preview_name = f'preview_pub_{id_publicacao}.pdf'
+        preview_path = os.path.join(preview_dir, preview_name)
+        safe_title = secure_filename(titulo) or 'publicacao'
+        download_name = f"{safe_title}.pdf"
+
+        # Se já existe PDF em cache e está mais novo que a fonte, usa-o
+        if os.path.exists(preview_path):
+            try:
+                if os.path.getmtime(preview_path) >= os.path.getmtime(full_path):
+                    resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                    try:
+                        size_bytes = os.path.getsize(preview_path)
+                        resp.headers['Content-Length'] = size_bytes
+                    except Exception:
+                        pass
+                    return resp
+            except Exception:
+                pass
+            # Cache desatualizado: remove para forçar regeneração
+            try:
+                os.remove(preview_path)
+            except Exception:
+                pass
+
+        # Caso contrário, tenta gerar (mesma lógica do preview)
+        ext = os.path.splitext(stored_name)[1].lower()
+
+        # Se já é PDF, apenas força o nome baseado no título
+        if ext == '.pdf':
+            resp = send_file(full_path, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+            try:
+                resp.headers['Content-Length'] = os.path.getsize(full_path)
+            except Exception:
+                pass
+            return resp
+
+        # Office: tenta LibreOffice e depois fallbacks internos
+        if ext in ('.doc', '.docx', '.xls', '.xlsx'):
+            ok, lo_pdf = try_libreoffice_convert(full_path, preview_dir)
+            if ok and lo_pdf and os.path.exists(lo_pdf):
+                try:
+                    import shutil
+                    shutil.copyfile(lo_pdf, preview_path)
+                except Exception:
+                    preview_path = lo_pdf
+                resp = send_from_directory(os.path.dirname(preview_path), os.path.basename(preview_path), mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                try:
+                    resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                except Exception:
+                    pass
+                return resp
+            # Fallbacks internos
+            try:
+                if ext == '.docx':
+                    docx_to_pdf_reportlab(full_path, preview_path)
+                else:
+                    excel_to_pdf_reportlab(full_path, preview_path)
+                resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                try:
+                    resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                except Exception:
+                    pass
+                return resp
+            except Exception as e:
+                # Falhou a conversão: gera PDF simplificado para garantir formato .pdf
+                try:
+                    make_error_pdf(preview_path, 'Conversão não disponível', f'Falha ao converter {stored_name}. PDF simplificado gerado.')
+                    resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                    try:
+                        resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                    except Exception:
+                        pass
+                    return resp
+                except Exception:
+                    # Último recurso: gera um PDF mínimo
+                    from reportlab.platypus import SimpleDocTemplate, Paragraph
+                    from reportlab.lib.pagesizes import A4
+                    from reportlab.lib.styles import getSampleStyleSheet
+                    doc = SimpleDocTemplate(preview_path, pagesize=A4)
+                    doc.build([Paragraph('Conversão indisponível neste servidor.', getSampleStyleSheet()['Normal'])])
+                    resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                    return resp
+
+        # Imagens → PDF
+        if ext in ('.png', '.jpg', '.jpeg', '.webp', '.gif'):
+            try:
+                image_to_pdf_reportlab(full_path, preview_path)
+                resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                try:
+                    resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                except Exception:
+                    pass
+                return resp
+            except Exception:
+                # Fallback: sempre retorna PDF (erro/minimal) em vez do arquivo original
+                try:
+                    make_error_pdf(preview_path, 'Conversão não disponível', f'Falha ao converter imagem {stored_name} para PDF.')
+                    resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                    try:
+                        resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                    except Exception:
+                        pass
+                    return resp
+                except Exception:
+                    from reportlab.platypus import SimpleDocTemplate, Paragraph
+                    from reportlab.lib.pagesizes import A4
+                    from reportlab.lib.styles import getSampleStyleSheet
+                    doc = SimpleDocTemplate(preview_path, pagesize=A4)
+                    doc.build([Paragraph('Conversão de imagem indisponível neste servidor.', getSampleStyleSheet()['Normal'])])
+                    resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                    return resp
+
+        # Texto → PDF
+        if ext == '.txt':
+            try:
+                text_to_pdf_reportlab(full_path, preview_path)
+                resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                try:
+                    resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                except Exception:
+                    pass
+                return resp
+            except Exception:
+                # Fallback: sempre retorna PDF (erro/minimal)
+                try:
+                    make_error_pdf(preview_path, 'Conversão não disponível', f'Falha ao converter texto {stored_name} para PDF.')
+                    resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                    try:
+                        resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                    except Exception:
+                        pass
+                    return resp
+                except Exception:
+                    from reportlab.platypus import SimpleDocTemplate, Paragraph
+                    from reportlab.lib.pagesizes import A4
+                    from reportlab.lib.styles import getSampleStyleSheet
+                    doc = SimpleDocTemplate(preview_path, pagesize=A4)
+                    doc.build([Paragraph('Conversão de texto indisponível neste servidor.', getSampleStyleSheet()['Normal'])])
+                    resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                    return resp
+
+        # CSV → PDF
+        if ext == '.csv':
+            try:
+                csv_to_pdf_reportlab(full_path, preview_path)
+                resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                try:
+                    resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                except Exception:
+                    pass
+                return resp
+            except Exception:
+                # Fallback: sempre retorna PDF (erro/minimal)
+                try:
+                    make_error_pdf(preview_path, 'Conversão não disponível', f'Falha ao converter CSV {stored_name} para PDF.')
+                    resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                    try:
+                        resp.headers['Content-Length'] = os.path.getsize(preview_path)
+                    except Exception:
+                        pass
+                    return resp
+                except Exception:
+                    from reportlab.platypus import SimpleDocTemplate, Paragraph
+                    from reportlab.lib.pagesizes import A4
+                    from reportlab.lib.styles import getSampleStyleSheet
+                    doc = SimpleDocTemplate(preview_path, pagesize=A4)
+                    doc.build([Paragraph('Conversão de CSV indisponível neste servidor.', getSampleStyleSheet()['Normal'])])
+                    resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+                    return resp
+
+        # Demais formatos: gera PDF de erro em vez de enviar original
+        try:
+            make_error_pdf(preview_path, 'Formato não suportado', f'O formato {ext} não é convertido automaticamente. PDF simplificado gerado.')
+            resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+            try:
+                resp.headers['Content-Length'] = os.path.getsize(preview_path)
+            except Exception:
+                pass
+            return resp
+        except Exception:
+            from reportlab.platypus import SimpleDocTemplate, Paragraph
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import getSampleStyleSheet
+            doc = SimpleDocTemplate(preview_path, pagesize=A4)
+            doc.build([Paragraph('Formato não suportado para conversão.', getSampleStyleSheet()['Normal'])])
+            resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+            return resp
+    except Exception as e:
+        # Nunca redireciona para HTML: retorna sempre um PDF de erro
+        try:
+            # Usa o mesmo caminho de preview para gerar o PDF
+            preview_dir = ensure_previews_dir()
+            preview_name = f'preview_pub_{id_publicacao}.pdf'
+            preview_path = os.path.join(preview_dir, preview_name)
+            # Nome de download baseado no título
+            try:
+                safe_title = secure_filename((row.get('titulo') if isinstance(row, dict) else titulo) or 'publicacao')
+            except Exception:
+                safe_title = 'publicacao'
+            download_name = f"{safe_title}.pdf"
+            make_error_pdf(preview_path, 'Erro ao preparar download', f'Ocorreu um erro ao gerar o PDF: {e}')
+            resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name=download_name)
+            try:
+                resp.headers['Content-Length'] = os.path.getsize(preview_path)
+            except Exception:
+                pass
+            return resp
+        except Exception:
+            # Último recurso: PDF mínimo
+            from reportlab.platypus import SimpleDocTemplate, Paragraph
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import getSampleStyleSheet
+            preview_dir = ensure_previews_dir()
+            preview_name = f'preview_pub_{id_publicacao}.pdf'
+            preview_path = os.path.join(preview_dir, preview_name)
+            doc = SimpleDocTemplate(preview_path, pagesize=A4)
+            doc.build([Paragraph('Falha ao preparar download em PDF.', getSampleStyleSheet()['Normal'])])
+            resp = send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=True, download_name='publicacao.pdf')
+            return resp
+
+# Rota para reanexar conteúdo de publicação
+@app.route('/reupload_publicacao/<int:id_publicacao>', methods=['POST'])
+@login_required
+@roles_required(['Administrador','Docente'])
+def reupload_publicacao(id_publicacao):
+    try:
+        file = request.files.get('conteudo')
+        if not (file and file.filename):
+            return jsonify({'ok': False, 'error': 'Arquivo não enviado'}), 400
+        ext = os.path.splitext(file.filename)[1].lower()
+        allow = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt', '.png', '.jpg', '.jpeg', '.webp'}
+        if ext not in allow:
+            return jsonify({'ok': False, 'error': 'Tipo de arquivo não permitido'}), 400
+        filename = secure_filename(file.filename)
+        ts = datetime.now().strftime('%Y%m%d%H%M%S')
+        new_name = f"{ts}_{filename}"
+        upload_dir = app.config['UPLOAD_FOLDER']
+        os.makedirs(upload_dir, exist_ok=True)
+        full = os.path.join(upload_dir, new_name)
+        file.save(full)
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco'}), 500
+        cur = conn.cursor()
+        cur.execute("UPDATE publicacao SET arquivo=%s, nome_arquivo=%s WHERE id_publicacao=%s", (full, new_name, id_publicacao))
+        conn.commit()
+        cur.close(); conn.close()
+        # limpa cache de preview
+        preview_dir = ensure_previews_dir()
+        preview_name = f'preview_pub_{id_publicacao}.pdf'
+        preview_path = os.path.join(preview_dir, preview_name)
+        try:
+            if os.path.exists(preview_path):
+                os.remove(preview_path)
+        except Exception:
+            pass
+        return jsonify({'ok': True, 'filename': new_name})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 # Rota para a página de avaliação
 @app.route('/avaliacao')
