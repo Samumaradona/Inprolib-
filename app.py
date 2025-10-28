@@ -3012,12 +3012,40 @@ def suporte():
         user_name = (session.get('user_name') or '').strip()
         user_id = session.get('user_id')
         role = (session.get('role') or session.get('user_tipo') or '').strip()
+        # Validação: mensagem obrigatória (front já impõe required, mas reforçamos no backend)
+        if not mensagem:
+            flash('Por favor, descreva sua mensagem para o suporte.', 'error')
+            return redirect(url_for('suporte'))
+
+        # Segurança: garantir limite máximo de 3200 caracteres
+        mensagem_limpa = mensagem.strip()[:3200]
+
+        # Tentar obter e-mail do usuário para Reply-To
+        reply_email = None
+        try:
+            conn = get_db_connection()
+            if conn and user_id:
+                cur = conn.cursor(row_factory=dict_row)
+                cur.execute('SELECT email FROM usuario WHERE id_usuario = %s', (user_id,))
+                row = cur.fetchone()
+                if row and row.get('email'):
+                    reply_email = (row.get('email') or '').strip()
+                cur.close(); conn.close()
+        except Exception:
+            try:
+                conn and conn.close()
+            except Exception:
+                pass
+
         body_text = (
             'Novo contato de suporte no INPROLIB:\n\n'
             f'Usuário: {user_name or "Desconhecido"}\n'
             f'Perfil: {role or "-"}\n'
+            f'ID do usuário: {user_id or "-"}\n\n'
+            'Mensagem do usuário:\n'
+            f'{mensagem_limpa}\n'
         )
-        ok = send_support_email(body_text, attach_tuple, None)
+        ok = send_support_email(body_text, attach_tuple, reply_email)
         if ok:
             flash('Mensagem de suporte enviada com sucesso!', 'success')
             audit_log('suporte_email_ok', {'user_id': user_id})
