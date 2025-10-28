@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
 import secrets
 import re
 from functools import wraps
@@ -27,6 +27,8 @@ mimetypes.add_type('application/vnd.openxmlformats-officedocument.wordprocessing
 mimetypes.add_type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx')
 mimetypes.add_type('application/vnd.ms-excel', '.xls')
 app.secret_key = os.getenv('SECRET_KEY', 'inprolib_secret_key_2024')
+# Sessões permanentes quando "Lembrar-me" marcado: 30 dias
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 ADMIN_SETUP_TOKEN = os.getenv('ADMIN_SETUP_TOKEN', 'setup_admin_2024')
@@ -594,6 +596,9 @@ def home():
 # Tela de Login
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Auto-login: se já houver sessão ativa, redireciona para home
+    if request.method == 'GET' and session.get('user_id'):
+        return redirect(url_for('home'))
     if request.method == 'POST':
         key = f"{request.remote_addr}:login"
         if not check_rate_limit(key, limit=30, window=60):
@@ -638,6 +643,9 @@ def login():
             session['user_name'] = user['nome']
             session['user_tipo'] = user['tipo']
             session['role'] = _normalize_role(user['tipo'])
+            # Lembrar-me: tornar sessão permanente se marcado
+            remember_flag = (request.form.get('remember') or '').strip()
+            session.permanent = bool(remember_flag)
             foto = user.get('foto_perfil')
             def _norm_photo_path(fp: str) -> str:
                 if not fp:

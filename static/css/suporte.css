@@ -377,7 +377,7 @@
   /* títulos / labels / inputs */
   .form-container h3 {
     margin: 0 0 12px 0;
-    color: #222;
+    color: var(--bs-new-casual); /* título "Suporte" no azul do botão salvar */
     font-size: 18px;
   }
   .form-container label {
@@ -385,7 +385,7 @@
     margin-top: 12px;
     font-weight: 700;
     font-size: 14px;
-    color: var(--bs-body-color);
+    color: var(--bs-new-casual); /* mensagens (label) no azul do botão salvar */
   }
   .form-container input,
  .form-container textarea,  .form-container select {
@@ -406,7 +406,27 @@
   }
 
   .form-container textarea{
-    height: 300px;
+    height: 180px; /* reduzido para caber junto com o FAQ no mesmo card */
+  }
+
+  /* espaçamento leve para o bloco de FAQ dentro do card */
+  .faq-block details{ margin: 6px 0; }
+
+  /* Título e perguntas do FAQ no tom azul e negrito */
+  .faq-block h3 {
+    color: var(--bs-new-casual);
+    font-weight: 700;
+  }
+  .faq-block summary {
+    color: var(--bs-new-casual);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* Dica e contador da mensagem em azul e negrito */
+  #msgHint{
+    color: var(--bs-new-casual) !important;
+    font-weight: 700;
   }
   
   /* botão principal e grupo de botões - botões usam exclusivamente bs-new-casual/dark */

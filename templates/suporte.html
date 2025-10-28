@@ -87,11 +87,36 @@
       {% endwith %}
   <form class="form-container" method="POST" action="/suporte" enctype="multipart/form-data" novalidate>
       <h3>Suporte</h3>
+      <!-- FAQ dentro do mesmo card do formulário -->
+      <div class="faq-block" aria-labelledby="faqTitle" style="margin-bottom:12px">
+        <h3 id="faqTitle" style="margin-bottom:8px">Perguntas Frequentes (FAQ)</h3>
+        <details>
+          <summary>Não consigo visualizar o arquivo da publicação. O que fazer?</summary>
+          <div>Verifique se o arquivo foi anexado corretamente. Em alguns formatos, o sistema converte para PDF para preview. Se persistir, use o botão de download para baixar e abrir localmente.</div>
+        </details>
+        <details>
+          <summary>Como faço o download de uma publicação?</summary>
+          <div>No modal da publicação, clique em “Fazer download”. Uma barra de progresso aparece e o arquivo é salvo com o nome sugerido.</div>
+        </details>
+        <details>
+          <summary>Posso filtrar ou buscar publicações específicas?</summary>
+          <div>Sim. Utilize a busca por texto (título/tipo/curso) e os filtros de status para encontrar rapidamente o que precisa.</div>
+        </details>
+        <details>
+          <summary>Como altero minha foto ou dados do perfil?</summary>
+          <div>Abra o menu do usuário no topo (avatar) e utilize as opções disponíveis. Dependendo do seu perfil, algumas alterações podem exigir contato com o administrador.</div>
+        </details>
+        <details>
+          <summary>Recebi um erro ou comportamento inesperado. Como reporto?</summary>
+          <div>Use o formulário abaixo para enviar sua mensagem ao suporte. Descreva o passo a passo, inclua o ID da publicação (se houver) e, opcionalmente, anexe uma imagem do erro.</div>
+        </details>
+      </div>
     <!-- Coluna 1 -->
     <div class="container-grid">
     
       <label for="mensagem">Mensagem</label>
-      <textarea id="mensagem" name="mensagem" placeholder="Insira a mensagem..." required></textarea>
+      <textarea id="mensagem" name="mensagem" placeholder="Insira a mensagem..." maxlength="3200" required></textarea>
+      <div id="msgHint" style="margin-top:6px;font-size:12px;color:#64748b">Máx. 3200 caracteres. <span id="msgCount">0</span>/3200</div>
                     <!-- Botão centralizado -->
                     <div class="btn-group">
                         <input type="file" name="imagem" id="imagem" hidden>
@@ -112,6 +137,17 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
   </script>
   <script src="notifications.js?v=1"></script>
   <script src="home.js?v=aval-fix-1"></script>
+  <script>
+    (function(){
+      const ta = document.getElementById('mensagem');
+      const count = document.getElementById('msgCount');
+      if(ta && count){
+        const update = () => { count.textContent = String(ta.value.length); };
+        ta.addEventListener('input', update);
+        update();
+      }
+    })();
+  </script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
     </body>
 </html>
