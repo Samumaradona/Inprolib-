@@ -33,6 +33,13 @@ header.topbar .right {
   gap: var(--topbar-gap);
 }
 
+/* Logo do cabeçalho/* Logo */
+header.topbar .logo {
+  height: 32px;
+  width: auto;
+  display: inline-block;
+}
+
 /* Botão hambúrguer */
 header.topbar .hamburger {
   width: 40px;
