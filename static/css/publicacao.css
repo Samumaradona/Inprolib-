@@ -425,6 +425,10 @@ main{
   background: var(--bs-new-dark);
 }
 
+/* Modificadores para botões menores e com ícones */
+.button.is-sm { padding: 6px 12px; font-size: 13px; }
+.button.with-icon .material-symbols-outlined { font-size: 18px; margin-right: 6px; }
+
 .form-container .button{
   background-color: var(--bs-success);
   color: var(--card-bg);
@@ -491,7 +495,9 @@ form button:hover {
 }
 
 /* Toolbar de busca e filtros */
-.toolbar { /* container já inline no HTML, regras complementares aqui se necessário */ }
+.toolbar { margin: 0 16px 12px 16px; display:flex; align-items:center; gap:12px; justify-content:flex-start; flex-wrap: wrap; }
+.toolbar .filters { display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
+.toolbar select { min-width: 140px; }
 .input-with-icon {
   display: inline-flex;
   align-items: center;
@@ -505,11 +511,20 @@ form button:hover {
   border: 0;
   outline: none;
   font-size: 14px;
+  width: 180px;
 }
 .results-counter {
   font-size: 13px;
   color: #64748b;
   margin-left: 4px;
+}
+
+/* Ajustes mobile para toolbar */
+@media (max-width: 720px){
+  .toolbar { gap: 10px; }
+  .toolbar select { min-width: 120px; }
+  .input-with-icon input { width: 140px; }
+  #resultsCounterPub { flex: 1 0 100%; order: 99; margin-top: 4px; }
 }
 
 /* Botões de ícone padronizados (Material Symbols) */

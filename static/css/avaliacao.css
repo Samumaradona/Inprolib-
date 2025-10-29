@@ -353,12 +353,12 @@
   
   /* Main + formulário */
   main{
-    max-width: 600px;
+    max-width: 900px;
     margin: 28px auto;
     padding: 0 20px;
   }
   .form-container {
-    max-width: 600px;
+    max-width: 900px;
     width: 100%;
     margin: 0 auto;
     background-color: var(--card-bg);
@@ -548,12 +548,18 @@
   .status-cell { color:#166534; font-weight:600; }
   .status-cell.inactive { color:#b91c1c; }
 
-  /* Toolbar layout: melhor espaçamento e alinhamento */
-  .toolbar { margin: 0 16px 12px -12px; display:flex; align-items:center; gap:12px; justify-content: flex-start; flex-wrap: nowrap; }
-  .toolbar .filters { display:flex; align-items:center; gap:8px; flex-wrap: nowrap; }
+  /* Toolbar layout: melhor espaçamento e alinhamento + wrap para mobile */
+  .toolbar { margin: 0 16px 12px -12px; display:flex; align-items:center; gap:12px; justify-content: flex-start; flex-wrap: wrap; }
+  .toolbar .filters { display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
   .toolbar .button.is-sm { flex-shrink: 0; }
   .toolbar select { min-width: 140px; }
   .input-with-icon input#searchAv { width: 180px; }
+
+  @media (max-width: 720px){
+    .toolbar select { min-width: 120px; }
+    .input-with-icon input#searchAv { width: 140px; }
+    #resultsCounterAv { flex: 1 0 100%; order: 99; margin-top: 4px; }
+  }
   
 /* Modal refinements for Avaliação */
 #avModal.modal { background: rgba(2,6,23,0.55); }
