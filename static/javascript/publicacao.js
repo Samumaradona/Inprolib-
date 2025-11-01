@@ -341,40 +341,8 @@
     });
   }
 
-  const searchInput = document.getElementById('searchPub');
-  const statusSelect = document.getElementById('statusFilterPub');
-  const clearBtn = document.getElementById('btnClearPubFilters');
-  const resultsEl = document.getElementById('resultsCounterPub');
-
-  function applyPubFilters(){
-    const q = (searchInput && searchInput.value || '').trim().toLowerCase();
-    const status = (statusSelect && statusSelect.value) || 'all';
-    const rows = Array.from(document.querySelectorAll('.pub-row'));
-    let visible = 0;
-    rows.forEach(row=>{
-      const matchesSearch = !q || [row.dataset.titulo, row.dataset.tipo, row.dataset.curso].some(v=> (v||'').toLowerCase().includes(q));
-      const isInactive = row.classList.contains('inactive');
-      const matchesStatus = status === 'all' || (status === 'inactive' ? isInactive : !isInactive);
-      const show = matchesSearch && matchesStatus;
-      row.style.display = show ? '' : 'none';
-      if(show) visible++;
-    });
-    if(resultsEl){
-      const total = rows.length;
-      resultsEl.textContent = `Exibindo ${visible} de ${total}`;
-    }
-  }
-
-  if(searchInput) searchInput.addEventListener('input', applyPubFilters);
-  if(statusSelect) statusSelect.addEventListener('change', applyPubFilters);
-  if(clearBtn) clearBtn.addEventListener('click', ()=>{
-    if(searchInput) searchInput.value = '';
-    if(statusSelect) statusSelect.value = 'all';
-    applyPubFilters();
-  });
-
+  // Sem filtros na lista: apenas vincula ações de cada linha
   bindRowActions();
-  applyPubFilters();
   // Toast de sucesso ao anexar arquivo "conteudo"
   const conteudoInput = document.getElementById('conteudo');
   if(conteudoInput){

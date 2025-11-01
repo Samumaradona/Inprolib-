@@ -27,7 +27,7 @@ const ALL_ROUTES = [
 // Tabela de permissões por perfil (simplificada e robusta)
 const ALLOWED_BY_ROLE = {
   'Administrador': new Set(ALL_ROUTES.map(r => r.path)),
-  'Docente': new Set(['/home','/publicacao','/suporte','/vinculacao_curso','/avaliacao','/relatorio']),
+  'Docente': new Set(['/home','/publicacao','/suporte','/avaliacao','/relatorio']),
   'Aluno': new Set(['/home','/publicacao','/suporte','/relatorio'])
 };
 
@@ -183,7 +183,7 @@ function navigateTo(path){
 const btnHamburger = document.getElementById('btnHamburger');
 const sideMenu = document.getElementById('sideMenu');
 const backdrop = document.getElementById('backdrop');
-const btnClose = document.getElementById('btnClose');
+const menuCloseBtn = document.getElementById('btnClose');
 const routesList = document.getElementById('routesList');
 const logoutBtn = document.getElementById('logoutBtn');
 const btnBack = document.getElementById('btnBack');
@@ -254,7 +254,7 @@ function onKeyDown(e){
 
 /* Adiciona listeners somente se os elementos existirem (proteção) */
 if (btnHamburger) btnHamburger.addEventListener('click', toggleMenu);
-if (btnClose) btnClose.addEventListener('click', closeMenu);
+if (menuCloseBtn) menuCloseBtn.addEventListener('click', closeMenu);
 if (backdrop) backdrop.addEventListener('click', closeMenu);
 if (logoutBtn) logoutBtn.addEventListener('click', (ev) => {
   // evita navegação dupla do <a href="/logout"> e nossa navegação programática
@@ -372,6 +372,8 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
     const fd = new FormData();
     fd.append('avatar', f);
 
+    try { window.showToast && window.showToast('Enviando nova foto...', 'info'); } catch(_){ }
+
     // Salva fallback local (offline) enquanto atualiza no servidor
     try{
       const reader = new FileReader();
@@ -392,9 +394,12 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
           if (avatarImg) avatarImg.src = json.photo_url;
           if (modalImg) modalImg.src = json.photo_url;
           if (typeof window !== 'undefined') window.USER_PHOTO = json.photo_url;
+          try { window.showToast && window.showToast('Foto atualizada com sucesso!', 'success'); } catch(_){ }
+        } else {
+          try { window.showToast && window.showToast((json && json.error) || 'Falha ao atualizar foto.', 'error'); } catch(_){ }
         }
       })
-      .catch(() => { /* silencioso conforme requisito */ });
+      .catch(() => { try { window.showToast && window.showToast('Erro de conexão ao enviar foto.', 'error'); } catch(_){} });
   }
 
   /* Toggle dropdown de notificações (abre/fecha) */
@@ -1009,3 +1014,25 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
     });
   }
 })();
+// Tema: função global para aplicar claro/escuro
+if (typeof window !== 'undefined' && !window.applyTheme) {
+  window.applyTheme = function(theme){
+    try {
+      const root = document.documentElement;
+      if(theme === 'escuro'){
+        root.classList.add('theme-dark');
+        localStorage.setItem('preferred_theme','escuro');
+      } else {
+        root.classList.remove('theme-dark');
+        localStorage.setItem('preferred_theme','claro');
+      }
+    } catch(e) {}
+  };
+  // aplica tema salvo/local ou vindo da sessão
+  (function(){
+    const sessTheme = (typeof window !== 'undefined' ? (window.USER_THEME || '') : '');
+    const saved = localStorage.getItem('preferred_theme');
+    const initial = (sessTheme || saved || 'claro');
+    window.applyTheme(initial);
+  })();
+}

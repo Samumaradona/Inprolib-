@@ -70,6 +70,12 @@
     --bs-body-bg:  var(--bs-white);
     --bs-font-color: var(--bs-body-color);
 }
+
+/* Tema escuro global (aplicado via classe no <html>) */
+:root.theme-dark {
+  --bs-body-bg: #0f172a;
+  --bs-body-color: #e5e7eb;
+}
     
     /* Reset rápido */
     *{

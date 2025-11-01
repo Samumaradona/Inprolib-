@@ -18,6 +18,7 @@ import smtplib
 from email.message import EmailMessage
 import mimetypes
 import json
+import unicodedata
 
 load_dotenv()
 
@@ -38,7 +39,7 @@ RESET_TOKEN_EXP_SECONDS = int(os.getenv('RESET_TOKEN_EXP_SECONDS', '60'))
 
 # Configuração do banco de dados PostgreSQL (via variáveis de ambiente)
 DB_CONFIG = {
-    'dbname': os.getenv('DB_NAME', 'inprolib_schema'),
+    'dbname': os.getenv('DB_NAME', 'inprolib'),
     'user': os.getenv('DB_USER', 'postgres'),
     'password': os.getenv('DB_PASSWORD', 'postgres'),
     'host': os.getenv('DB_HOST', 'localhost'),
@@ -282,15 +283,135 @@ def serve_img(filename):
 SCHEMA_READY = False
 
 def get_db_connection():
-    global SCHEMA_READY
+    """Cria uma conexão com o Postgres usando DATABASE_URL ou DB_CONFIG.
+    Em caso de erro, retorna None sem interromper o fluxo da aplicação.
+    """
     try:
         db_url = os.getenv('DATABASE_URL')
+        # Permite configurar schema via variável de ambiente (padrão: public)
+        db_schema = os.getenv('DB_SCHEMA', 'public').strip() or 'public'
         if db_url:
-            # Corrige prefixo antigo
             if db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql://", 1)
             conn = psycopg.connect(db_url)
+            # Garante search_path correto para o schema informado
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(f'SET search_path TO "{db_schema}", public')
+            except Exception:
+                pass
             return conn
+        conn = psycopg.connect(**DB_CONFIG)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(f'SET search_path TO "{db_schema}", public')
+        except Exception:
+            pass
+        return conn
+    except InvalidCatalogName:
+        # Tenta criar o banco se não existir e reconecta
+        try:
+            tmp = dict(DB_CONFIG)
+            dbname = tmp.pop('dbname', None)
+            admin = psycopg.connect(**tmp)
+            cur = admin.cursor()
+            if dbname:
+                cur.execute(f'CREATE DATABASE "{dbname}"')
+                admin.commit()
+            cur.close(); admin.close()
+            conn = psycopg.connect(**DB_CONFIG)
+            try:
+                with conn.cursor() as cur2:
+                    _schema = os.getenv("DB_SCHEMA", "public").strip() or "public"
+                    cur2.execute(f'SET search_path TO "{_schema}", public')
+            except Exception:
+                pass
+            return conn
+        except Exception:
+            return None
+    except Exception:
+        return None
+
+# Cache simples para rótulos de enum de status de publicação
+STATUS_LABEL_CACHE: dict[str, str] = {}
+
+def _norm(s: str) -> str:
+    try:
+        return ''.join(c for c in unicodedata.normalize('NFKD', s or '') if not unicodedata.combining(c)).lower().strip()
+    except Exception:
+        return (s or '').lower().strip()
+
+def status_label(preferred: str) -> str:
+    """Resolve o rótulo correto no enum 'status_publicacao', tolerando variações.
+    Retorna o rótulo existente equivalente ao preferred (case-insensitive e sem acentos),
+    ou o primeiro rótulo disponível como fallback.
+    """
+    key = _norm(preferred)
+    if key in STATUS_LABEL_CACHE:
+        return STATUS_LABEL_CACHE[key]
+    conn = get_db_connection()
+    if not conn:
+        return preferred
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT e.enumlabel
+            FROM pg_enum e
+            JOIN pg_type t ON e.enumtypid = t.oid
+            WHERE t.typname = %s
+            ORDER BY e.enumsortorder
+            """,
+            ('status_publicacao',)
+        )
+        labels = [r[0] for r in cur.fetchall()]
+        cur.close(); conn.close()
+        # match exato por normalização
+        for lab in labels:
+            if _norm(lab) == key:
+                STATUS_LABEL_CACHE[key] = lab
+                return lab
+        # heurísticas por semântica
+        if key in {'publicado','publicada'}:
+            for lab in labels:
+                if 'public' in _norm(lab):
+                    STATUS_LABEL_CACHE[key] = lab
+                    return lab
+        if key in {'reprovado','reprovada','indeferido','indeferida'}:
+            for lab in labels:
+                nl = _norm(lab)
+                if 'reprov' in nl or 'indef' in nl:
+                    STATUS_LABEL_CACHE[key] = lab
+                    return lab
+        if key == 'pendente':
+            # 1) Tentativa direta por "pend"
+            for lab in labels:
+                if 'pend' in _norm(lab):
+                    STATUS_LABEL_CACHE[key] = lab
+                    return lab
+            # 2) Heurística para rótulos de análise/avaliação
+            for lab in labels:
+                nl = _norm(lab)
+                if ('avali' in nl or 'analis' in nl or 'em ' in nl) and 'public' not in nl and 'reprov' not in nl and 'indef' not in nl:
+                    STATUS_LABEL_CACHE[key] = lab
+                    return lab
+            # 3) Fallback seguro: escolher rótulo que não indique publicação nem reprovação
+            for lab in labels:
+                nl = _norm(lab)
+                if 'public' not in nl and 'reprov' not in nl and 'indef' not in nl:
+                    STATUS_LABEL_CACHE[key] = lab
+                    return lab
+        # fallback: primeiro disponível
+        if labels:
+            STATUS_LABEL_CACHE[key] = labels[0]
+            return labels[0]
+        return preferred
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return preferred
 
         # Monta a conexão via dict (DB_CONFIG)
         cfg = {k: (str(v).strip() if isinstance(v, str) else v) for k, v in DB_CONFIG.items()}
@@ -385,6 +506,137 @@ def ensure_usuario_endereco_columns():
             pass
         print(f"Falha ao garantir colunas de endereço em usuario: {e}")
 
+# Helper para garantir colunas de preferências do usuário (telefone, tema_preferido)
+def ensure_usuario_preferences_columns():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT current_schema()")
+        schema = (cur.fetchone() or ['public'])[0] or 'public'
+        prefs = [
+            ('telefone', 'VARCHAR(20)'),
+            ('tema_preferido', "VARCHAR(16) DEFAULT 'claro'")
+        ]
+        for col, coldef in prefs:
+            cur.execute("SELECT 1 FROM information_schema.columns WHERE table_schema=%s AND table_name='usuario' AND column_name=%s", (schema, col))
+            if not cur.fetchone():
+                cur.execute(f'ALTER TABLE "{schema}".usuario ADD COLUMN {col} {coldef}')
+                conn.commit()
+        cur.close(); conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao garantir colunas de preferências em usuario: {e}")
+
+# Helper para garantir existência da tabela 'avaliacao'
+def ensure_avaliacao_table():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        # Verifica a existência da tabela no search_path atual
+        cur.execute("SELECT to_regclass('avaliacao')")
+        reg = cur.fetchone()
+        exists = reg and reg[0] is not None
+        if not exists:
+            # Cria com estrutura compatível ao banco.sql
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS avaliacao (
+                    id_avaliacao SERIAL PRIMARY KEY,
+                    id_publicacao INTEGER NOT NULL REFERENCES publicacao(id_publicacao),
+                    id_avaliador INTEGER NOT NULL REFERENCES usuario(id_usuario),
+                    nota NUMERIC(3,1),
+                    comentario TEXT,
+                    data_avaliacao TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.commit()
+        cur.close(); conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao garantir tabela avaliacao: {e}")
+
+# Garante que o enum de status possua um rótulo de pendência (e.g., Pendente/Em avaliação)
+def ensure_status_enum_pending():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT e.enumlabel
+            FROM pg_enum e
+            JOIN pg_type t ON e.enumtypid = t.oid
+            WHERE t.typname = %s
+            ORDER BY e.enumsortorder
+            """,
+            ('status_publicacao',)
+        )
+        labels = [r[0] for r in cur.fetchall()]
+        has_pending = False
+        for lab in labels:
+            nl = _norm(lab)
+            if 'pend' in nl or 'avali' in nl or 'analis' in nl:
+                has_pending = True
+                break
+        if not has_pending:
+            try:
+                cur.execute("ALTER TYPE status_publicacao ADD VALUE 'Pendente'")
+                conn.commit()
+            except Exception:
+                # Ignora se já existir ou não puder adicionar
+                pass
+        cur.close(); conn.close()
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+# Helper para garantir coluna de vínculo direto usuario.id_curso_usuario
+def ensure_usuario_curso_fk_column():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT current_schema()")
+        schema = (cur.fetchone() or ['public'])[0] or 'public'
+        # verifica se existe coluna id_curso_usuario
+        cur.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema=%s AND table_name='usuario' AND column_name='id_curso_usuario'",
+            (schema,)
+        )
+        if not cur.fetchone():
+            cur.execute(f'ALTER TABLE "{schema}".usuario ADD COLUMN id_curso_usuario INTEGER NULL')
+            conn.commit()
+            # tenta criar FK
+            try:
+                cur.execute(
+                    f'ALTER TABLE "{schema}".usuario ADD CONSTRAINT fk_usuario_curso FOREIGN KEY (id_curso_usuario) REFERENCES "{schema}".curso(id_curso) ON DELETE SET NULL'
+                )
+                conn.commit()
+            except Exception:
+                pass
+        cur.close(); conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao garantir coluna usuario.id_curso_usuario: {e}")
+
 # Helper para garantir coluna 'id_orientador' em publicacao
 def ensure_publicacao_orientador_column():
     conn = get_db_connection()
@@ -424,8 +676,11 @@ def init_schema_once():
         ensure_usuario_ativo_column()
         ensure_usuario_endereco_columns()
         ensure_publicacao_orientador_column()
+        ensure_usuario_curso_fk_column()
+        ensure_usuario_preferences_columns()
+        ensure_avaliacao_table()
         SCHEMA_INIT_DONE = True
-        print("Schema inicial garantido: usuario.ativo, endereço e publicacao.id_orientador.")
+        print("Schema inicial garantido: usuario.ativo, endereço, publicacao.id_orientador, usuario.id_curso_usuario, preferências e tabela avaliacao.")
     except Exception as e:
         print(f"Falha ao garantir schema inicial: {e}")
 
@@ -579,10 +834,10 @@ def home():
                 FROM publicacao p
                 JOIN usuario u ON p.id_autor = u.id_usuario
                 JOIN curso c ON p.id_curso = c.id_curso
-                WHERE p.status = 'Publicado'
+                WHERE p.status = %s
                 ORDER BY p.data_publicacao DESC
                 LIMIT 10
-            """)
+            """, (status_label('Publicado'),))
             publicacoes = cur.fetchall()
             cur.close()
             conn.close()
@@ -646,6 +901,8 @@ def login():
             # Lembrar-me: tornar sessão permanente se marcado
             remember_flag = (request.form.get('remember') or '').strip()
             session.permanent = bool(remember_flag)
+
+            # Avatar e tema preferido
             foto = user.get('foto_perfil')
             def _norm_photo_path(fp: str) -> str:
                 if not fp:
@@ -667,6 +924,22 @@ def login():
                     fallback_rel = ''
                 rel_photo = _norm_photo_path(fallback_rel) or fallback_rel
             session['user_photo'] = rel_photo
+
+            # carrega tema preferido do usuário
+            try:
+                theme = None
+                conn2 = get_db_connection()
+                if conn2:
+                    cur2 = conn2.cursor()
+                    cur2.execute("SELECT tema_preferido FROM usuario WHERE id_usuario = %s", (user['id_usuario'],))
+                    r2 = cur2.fetchone()
+                    if r2:
+                        theme = r2[0]
+                    cur2.close(); conn2.close()
+                session['user_theme'] = (theme or 'claro')
+            except Exception:
+                session['user_theme'] = 'claro'
+
             audit_log('login_ok', {'email': email or '', 'cpf': cpf or ''})
             return redirect(url_for('home'), code=303)
         except Exception as e:
@@ -1436,6 +1709,11 @@ def cadastro_curso():
 @roles_required(['Administrador','Docente','Aluno'])
 def publicacao():
     if request.method == 'POST':
+        # Garante que o enum possua rótulo de pendência
+        try:
+            ensure_status_enum_pending()
+        except Exception:
+            pass
         # Rate limit
         key = f"{request.remote_addr}:publicacao"
         if not check_rate_limit(key, limit=15, window=60):
@@ -1445,6 +1723,7 @@ def publicacao():
         titulo = (request.form.get('titulo') or request.form.get('titulo_conteudo') or '').strip()
         tipo = (request.form.get('tipo') or request.form.get('tipo_publicacao') or '').strip()
         curso_id = request.form.get('curso')  # pode ser None se não houver campo
+        orientador_id = (request.form.get('orientador') or '').strip()
         captcha = (request.form.get('captcha') or '').strip()
         arquivo = request.files.get('conteudo')
         # Captcha
@@ -1456,6 +1735,10 @@ def publicacao():
             return redirect(url_for('publicacao'))
         if not tipo:
             flash('Informe o tipo da publicação.', 'error')
+            return redirect(url_for('publicacao'))
+        # Orientador obrigatório e deve ser Professor
+        if not orientador_id:
+            flash('Selecione o orientador (perfil Professor) para a publicação.', 'error')
             return redirect(url_for('publicacao'))
         if not (arquivo and arquivo.filename):
             flash('Anexe o arquivo de conteúdo para publicar.', 'error')
@@ -1480,16 +1763,51 @@ def publicacao():
         if conn:
             try:
                 cur = conn.cursor()
+                # valida orientador como Professor
+                try:
+                    cur_prof = conn.cursor()
+                    cur_prof.execute("SELECT 1 FROM usuario WHERE id_usuario = %s AND tipo::text IN ('Professor','Docente')", (orientador_id,))
+                    if not cur_prof.fetchone():
+                        cur_prof.close()
+                        flash('Orientador inválido: selecione um usuário com perfil Professor.', 'error')
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                        return redirect(url_for('publicacao'))
+                    cur_prof.close()
+                except Exception:
+                    # Se falhar a validação, impedir inserção
+                    flash('Falha ao validar o orientador. Tente novamente.', 'error')
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    return redirect(url_for('publicacao'))
+                # Define status inicial: Aluno -> Pendente; Docente/Admin -> Publicado
+                try:
+                    user_tipo = (session.get('user_tipo') or session.get('role') or '').strip()
+                except Exception:
+                    user_tipo = ''
+                initial_status = status_label('Pendente') if user_tipo == 'Aluno' else status_label('Publicado')
+
                 # Inserir nova publicação (id_autor e id_curso podem ser None)
                 cur.execute(
                     """INSERT INTO publicacao 
-                       (titulo, data_publicacao, id_autor, id_curso, tipo, status, arquivo, nome_arquivo, assuntos_relacionados, data_autoria) 
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (titulo, datetime.now(), session.get('user_id'), curso_id, tipo or '', 'Publicado', 
-                     filepath, novo_filename, None, None)
+                       (titulo, data_publicacao, id_autor, id_curso, tipo, status, arquivo, nome_arquivo, assuntos_relacionados, data_autoria, id_orientador) 
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (titulo, datetime.now(), session.get('user_id'), curso_id, tipo or '', initial_status, 
+                     filepath, novo_filename, None, None, orientador_id)
                 )
                 conn.commit()
-                flash('Publicação realizada com sucesso!', 'success')
+                try:
+                    pend_lbl = status_label('Pendente')
+                except Exception:
+                    pend_lbl = 'Pendente'
+                if _norm(initial_status) == _norm(pend_lbl):
+                    flash('Submissão criada e aguardando avaliação do orientador.', 'success')
+                else:
+                    flash('Publicação criada e publicada.', 'success')
                 cur.close()
                 conn.close()
                 audit_log('publicacao_ok', {'titulo': titulo, 'arquivo': novo_filename})
@@ -1511,39 +1829,75 @@ def publicacao():
     if conn:
         try:
             cur = conn.cursor(row_factory=dict_row)
-            cur.execute("SELECT * FROM curso ORDER BY nome_curso")
-            cursos = cur.fetchall()
-            
-            # Padroniza tipo 'Artigo Científico'
+            # Corrige publicações sem avaliação marcadas como Publicada
+            # Executa em conexão isolada para evitar abortar a transação usada nas consultas abaixo
             try:
-                cur_ins = conn.cursor()
-                # garante 'Artigo Científico'
-                cur_ins.execute("INSERT INTO tipos_de_publicacao (nome_tipo) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM tipos_de_publicacao WHERE nome_tipo = %s)", ('Artigo Científico','Artigo Científico'))
-                # atualiza publicações antigas
-                cur_ins.execute("UPDATE publicacao SET tipo = %s WHERE tipo = %s", ('Artigo Científico','Artigo'))
-                # remove 'Artigo' da lista se já existir 'Artigo Científico'
-                cur_ins.execute("DELETE FROM tipos_de_publicacao WHERE nome_tipo = %s AND EXISTS (SELECT 1 FROM tipos_de_publicacao WHERE nome_tipo = %s)", ('Artigo','Artigo Científico'))
-                conn.commit()
-                cur_ins.close()
+                pend_label = status_label('Pendente')
+                pub_label = status_label('Publicado')
+                conn_fix = get_db_connection()
+                if conn_fix:
+                    with conn_fix.cursor() as cur_fix:
+                        cur_fix.execute(
+                            """
+                            UPDATE publicacao p
+                            SET status = %s
+                            WHERE p.status = %s
+                              AND NOT EXISTS (
+                                SELECT 1 FROM avaliacao a WHERE a.id_publicacao = p.id_publicacao
+                              )
+                            """,
+                            (pend_label, pub_label)
+                        )
+                        conn_fix.commit()
+                    conn_fix.close()
+            except Exception:
+                try:
+                    conn_fix.close()
+                except Exception:
+                    pass
+            # Garante colunas opcionais e filtra somente cursos ativos (ou sem coluna ativo)
+            try:
+                ensure_curso_ativo_column()
             except Exception:
                 pass
-
+            cur.execute("""
+                SELECT id_curso, nome_curso
+                FROM curso
+                WHERE COALESCE(ativo, TRUE) = TRUE
+                ORDER BY nome_curso
+            """)
+            cursos = cur.fetchall()
+            
             cur.execute("SELECT * FROM tipos_de_publicacao ORDER BY nome_tipo")
             tipos = cur.fetchall()
 
-            cur.execute("SELECT id_usuario, nome FROM usuario WHERE tipo = 'Professor' ORDER BY nome")
+            # Filtra orientadores/professores ativos
+            try:
+                ensure_usuario_ativo_column()
+            except Exception:
+                pass
+            cur.execute("""
+                SELECT id_usuario, nome
+                FROM usuario
+                WHERE tipo::text IN ('Professor','Docente')
+                  AND COALESCE(ativo, TRUE) = TRUE
+                ORDER BY nome
+            """)
             professores = cur.fetchall()
 
             cur.execute("""
                 SELECT 
-                  p.id_publicacao, 
-                  p.titulo, 
-                  p.tipo, 
+                  p.id_publicacao,
+                  p.titulo,
+                  p.tipo,
                   c.nome_curso AS curso,
+                  u.nome AS autor_nome,
                   p.nome_arquivo,
-                  p.data_publicacao
+                  p.data_publicacao,
+                  p.status
                 FROM publicacao p
                 LEFT JOIN curso c ON c.id_curso = p.id_curso
+                LEFT JOIN usuario u ON u.id_usuario = p.id_autor
                 ORDER BY p.id_publicacao DESC
                 LIMIT 20
             """)
@@ -2443,6 +2797,17 @@ def reupload_publicacao(id_publicacao):
         conn = get_db_connection()
         if not conn:
             return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco'}), 500
+        # Bloqueia reupload se status não for Pendente
+        cur_chk = conn.cursor(row_factory=dict_row)
+        cur_chk.execute("SELECT status FROM publicacao WHERE id_publicacao=%s", (id_publicacao,))
+        row = cur_chk.fetchone()
+        cur_chk.close()
+        if not row:
+            conn.close()
+            return jsonify({'ok': False, 'error': 'Publicação não encontrada'}), 404
+        if _norm(str(row.get('status') or '')) != _norm(status_label('Pendente')):
+            conn.close()
+            return jsonify({'ok': False, 'error': 'Reupload não permitido após avaliação'}), 403
         cur = conn.cursor()
         cur.execute("UPDATE publicacao SET arquivo=%s, nome_arquivo=%s WHERE id_publicacao=%s", (full, new_name, id_publicacao))
         conn.commit()
@@ -2470,14 +2835,36 @@ def avaliacao():
     if conn:
         try:
             cur = conn.cursor(row_factory=dict_row)
-            # Buscar publicações para avaliação
-            cur.execute("""
-                SELECT p.*, u.nome as autor_nome, c.nome_curso 
-                FROM publicacao p
-                JOIN usuario u ON p.id_autor = u.id_usuario
-                JOIN curso c ON p.id_curso = c.id_curso
-                ORDER BY p.data_publicacao DESC
-            """)
+            # Busca apenas pendentes; se Docente, somente as do orientador atual
+            is_admin = (session.get('user_tipo') == 'Administrador')
+            uid = session.get('user_id')
+            pend_label = status_label('Pendente')
+            if is_admin:
+                cur.execute(
+                    """
+                    SELECT p.id_publicacao, p.titulo, p.tipo, p.status, p.data_publicacao,
+                           u.nome as autor_nome, c.nome_curso, p.id_orientador
+                    FROM publicacao p
+                    JOIN usuario u ON p.id_autor = u.id_usuario
+                    LEFT JOIN curso c ON p.id_curso = c.id_curso
+                    WHERE p.status = %s
+                    ORDER BY p.data_publicacao DESC
+                    """,
+                    (pend_label,)
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT p.id_publicacao, p.titulo, p.tipo, p.status, p.data_publicacao,
+                           u.nome as autor_nome, c.nome_curso, p.id_orientador
+                    FROM publicacao p
+                    JOIN usuario u ON p.id_autor = u.id_usuario
+                    LEFT JOIN curso c ON p.id_curso = c.id_curso
+                    WHERE p.status = %s AND p.id_orientador = %s
+                    ORDER BY p.data_publicacao DESC
+                    """,
+                    (pend_label, uid)
+                )
             publicacoes = cur.fetchall()
             cur.close()
             conn.close()
@@ -2486,10 +2873,67 @@ def avaliacao():
     
     return render_template('avaliacao.html', publicacoes=publicacoes)
 
+# Endpoint para decisão de avaliação (Deferir/Indeferir)
+@app.route('/avaliacao/decidir', methods=['POST'])
+@login_required
+@roles_required(['Administrador','Docente'])
+def avaliacao_decidir():
+    try:
+        id_pub = request.form.get('id_publicacao') or (request.json and request.json.get('id_publicacao'))
+        try:
+            id_pub_int = int(id_pub)
+        except Exception:
+            id_pub_int = None
+        acao = (request.form.get('acao') or (request.json and request.json.get('acao')) or '').strip().lower()
+        comentario = (request.form.get('comentario') or (request.json and request.json.get('comentario')) or '').strip()
+        if not id_pub_int or acao not in {'deferir','indeferir'}:
+            return jsonify({'ok': False, 'error': 'Dados inválidos'}), 400
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco'}), 500
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute("SELECT id_orientador, status FROM publicacao WHERE id_publicacao=%s", (id_pub_int,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            return jsonify({'ok': False, 'error': 'Publicação não encontrada'}), 404
+        if _norm(str(row.get('status') or '')) != _norm(status_label('Pendente')):
+            cur.close(); conn.close()
+            return jsonify({'ok': False, 'error': 'Publicação já avaliada'}), 400
+        is_admin = (session.get('user_tipo') == 'Administrador')
+        uid = session.get('user_id')
+        if not is_admin and int(row.get('id_orientador') or 0) != int(uid or 0):
+            cur.close(); conn.close()
+            return jsonify({'ok': False, 'error': 'Não autorizado para avaliar esta publicação'}), 403
+        novo_status = status_label('Publicado') if acao == 'deferir' else status_label('Reprovado')
+        cur2 = conn.cursor()
+        # Atualiza status
+        cur2.execute("UPDATE publicacao SET status=%s WHERE id_publicacao=%s", (novo_status, id_pub_int))
+        # Garante a tabela e insere a avaliação (sem suprimir erro)
+        try:
+            ensure_avaliacao_table()
+        except Exception:
+            # Mesmo que a garantia falhe, tentamos inserir e deixamos o erro visível
+            pass
+        cur2.execute(
+            "INSERT INTO avaliacao (id_publicacao, id_avaliador, nota, comentario, data_avaliacao) VALUES (%s,%s,%s,%s,NOW())",
+            (id_pub_int, uid, None, comentario or None)
+        )
+        conn.commit()
+        cur2.close(); cur.close(); conn.close()
+        ui_status = 'Publicada' if _norm(novo_status) in {'publicado','publicada'} else 'Indeferida'
+        return jsonify({'ok': True, 'status': novo_status, 'status_label': ui_status})
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 # Rota para a página de vinculação de curso
 @app.route('/vinculacao_curso', methods=['GET', 'POST'])
 @login_required
-@roles_required(['Administrador','Docente'])
+@roles_required(['Administrador'])
 def vinculacao_curso():
     if request.method == 'POST':
         key = f"{request.remote_addr}:vinculacao_curso"
@@ -2499,6 +2943,7 @@ def vinculacao_curso():
             return redirect(url_for('vinculacao_curso'))
         usuario_id = request.form.get('usuario')
         curso_id = request.form.get('curso')
+        tipo_usuario = request.form.get('tipo_usuario')
 
         if not usuario_id or not curso_id:
             flash('Selecione curso e usuário para vincular.', 'error')
@@ -2508,20 +2953,18 @@ def vinculacao_curso():
         if conn:
             try:
                 cur = conn.cursor()
-                # Verificar se já existe vinculação
-                cur.execute("SELECT 1 FROM usuario_curso WHERE id_usuario = %s AND id_curso = %s", 
-                           (usuario_id, curso_id))
-                if cur.fetchone():
-                    flash('Usuário já vinculado a este curso', 'error')
-                else:
-                    # Inserir vinculação
-                    cur.execute(
-                        "INSERT INTO usuario_curso (id_usuario, id_curso) VALUES (%s, %s)",
-                        (usuario_id, curso_id)
-                    )
-                    conn.commit()
-                    flash('Vinculação realizada com sucesso!', 'success')
-                    audit_log('vinculacao_ok', {'usuario_id': usuario_id, 'curso_id': curso_id})
+                # Garantir vínculo único: remove vínculos anteriores do usuário
+                cur.execute("DELETE FROM usuario_curso WHERE id_usuario = %s", (usuario_id,))
+                # Insere novo vínculo
+                cur.execute(
+                    "INSERT INTO usuario_curso (id_usuario, id_curso) VALUES (%s, %s)",
+                    (usuario_id, curso_id)
+                )
+                # Atualiza vínculo direto na tabela de usuário
+                cur.execute("UPDATE usuario SET id_curso_usuario = %s WHERE id_usuario = %s", (curso_id, usuario_id))
+                conn.commit()
+                flash('Vínculo gravado com sucesso.', 'success')
+                audit_log('vinculacao_ok', {'usuario_id': usuario_id, 'curso_id': curso_id, 'tipo': tipo_usuario})
                 cur.close()
                 conn.close()
             except Exception as e:
@@ -2543,14 +2986,17 @@ def vinculacao_curso():
             cur.execute("SELECT * FROM curso ORDER BY nome_curso")
             cursos = cur.fetchall()
 
-            cur.execute("""
-                SELECT uc.id, u.nome AS usuario, c.nome_curso AS curso
-                FROM usuario_curso uc
-                JOIN usuario u ON u.id_usuario = uc.id_usuario
+            cur.execute(
+                """
+                SELECT u.id_usuario, u.nome AS usuario, u.tipo AS tipo_usuario,
+                       c.id_curso, c.nome_curso AS curso
+                FROM usuario u
+                JOIN usuario_curso uc ON uc.id_usuario = u.id_usuario
                 JOIN curso c ON c.id_curso = uc.id_curso
-                ORDER BY uc.id DESC
-                LIMIT 50
-            """)
+                ORDER BY u.nome ASC
+                LIMIT 100
+                """
+            )
             vinculos = cur.fetchall()
             
             cur.close()
@@ -2559,6 +3005,47 @@ def vinculacao_curso():
             flash(f'Erro ao buscar dados: {e}', 'error')
     
     return render_template('vinculacao_curso.html', usuarios=usuarios, cursos=cursos, vinculos=vinculos)
+
+# API para listar usuários por tipo
+@app.route('/api/usuarios_por_tipo/<tipo>', methods=['GET'])
+@login_required
+@roles_required(['Administrador'])
+def api_usuarios_por_tipo(tipo):
+    data = []
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor(row_factory=dict_row)
+            cur.execute("SELECT id_usuario, nome FROM usuario WHERE tipo = %s AND ativo = TRUE ORDER BY nome", (tipo,))
+            data = cur.fetchall()
+            cur.close(); conn.close()
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    return jsonify(data)
+
+# Remover vínculo de curso do usuário
+@app.route('/vinculacao_curso/remover', methods=['POST'])
+@login_required
+@roles_required(['Administrador'])
+def remover_vinculo_curso():
+    usuario_id = request.form.get('usuario_id')
+    if not usuario_id:
+        flash('Usuário inválido para remover vínculo.', 'error')
+        return redirect(url_for('vinculacao_curso'))
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM usuario_curso WHERE id_usuario = %s", (usuario_id,))
+            cur.execute("UPDATE usuario SET id_curso_usuario = NULL WHERE id_usuario = %s", (usuario_id,))
+            conn.commit()
+            cur.close(); conn.close()
+            flash('Vínculo removido.', 'success')
+            audit_log('vinculo_removido', {'usuario_id': usuario_id})
+        except Exception as e:
+            flash(f'Erro ao remover vínculo: {e}', 'error')
+            audit_log('vinculo_remover_error', {'error': str(e)})
+    return redirect(url_for('vinculacao_curso'))
 
 # Rota para a página de relatório
 @app.route('/relatorio')
@@ -2572,31 +3059,17 @@ def relatorio():
     if conn:
         try:
             cur = conn.cursor(row_factory=dict_row)
-            # Orientadores/Professores vinculados como orientadores
+            # Orientadores/Professores: listar todos os usuários com perfil Professor/Docente
             cur.execute("""
-                SELECT DISTINCT u.id_usuario, u.nome
+                SELECT u.id_usuario, u.nome
                 FROM usuario u
-                JOIN publicacao p ON p.id_orientador = u.id_usuario
-                WHERE u.tipo = 'Professor'
+                WHERE u.tipo::text IN ('Professor','Docente')
                 ORDER BY u.nome
             """)
             autores = cur.fetchall()
             # Cursos: todos os cursos
             cur.execute("SELECT id_curso, nome_curso FROM curso ORDER BY nome_curso")
             cursos = cur.fetchall()
-            # Padroniza tipo 'Artigo Científico'
-            try:
-                cur_ins = conn.cursor()
-                # garante 'Artigo Científico'
-                cur_ins.execute("INSERT INTO tipos_de_publicacao (nome_tipo) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM tipos_de_publicacao WHERE nome_tipo = %s)", ('Artigo Científico','Artigo Científico'))
-                # atualiza publicações antigas
-                cur_ins.execute("UPDATE publicacao SET tipo = %s WHERE tipo = %s", ('Artigo Científico','Artigo'))
-                # remove 'Artigo' da lista se já existir 'Artigo Científico'
-                cur_ins.execute("DELETE FROM tipos_de_publicacao WHERE nome_tipo = %s AND EXISTS (SELECT 1 FROM tipos_de_publicacao WHERE nome_tipo = %s)", ('Artigo','Artigo Científico'))
-                conn.commit()
-                cur_ins.close()
-            except Exception:
-                pass
             # Tipos de publicação aceitos
             cur.execute("SELECT nome_tipo FROM tipos_de_publicacao ORDER BY nome_tipo")
             tipos = cur.fetchall()
@@ -3060,7 +3533,158 @@ def suporte():
 @login_required
 @roles_required(['Administrador'])
 def configuracao():
-    return render_template('configuracao.html')
+    uid = session.get('user_id')
+    user = None
+    try:
+        conn = get_db_connection()
+        if conn and uid:
+            cur = conn.cursor(row_factory=dict_row)
+            cur.execute('SELECT id_usuario, nome, cpf, email, telefone, tema_preferido FROM usuario WHERE id_usuario = %s', (uid,))
+            user = cur.fetchone()
+            cur.close(); conn.close()
+    except Exception:
+        try:
+            conn and conn.close()
+        except Exception:
+            pass
+    return render_template('configuracao.html', user=user)
+
+# Atualização de perfil
+@app.route('/configuracao/perfil', methods=['POST'])
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def configuracao_perfil():
+    uid = session.get('user_id')
+    nome = (request.form.get('nome') or '').strip()
+    email = (request.form.get('email') or '').strip().lower()
+    telefone = (request.form.get('telefone') or '').strip()
+    if not nome or not email:
+        msg = 'Nome e e-mail são obrigatórios.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': False, 'error': msg}), 400
+        flash(msg, 'error'); return redirect(url_for('configuracao'))
+    if '@' not in email or '.' not in email:
+        msg = 'E-mail inválido.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': False, 'error': msg}), 400
+        flash(msg, 'error'); return redirect(url_for('configuracao'))
+    try:
+        conn = get_db_connection()
+        if not conn:
+            raise Exception('Falha de conexão')
+        cur = conn.cursor()
+        cur.execute("SELECT id_usuario FROM usuario WHERE LOWER(email) = %s AND id_usuario <> %s", (email, uid))
+        dup = cur.fetchone()
+        if dup:
+            cur.close(); conn.close()
+            msg = 'E-mail já cadastrado por outro usuário.'
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'ok': False, 'error': msg}), 409
+            flash(msg, 'error'); return redirect(url_for('configuracao'))
+        cur.execute("UPDATE usuario SET nome = %s, email = %s, telefone = %s WHERE id_usuario = %s", (nome, email, telefone, uid))
+        conn.commit(); cur.close(); conn.close()
+        session['user_name'] = nome
+        msg = 'Perfil atualizado com sucesso.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': True, 'message': msg})
+        flash(msg, 'success'); return redirect(url_for('configuracao'))
+    except Exception as e:
+        try:
+            conn and conn.close()
+        except Exception:
+            pass
+        msg = f'Erro ao atualizar perfil: {e}'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': False, 'error': msg}), 500
+        flash(msg, 'error'); return redirect(url_for('configuracao'))
+
+# Alteração de senha
+@app.route('/configuracao/senha', methods=['POST'])
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def configuracao_senha():
+    uid = session.get('user_id')
+    atual = (request.form.get('senha_atual') or '').strip()
+    nova = (request.form.get('nova_senha') or '').strip()
+    conf = (request.form.get('confirmar_senha') or '').strip()
+    if not atual or not nova or not conf:
+        msg = 'Preencha todos os campos de senha.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': False, 'error': msg}), 400
+        flash(msg, 'error'); return redirect(url_for('configuracao'))
+    if nova != conf:
+        msg = 'Nova senha e confirmação não coincidem.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': False, 'error': msg}), 400
+        flash(msg, 'error'); return redirect(url_for('configuracao'))
+    import re as _re
+    if not (_re.search(r'[A-Z]', nova) and _re.search(r'[a-z]', nova) and _re.search(r'\d', nova) and _re.search(r'[^A-Za-z0-9]', nova) and len(nova) >= 8):
+        msg = 'A nova senha deve ter 8+ caracteres, maiúscula, minúscula, número e símbolo.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': False, 'error': msg}), 400
+        flash(msg, 'error'); return redirect(url_for('configuracao'))
+    try:
+        conn = get_db_connection()
+        if not conn:
+            raise Exception('Falha de conexão')
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute('SELECT senha FROM usuario WHERE id_usuario = %s', (uid,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            msg = 'Usuário inválido.'
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'ok': False, 'error': msg}), 404
+            flash(msg, 'error'); return redirect(url_for('configuracao'))
+        senha_hash = row['senha'] if isinstance(row['senha'], str) else (row['senha'].decode() if row['senha'] else '')
+        if not senha_hash or not check_password_hash(senha_hash, atual):
+            cur.close(); conn.close()
+            msg = 'Senha atual incorreta.'
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'ok': False, 'error': msg}), 400
+            flash(msg, 'error'); return redirect(url_for('configuracao'))
+        novo_hash = generate_password_hash(nova)
+        cur2 = conn.cursor()
+        cur2.execute('UPDATE usuario SET senha = %s WHERE id_usuario = %s', (novo_hash, uid))
+        conn.commit(); cur2.close(); cur.close(); conn.close()
+        msg = 'Senha atualizada com sucesso.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': True, 'message': msg})
+        flash(msg, 'success'); return redirect(url_for('configuracao'))
+    except Exception as e:
+        try:
+            conn and conn.close()
+        except Exception:
+            pass
+        msg = f'Erro ao atualizar senha: {e}'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': False, 'error': msg}), 500
+        flash(msg, 'error'); return redirect(url_for('configuracao'))
+
+# Alternância de tema
+@app.route('/configuracao/tema', methods=['POST'])
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def configuracao_tema():
+    uid = session.get('user_id')
+    tema = (request.form.get('tema') or '').strip().lower()
+    if tema not in ('claro','escuro'):
+        return jsonify({'ok': False, 'error': 'Tema inválido.'}), 400
+    try:
+        conn = get_db_connection()
+        if not conn:
+            raise Exception('Falha de conexão')
+        cur = conn.cursor()
+        cur.execute('UPDATE usuario SET tema_preferido = %s WHERE id_usuario = %s', (tema, uid))
+        conn.commit(); cur.close(); conn.close()
+        session['user_theme'] = tema
+        return jsonify({'ok': True, 'tema': tema})
+    except Exception as e:
+        try:
+            conn and conn.close()
+        except Exception:
+            pass
+        return jsonify({'ok': False, 'error': f'Erro ao salvar tema: {e}'}), 500
 
 # Rota para logout
 @app.route('/logout')

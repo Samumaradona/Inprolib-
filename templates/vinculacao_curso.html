@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Vinculação de curso a professores no INPROLIB com validações." />
+  <meta name="description" content="Vinculação de curso a usuários (Aluno/Professor) com validações." />
   <title>INPROLIB - Vinculação de Curso</title>
-  <link rel="stylesheet" href="avaliacao.css">
+  <link rel="stylesheet" href="vinculacao_curso.css">
   <link rel="stylesheet" href="notifications.css">
   <link rel="stylesheet" href="topbar.css">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
@@ -93,6 +93,18 @@
       <h3>Vinculação de Curso</h3>
     <!-- Coluna 1 -->
     <div class="container-grid">
+      <label for="tipo_usuario">Tipo de Usuário</label>
+      <select id="tipo_usuario" name="tipo_usuario" required>
+        <option value="">Selecione o tipo</option>
+        <option value="Professor">Professor</option>
+        <option value="Aluno">Aluno</option>
+      </select>
+
+      <label for="usuario">Usuário</label>
+      <select id="usuario" name="usuario" required>
+        <option value="">Selecione o usuário</option>
+      </select>
+
       <label for="curso">Curso</label>
       <select id="curso" name="curso" required>
         <option value="">Selecione o curso</option>
@@ -102,20 +114,9 @@
           {% endfor %}
         {% endif %}
       </select>
-      <label for="usuario">Professor</label>
-      <select id="usuario" name="usuario" required>
-        <option value="">Selecione o professor</option>
-        {% if usuarios %}
-          {% for u in usuarios %}
-            <option value="{{ u.id_usuario }}">{{ u.nome }}</option>
-          {% endfor %}
-        {% endif %}
-      </select>
-      <label for="data_vinculacao">Data de Vinculação</label>
-      <input type="date" id="data_vinculacao" name="data_vinculacao" placeholder="Selecione a data" required>
                     <!-- Botão centralizado -->
                     <div class="btn-group">
-                        <button type="submit">Salvar</button>
+                        <button type="submit">Gravar Vinculação</button>
                     </div>
                 </div>
             </form>
@@ -127,15 +128,31 @@
                 <table style="width:100%;border-collapse:collapse">
                   <thead>
                     <tr style="background:#f8fafc">
+                      <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Tipo de Usuário</th>
                       <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Usuário</th>
-                      <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Curso</th>
+                      <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Curso Vinculado</th>
+                      <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for v in vinculos %}
                       <tr>
+                        <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ v.tipo_usuario }}</td>
                         <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ v.usuario }}</td>
                         <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ v.curso }}</td>
+                        <td style="padding:8px;border-bottom:1px solid #f1f5f9">
+                          <button type="button" class="button" style="padding:6px 12px" onclick="prefillForm('{{ v.tipo_usuario }}', '{{ v.id_usuario }}', '{{ v.id_curso }}')">
+                            <span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle">edit</span>
+                            Editar
+                          </button>
+                          <form method="POST" action="/vinculacao_curso/remover" style="display:inline">
+                            <input type="hidden" name="usuario_id" value="{{ v.id_usuario }}" />
+                            <button type="submit" class="button" style="background:var(--bs-danger);padding:6px 12px">
+                              <span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle">delete</span>
+                              Remover
+                            </button>
+                          </form>
+                        </td>
                       </tr>
                     {% endfor %}
                   </tbody>
@@ -149,6 +166,47 @@
         window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
         window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
 window.USER_ID = "{{ session.get('user_id', '') }}";
+        // Carrega usuários conforme o tipo selecionado
+        const tipoSel = document.getElementById('tipo_usuario');
+        const usuarioSel = document.getElementById('usuario');
+        tipoSel.addEventListener('change', async () => {
+          const tipo = tipoSel.value;
+          usuarioSel.innerHTML = '<option value="">Carregando...</option>';
+          if (!tipo) {
+            usuarioSel.innerHTML = '<option value="">Selecione o tipo</option>';
+            return;
+          }
+          try {
+            const resp = await fetch(`/api/usuarios_por_tipo/${encodeURIComponent(tipo)}`);
+            const list = await resp.json();
+            usuarioSel.innerHTML = '<option value="">Selecione o usuário</option>';
+            list.forEach(u => {
+              const opt = document.createElement('option');
+              opt.value = u.id_usuario;
+              opt.textContent = u.nome;
+              usuarioSel.appendChild(opt);
+            });
+          } catch (e) {
+            usuarioSel.innerHTML = '<option value="">Erro ao carregar usuários</option>';
+          }
+        });
+
+        // Preenche formulário para edição a partir da tabela
+        function prefillForm(tipo, usuarioId, cursoId) {
+          const tipoEl = document.getElementById('tipo_usuario');
+          const usuarioEl = document.getElementById('usuario');
+          const cursoEl = document.getElementById('curso');
+          tipoEl.value = tipo;
+          // dispara change para carregar opções do tipo
+          const evt = new Event('change');
+          tipoEl.dispatchEvent(evt);
+          // Pequeno delay para aguardar fetch
+          setTimeout(() => {
+            usuarioEl.value = String(usuarioId);
+            cursoEl.value = String(cursoId);
+            usuarioEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+        }
       </script>
   <script src="notifications.js?v=1"></script>
   <script src="home.js?v=aval-fix-1"></script>

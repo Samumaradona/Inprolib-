@@ -85,7 +85,7 @@ body{
   font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
   line-height: 1.4;
   color: var(--bs-body-color);
-  background-color: var(--page-bg);
+  background-color: var(--bs-body-bg);
 }
 
 /* Topbar (simplificado para esta tela) */
@@ -342,7 +342,7 @@ main{
 /* títulos / labels / inputs */
 .form-container h3 {
   margin: 0 0 12px 0;
-  color: #222;
+  color: var(--bs-body-color);
   font-size: 18px;
 }
 .form-container label {
@@ -424,4 +424,23 @@ main{
   .container-grid { grid-template-columns: 1fr; }
   .btn-group { width: 100%; }
   .btn-group .button { width: 100%; }
+}
+
+/* Tema escuro: sobrescreve variáveis base quando .theme-dark está no root */
+:root.theme-dark {
+  --bs-body-bg: #0f172a; /* slate-900 */
+  --bs-body-color: #e5e7eb; /* gray-200 */
+  /* Fundo e cartões */
+  --page-bg: #0b1220;
+  --card-bg: #111827;
+  --card-shadow: 0 6px 24px rgba(0,0,0,0.35);
+  --input-border: #334155; /* slate-700 */
+}
+
+/* Ajustes gerais para inputs (aplicam em ambos temas) */
+.form-container input,
+.form-container select {
+  border-color: var(--input-border, #d1d5db);
+  background: var(--card-bg);
+  color: var(--bs-body-color);
 }

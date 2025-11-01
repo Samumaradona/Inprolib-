@@ -83,26 +83,12 @@
         <a href="/home" style="color:#1d4ed8;text-decoration:none">Home</a> · Publicação de conteúdo
       </nav>
 
-      <!-- Toolbar: adicionar, buscar, filtro e contador -->
+      <!-- Toolbar: apenas ação de adicionar publicação (sem filtros) -->
       <div class="toolbar">
         <div class="filters" id="pubFilterBar">
           <button type="button" id="btnTogglePubForm" class="button is-sm" title="Adicionar publicação" aria-label="Adicionar publicação">
             Adicionar publicação
           </button>
-          <div class="input-with-icon">
-            <span class="material-symbols-outlined" aria-hidden="true">search</span>
-            <input type="text" id="searchPub" placeholder="Buscar publicações..." aria-label="Buscar publicações">
-          </div>
-          <select id="statusFilterPub" aria-label="Filtrar status">
-            <option value="all">Todos</option>
-            <option value="active">Ativos</option>
-            <option value="inactive">Inativos</option>
-          </select>
-          <button type="button" id="btnClearPubFilters" class="button is-sm with-icon" title="Limpar filtros">
-            <span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
-            Limpar filtros
-          </button>
-          <span id="resultsCounterPub" class="results-counter" aria-live="polite"></span>
         </div>
       </div>
 
@@ -136,10 +122,12 @@
               <label for="codigo">Tipo da publicação</label>
               <select id="tipo_publicacao" name="tipo_publicacao" required>
                 <option value="">Selecione o tipo</option>
-                {% if tipos %}
+                {% if tipos and tipos|length > 0 %}
                   {% for t in tipos %}
                     <option value="{{ t.nome_tipo }}">{{ t.nome_tipo }}</option>
                   {% endfor %}
+                {% else %}
+                  <option value="" disabled>(Nenhum tipo cadastrado)</option>
                 {% endif %}
               </select>
             </div>
@@ -149,20 +137,24 @@
               <label for="curso">Curso</label>
               <select id="curso" name="curso" required>
                 <option value="">Selecione o curso</option>
-                {% if cursos %}
+                {% if cursos and cursos|length > 0 %}
                   {% for c in cursos %}
                     <option value="{{ c.id_curso }}">{{ c.nome_curso }}</option>
                   {% endfor %}
+                {% else %}
+                  <option value="" disabled>(Nenhum curso cadastrado)</option>
                 {% endif %}
               </select>
               
               <label for="orientador">Orientado/Professor</label>
               <select id="orientador" name="orientador" required>
                 <option value="">Selecione o orientado/professor</option>
-                {% if professores %}
+                {% if professores and professores|length > 0 %}
                   {% for p in professores %}
                     <option value="{{ p.id_usuario }}">{{ p.nome }}</option>
                   {% endfor %}
+                {% else %}
+                  <option value="" disabled>(Nenhum professor cadastrado)</option>
                 {% endif %}
               </select>
 
@@ -212,19 +204,33 @@
                   data-curso="{{ p.curso }}" 
                   data-data="{{ p.data_publicacao.strftime('%d/%m/%Y') if p.data_publicacao else '' }}" 
                   data-url="{{ url_for('static', filename='uploads/' ~ p.nome_arquivo) if p.nome_arquivo else '' }}" 
-                  data-status="ativo"
+                  data-status="{{ p.status }}"
                   title="Visualizar publicação">
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.titulo }}</td>
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.tipo }}</td>
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.curso }}</td>
-                <td class="status-cell" style="padding:8px;border-bottom:1px solid #f1f5f9">Ativo</td>
+                {% set _s = (p.status or '')|lower %}
+                {# Mapear diferentes rótulos para visualização consistente #}
+                {% if 'pend' in _s or 'avali' in _s or 'analis' in _s or 'desativ' in _s %}
+                  {% set status_str = 'Pendente' %}
+                {% elif 'public' in _s %}
+                  {% set status_str = 'Publicada' %}
+                {% elif 'reprov' in _s or 'indef' in _s %}
+                  {% set status_str = 'Indeferida' %}
+                {% else %}
+                  {# Para Aluno, qualquer status que não seja publicado/reprovado aparece como Pendente #}
+                  {% if (session.get('user_tipo') or session.get('role') or '') == 'Aluno' %}
+                    {% set status_str = 'Pendente' %}
+                  {% else %}
+                    {% set status_str = p.status %}
+                  {% endif %}
+                {% endif %}
+                <td class="status-cell" style="padding:8px;border-bottom:1px solid #f1f5f9">{{ status_str }}</td>
                 <td class="actions-cell" style="padding:4px 8px;border-bottom:1px solid #f1f5f9;text-align:center">
-                  <button type="button" class="icon-btn is-blue action-edit" title="Editar publicação" aria-label="Editar publicação">
-                    <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                  <button type="button" class="icon-btn is-blue action-edit" title="Visualizar publicação" aria-label="Visualizar publicação">
+                    <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
                   </button>
-                  <button type="button" class="icon-btn is-danger action-toggle-status" title="Inativar publicação" aria-label="Inativar publicação">
-                    <span class="material-symbols-outlined" aria-hidden="true">do_not_disturb_on</span>
-                  </button>
+                  
                 </td>
               </tr>
             {% endfor %}

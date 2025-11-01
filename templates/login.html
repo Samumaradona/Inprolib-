@@ -4,21 +4,23 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Login - INPROLIB</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/cadastro_login.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/cadastro_login.css') }}?v=5" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}?v=1" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
 <body>
+  <!-- Topbar restaurada como no padrão das demais telas -->
   <header class="topbar">
     <div class="container">
       <div class="left">
-        <img class="logo" src="{{ url_for('static', filename='img/INPROLIB_em_azul.png') }}" alt="INPROLIB" />
-        <!-- Removido texto duplicado INPROLIB para manter apenas a imagem -->
+        <img class="logo" src="{{ url_for('static', filename='img/INPROLIB_em_azul.png') }}" alt="INPROLIB" style="height:24px;width:auto" />
       </div>
-      <button class="notif-btn" aria-label="Notificações">
-        <span class="material-symbols-outlined">notifications</span>
-      </button>
+      <div class="right">
+        <button class="notif-btn" aria-label="Notificações" title="Notificações">
+          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -58,8 +60,8 @@
       </div>
     </section>
 
-    <!-- Lado direito: imagem e badge -->
-    <section class="right-pane">
+    <!-- Lado direito: imagem de biblioteca e badge de marca -->
+    <section class="right-pane" aria-label="Imagem de biblioteca">
       <div class="brand-badge" aria-hidden="true"></div>
     </section>
   </main>
