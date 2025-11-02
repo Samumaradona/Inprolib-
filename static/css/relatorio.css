@@ -368,7 +368,16 @@ aside.sidemenu.open{ transform:translateX(0) }
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #cbd5e1 #f1f5f9; /* Firefox */
 }
+
+/* WebKit scrollbar styling for a cleaner look on mobile */
+#reportModal .modal-card section::-webkit-scrollbar{ width: 10px; height: 10px; }
+#reportModal .modal-card section::-webkit-scrollbar-thumb{ background: #cbd5e1; border-radius: 8px; }
+#reportModal .modal-card section::-webkit-scrollbar-thumb:hover{ background: #94a3b8; }
+#reportModal .modal-card section::-webkit-scrollbar-track{ background: #f1f5f9; border-radius: 8px; }
 
 @media (max-width: 640px){
   .modal{ align-items: flex-start; padding: 12px; }

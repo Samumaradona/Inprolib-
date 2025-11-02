@@ -149,12 +149,12 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
   <!-- Modal de visualização -->
   <div id="reportModal" class="modal" style="display:none;position:fixed;inset:0;z-index:1000;">
     <div class="backdrop" style="position:absolute;inset:0;background:rgba(15,23,42,.5)"></div>
-    <div role="dialog" aria-modal="true" aria-labelledby="reportModalTitle" class="modal-card" style="position:relative;margin:48px auto;background:#fff;border-radius:12px;max-width:960px;width:calc(100% - 32px);box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;max-height:calc(100vh - 96px);overflow:hidden;">
+    <div role="dialog" aria-modal="true" aria-labelledby="reportModalTitle" class="modal-card" style="position:relative;margin:48px auto;background:#fff;border-radius:12px;max-width:960px;width:calc(100% - 32px);box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;max-height:92dvh;overflow:hidden;">
       <header style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #e5e7eb">
         <h4 id="reportModalTitle" style="margin:0">Pré-visualização do Relatório</h4>
         <button id="closeReportModal" aria-label="Fechar" class="button is-sm" style="background:#e2e8f0;color:#0f172a">Fechar</button>
       </header>
-      <section style="padding:16px 20px;overflow:auto;flex:1 1 auto;min-height:0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;">
+      <section style="padding:16px 20px;overflow:auto;flex:1 1 auto;min-height:0;overscroll-behavior:contain;scrollbar-gutter:stable both-edges;-webkit-overflow-scrolling:touch;">
         <div id="colConfig" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px">
           <div style="font-weight:500">Colunas visíveis</div>
           <button id="btnColsAll" class="button is-sm" type="button" style="background:#e2e8f0;color:#0f172a">Selecionar tudo</button>
