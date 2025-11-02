@@ -6,7 +6,6 @@
   <title>INPROLIB - Esqueci minha senha</title>
   <link rel="stylesheet" href="cadastro_login.css">
   <link rel="stylesheet" href="notifications.css?v=1">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
   <style>
     /* Estilos modernos para a página de recuperação */
     .recovery-container {
@@ -318,6 +317,10 @@
       background: white;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
+
+    /* Link de reenvio com estados visuais */
+    .resend-link { color: #48bb78; text-decoration: underline; cursor: pointer; }
+    .resend-link.cooldown { color: #a0aec0; text-decoration: none; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -363,7 +366,10 @@
       <button class="close-btn" id="closeCodigoModal" aria-label="Fechar">×</button>
       
       <div class="modal-icon">
-        <span class="material-symbols-outlined">mail</span>
+        <!-- Ícone local (SVG) para evitar Google Fonts -->
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5L4 8V6l8 5 8-5v2z" fill="currentColor"/>
+        </svg>
       </div>
       
       <h2 class="modal-title">Código enviado!</h2>
@@ -385,7 +391,7 @@
       </button>
       
       <p style="color: #a0aec0; font-size: 14px;">
-        Não recebeu o código? <a href="#" style="color: #48bb78;">Reenviar</a>
+        Não recebeu o código? <a href="#" id="reenviarCodigo" class="resend-link">Reenviar</a>
       </p>
     </div>
   </div>
@@ -396,7 +402,10 @@
       <button class="close-btn" id="closeAlterarModal" aria-label="Fechar">×</button>
       
       <div class="modal-icon">
-        <span class="material-symbols-outlined">key</span>
+        <!-- Ícone local (SVG) para evitar Google Fonts -->
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M12.65 10A5 5 0 1 0 7 15h3v3h2v-3h3l3-3-5.35-2zM7 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0z" fill="currentColor"/>
+        </svg>
       </div>
       
       <h2 class="modal-title">Nova senha</h2>
@@ -443,6 +452,7 @@
       const closeCodigoModal = document.getElementById('closeCodigoModal');
       const validarCodigoBtn = document.getElementById('validarCodigoBtn');
       const inputCodigo = document.getElementById('codigo');
+      const reenviarCodigo = document.getElementById('reenviarCodigo');
 
       const alterarSenhaModal = document.getElementById('alterarSenhaModal');
       const closeAlterarModal = document.getElementById('closeAlterarModal');
@@ -512,24 +522,27 @@
             const data = await resp.json().catch(()=>({}));
             
             if(resp.ok && data && data.ok){
+              // Limpa notificações anteriores para evitar mensagens embaralhadas
+              window.clearToasts && window.clearToasts();
               const sent = !!data.email_sent;
               if(sent){
                 window.showToast ? window.showToast('success','Código enviado! Verifique seu e-mail.') : alert('Código enviado! Verifique seu e-mail.');
                 open(codigoModal);
                 // Focar no input do código
                 setTimeout(() => inputCodigo && inputCodigo.focus(), 300);
+              } else if (data && data.dev_token) {
+                // Em desenvolvimento, exibe apenas uma mensagem informativa e não repete o erro
+                window.showToast ? window.showToast('info','Modo desenvolvimento: código preenchido para testes.') : console.info('Modo desenvolvimento: código preenchido para testes.');
+                open(codigoModal);
+                if (inputCodigo) {
+                  inputCodigo.value = data.dev_token;
+                  setTimeout(() => inputCodigo && inputCodigo.focus(), 300);
+                }
               } else {
                 const msg = (data && data.error) ? data.error : 'Falha ao enviar e-mail. Verifique a configuração SMTP.';
                 window.showToast ? window.showToast('error', msg) : alert(msg);
-                // Modo desenvolvimento: se o backend disponibilizar dev_token, mostrar modal e preencher o campo
-                if (data && data.dev_token) {
-                  window.showToast ? window.showToast('info','Modo desenvolvimento: use o código exibido no campo.') : console.info('Modo desenvolvimento: código de teste disponível.');
-                  open(codigoModal);
-                  if (inputCodigo) {
-                    inputCodigo.value = data.dev_token;
-                    setTimeout(() => inputCodigo && inputCodigo.focus(), 300);
-                  }
-                }
+                // Sem dev_token, mantém foco no e-mail; usuário deve receber por e-mail
+                emailInput && emailInput.focus();
               }
             } else {
               const msg = (data && data.error) ? data.error : 'Falha ao processar solicitação.';
@@ -544,6 +557,115 @@
           }
         });
       }
+
+      // 1.1) Reenviar código a partir do modal
+      reenviarCodigo && reenviarCodigo.addEventListener('click', async function(e){
+        e.preventDefault();
+        // Impede novo clique se cooldown ativo
+        if (reenviarCodigo.dataset.cooldown === '1') {
+          return;
+        }
+        const email = (emailInput && emailInput.value || '').trim();
+        if(!email){
+          window.showToast ? window.showToast('error','Por favor, informe seu e-mail.') : alert('Por favor, informe seu e-mail.');
+          close(codigoModal);
+          emailInput && emailInput.focus();
+          return;
+        }
+        // Validação básica de email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          window.showToast ? window.showToast('error','Por favor, informe um e-mail válido.') : alert('Por favor, informe um e-mail válido.');
+          close(codigoModal);
+          emailInput && emailInput.focus();
+          return;
+        }
+
+        const originalText = reenviarCodigo.textContent;
+        reenviarCodigo.textContent = 'Reenviando...';
+        reenviarCodigo.style.pointerEvents = 'none';
+        try{
+          const resp = await fetch('/esqueci_senha', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+            body: new URLSearchParams({ email })
+          });
+          const data = await resp.json().catch(()=>({}));
+          // Limpa toasts antes de novo feedback
+          window.clearToasts && window.clearToasts();
+          if(resp.ok && data && data.ok){
+            if(data.email_sent){
+              window.showToast ? window.showToast('success','Código reenviado! Verifique seu e-mail.') : alert('Código reenviado! Verifique seu e-mail.');
+              // Mantém modal aberto e foca no campo de código
+              setTimeout(() => inputCodigo && inputCodigo.focus(), 200);
+              // Inicia cooldown de 60s
+              const COOLDOWN = 60;
+              let remaining = COOLDOWN;
+              reenviarCodigo.dataset.cooldown = '1';
+              reenviarCodigo.style.pointerEvents = 'none';
+              reenviarCodigo.classList.add('cooldown');
+              reenviarCodigo.textContent = `Reenviar (${remaining}s)`;
+              const timer = setInterval(() => {
+                remaining -= 1;
+                if (remaining <= 0) {
+                  clearInterval(timer);
+                  reenviarCodigo.textContent = originalText;
+                  reenviarCodigo.style.pointerEvents = '';
+                  reenviarCodigo.classList.remove('cooldown');
+                  delete reenviarCodigo.dataset.cooldown;
+                } else {
+                  reenviarCodigo.textContent = `Reenviar (${remaining}s)`;
+                }
+              }, 1000);
+            } else if (data.dev_token){
+              window.showToast ? window.showToast('info','Modo desenvolvimento: código preenchido para testes.') : console.info('Modo desenvolvimento: código preenchido para testes.');
+              if (inputCodigo) {
+                inputCodigo.value = data.dev_token;
+                setTimeout(() => inputCodigo && inputCodigo.focus(), 200);
+              }
+              // Mesmo sem envio real, aplica cooldown curto para evitar spam
+              const COOLDOWN = 30;
+              let remaining = COOLDOWN;
+              reenviarCodigo.dataset.cooldown = '1';
+              reenviarCodigo.style.pointerEvents = 'none';
+              reenviarCodigo.classList.add('cooldown');
+              reenviarCodigo.textContent = `Reenviar (${remaining}s)`;
+              const timer = setInterval(() => {
+                remaining -= 1;
+                if (remaining <= 0) {
+                  clearInterval(timer);
+                  reenviarCodigo.textContent = originalText;
+                  reenviarCodigo.style.pointerEvents = '';
+                  reenviarCodigo.classList.remove('cooldown');
+                  delete reenviarCodigo.dataset.cooldown;
+                } else {
+                  reenviarCodigo.textContent = `Reenviar (${remaining}s)`;
+                }
+              }, 1000);
+            } else {
+              const msg = (data && data.error) ? data.error : 'Falha ao reenviar e-mail. Verifique a configuração SMTP.';
+              window.showToast ? window.showToast('error', msg) : alert(msg);
+              // Sem sucesso, restabelece estado
+              reenviarCodigo.textContent = originalText;
+              reenviarCodigo.style.pointerEvents = '';
+              reenviarCodigo.classList.remove('cooldown');
+            }
+          } else {
+            const msg = (data && data.error) ? data.error : 'Falha ao processar reenvio.';
+            window.showToast ? window.showToast('error', msg) : alert(msg);
+            reenviarCodigo.textContent = originalText;
+            reenviarCodigo.style.pointerEvents = '';
+            reenviarCodigo.classList.remove('cooldown');
+          }
+        } catch(err){
+          window.showToast ? window.showToast('error','Erro de conexão ao reenviar código.') : alert('Erro de conexão ao reenviar código.');
+          reenviarCodigo.textContent = originalText;
+          reenviarCodigo.style.pointerEvents = '';
+          reenviarCodigo.classList.remove('cooldown');
+        } finally {
+          // estado final é gerenciado acima conforme sucesso/erro
+        }
+      });
 
       // 2) Validar código: abre modal de alteração de senha - melhorado
       validarCodigoBtn && validarCodigoBtn.addEventListener('click', async function(){
@@ -634,7 +756,9 @@
           const data = await resp.json().catch(()=>({}));
           
           if(resp.ok && data.ok){
-            window.showToast ? window.showToast('success','Alterada com sucesso! Redirecionando...') : alert('Alterada com sucesso!');
+            // Padroniza mensagem de sucesso com demais telas
+            window.clearToasts && window.clearToasts();
+            window.showToast ? window.showToast('success','Senha atualizada com sucesso. Redirecionando...') : alert('Senha atualizada com sucesso.');
             close(alterarSenhaModal);
             setTimeout(() => { window.location.href = '/login'; }, 2000);
           } else {

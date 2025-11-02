@@ -51,8 +51,9 @@
   border-radius: 8px;
   width: 28px;
   height: 28px;
-  font-size: 20px;
+  font-size: 0; /* evita texto de fallback */
 }
+.toast .icon svg { width: 20px; height: 20px; display: block; }
 .toast .message {
   font-size: 14px;
   line-height: 1.35;
@@ -63,7 +64,7 @@
   color: #64748b; /* slate-500 */
   cursor: pointer;
   font-size: 18px;
-}
+  }
 .toast .close:hover { color: #0f172a; }
 
 /* variantes */

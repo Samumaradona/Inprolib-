@@ -36,17 +36,25 @@
     toast.setAttribute('role', 'status');
 
     const icon = document.createElement('div');
-    icon.className = 'icon material-symbols-outlined';
-    icon.textContent = type === 'success' ? 'check_circle' : (type === 'error' ? 'error' : 'info');
+    icon.className = 'icon';
+    // Ícones inline (SVG) para evitar dependência de fontes externas
+    const icons = {
+      success: '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 14.2-4.2-4.2 1.4-1.4L11 13.4l4.8-4.8 1.4 1.4L11 16.2z" fill="currentColor"/></svg>',
+      error: '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 13h-2v2h2v-2zm0-8h-2v6h2V7z" fill="currentColor"/></svg>',
+      info: '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 5.8a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4zM13 18h-2v-7h2v7z" fill="currentColor"/></svg>'
+    };
+    icon.innerHTML = icons[t] || icons.info;
 
     const msg = document.createElement('div');
     msg.className = 'message';
     msg.textContent = message;
 
     const close = document.createElement('button');
-    close.className = 'close material-symbols-outlined';
+    close.className = 'close';
     close.setAttribute('aria-label', 'Fechar notificação');
-    close.textContent = 'close';
+    close.setAttribute('type', 'button');
+    // Usa o símbolo × para fechar, evitando fontes externas
+    close.textContent = '×';
     close.addEventListener('click', () => removeToast(toast));
 
     toast.appendChild(icon);
@@ -63,6 +71,16 @@
   function removeToast(toast) {
     toast.style.animation = 'toast-out .18s ease-out forwards';
     setTimeout(() => toast.parentElement && toast.parentElement.removeChild(toast), 180);
+  }
+
+  // Remove todas as notificações atuais para evitar mensagens embaralhadas/duplicadas
+  function clearToasts() {
+    const container = document.getElementById('toastContainer');
+    if (container) {
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+    }
   }
 
   function initFlashToasts() {
@@ -90,4 +108,5 @@
 
   window.showToast = showToast;
   window.initFlashToasts = initFlashToasts;
+  window.clearToasts = clearToasts;
 })();

@@ -3,7 +3,7 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.errors import InvalidCatalogName
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
@@ -20,7 +20,26 @@ import mimetypes
 import json
 import unicodedata
 
-load_dotenv()
+# Carrega .env de forma robusta (procura subindo diretórios)
+try:
+    _dotenv_path = find_dotenv(usecwd=True)
+    if _dotenv_path:
+        load_dotenv(_dotenv_path)
+        print(f"[ENV] .env carregado de: {_dotenv_path}")
+    else:
+        # Fallback: tenta .env ao lado do app.py
+        _local_env = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+        if os.path.exists(_local_env):
+            load_dotenv(_local_env)
+            print(f"[ENV] .env carregado de: {_local_env}")
+        else:
+            # Tenta .env na pasta pai
+            _parent_env = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+            if os.path.exists(_parent_env):
+                load_dotenv(_parent_env)
+                print(f"[ENV] .env carregado de: {_parent_env}")
+except Exception as _e:
+    print(f"[ENV] Falha ao carregar .env: {_e}")
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 # Tipos MIME explícitos para Office (garantem Content-Type correto em assets estáticos)
@@ -39,7 +58,7 @@ RESET_TOKEN_EXP_SECONDS = int(os.getenv('RESET_TOKEN_EXP_SECONDS', '60'))
 
 # Configuração do banco de dados PostgreSQL (via variáveis de ambiente)
 DB_CONFIG = {
-    'dbname': os.getenv('DB_NAME', 'inprolib'),
+    'dbname': os.getenv('DB_NAME', 'inprolib_schema'),
     'user': os.getenv('DB_USER', 'postgres'),
     'password': os.getenv('DB_PASSWORD', 'postgres'),
     'host': os.getenv('DB_HOST', 'localhost'),
@@ -111,11 +130,17 @@ def audit_log(event: str, details: dict):
 
 def send_reset_email(to_email: str, reset_url: str, token: str | None = None) -> bool:
     host = os.getenv('SMTP_HOST')
-    port = int(os.getenv('SMTP_PORT', '587'))
+    # Porta padrão depende da segurança
+    default_port = 587
+    security = (os.getenv('SMTP_SECURITY', '').strip().lower() or 'starttls')
+    if security == 'ssl':
+        default_port = 465
+    port = int(os.getenv('SMTP_PORT', str(default_port)))
     user = os.getenv('SMTP_USER')
     password = os.getenv('SMTP_PASSWORD')
-    sender = os.getenv('SMTP_FROM', user or '')
-    use_ssl = os.getenv('SMTP_USE_SSL', '0').lower() in {'1','true','yes'}
+    sender = (os.getenv('SMTP_FROM') or user or '').strip()
+    sender_name = (os.getenv('SMTP_FROM_NAME') or 'INPROLIB').strip()
+    debug_level = int(os.getenv('SMTP_DEBUG', '0'))
 
     if not host or not user or not password or not sender:
         print('[SMTP] Configuração incompleta. Não foi possível enviar e-mail.')
@@ -126,7 +151,8 @@ def send_reset_email(to_email: str, reset_url: str, token: str | None = None) ->
     try:
         msg = EmailMessage()
         msg['Subject'] = 'INPROLIB - Redefinição de senha'
-        msg['From'] = user if user else sender
+        # Preferir SMTP_FROM (remetente configurado) e incluir nome amigável
+        msg['From'] = f"{sender_name} <{sender}>"
         msg['To'] = to_email
         msg.set_content(
             (
@@ -136,49 +162,90 @@ def send_reset_email(to_email: str, reset_url: str, token: str | None = None) ->
                 'Se você não solicitou, ignore este e-mail.'
             )
         )
+        
+        def _send_via_starttls() -> None:
+            with smtplib.SMTP(host, port) as smtp:
+                smtp.set_debuglevel(debug_level)
+                smtp.ehlo()
+                smtp.starttls()
+                smtp.ehlo()
+                smtp.login(user, password)
+                smtp.send_message(msg)
 
-        if use_ssl:
+        def _send_via_ssl() -> None:
+            with smtplib.SMTP_SSL(host, port) as smtp:
+                smtp.set_debuglevel(debug_level)
+                smtp.ehlo()
+                smtp.login(user, password)
+                smtp.send_message(msg)
+
+        def _send_plain() -> None:
+            with smtplib.SMTP(host, port) as smtp:
+                smtp.set_debuglevel(debug_level)
+                smtp.ehlo()
+                # Sem STARTTLS
+                smtp.login(user, password)
+                smtp.send_message(msg)
+
+        # Tenta conforme configuração; depois usa fallbacks inteligentes
+        if security == 'ssl':
             try:
-                with smtplib.SMTP_SSL(host, port) as smtp:
-                    smtp.ehlo()
-                    smtp.login(user, password)
-                    smtp.send_message(msg)
+                _send_via_ssl()
             except Exception as e1:
-                print('[SMTP] Tentativa SSL falhou:', e1)
-                # Fallback para STARTTLS em 587
+                print('[SMTP] SSL falhou, tentando STARTTLS:', e1)
                 try:
-                    with smtplib.SMTP(host, 587) as smtp:
-                        smtp.ehlo()
-                        smtp.starttls()
-                        smtp.ehlo()
-                        smtp.login(user, password)
-                        smtp.send_message(msg)
+                    # Ajusta porta padrão quando alterna para STARTTLS
+                    if port == 465:
+                        _port = 587
+                    else:
+                        _port = port
+                    with smtplib.SMTP(host, _port) as smtp:
+                        smtp.set_debuglevel(debug_level)
+                        smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
                 except Exception as e2:
-                    raise e2
-        else:
+                    print('[SMTP] STARTTLS falhou, tentando sem TLS:', e2)
+                    _send_plain()
+        elif security == 'none':
             try:
-                with smtplib.SMTP(host, port) as smtp:
-                    smtp.ehlo()
-                    smtp.starttls()
-                    smtp.ehlo()
-                    smtp.login(user, password)
-                    smtp.send_message(msg)
+                _send_plain()
             except Exception as e1:
-                print('[SMTP] Tentativa STARTTLS falhou:', e1)
-                # Fallback para SSL em 465
+                print('[SMTP] Login sem TLS falhou, tentando STARTTLS:', e1)
+                try:
+                    # Se porta comum 25 foi usada, tenta 587
+                    _port = 587 if port in (25,) else port
+                    with smtplib.SMTP(host, _port) as smtp:
+                        smtp.set_debuglevel(debug_level)
+                        smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
+                except Exception as e2:
+                    print('[SMTP] STARTTLS falhou, tentando SSL 465:', e2)
+                    with smtplib.SMTP_SSL(host, 465) as smtp:
+                        smtp.set_debuglevel(debug_level)
+                        smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
+        else:  # starttls
+            try:
+                _send_via_starttls()
+            except Exception as e1:
+                print('[SMTP] STARTTLS falhou, tentando SSL 465:', e1)
                 try:
                     with smtplib.SMTP_SSL(host, 465) as smtp:
-                        smtp.ehlo()
-                        smtp.login(user, password)
-                        smtp.send_message(msg)
+                        smtp.set_debuglevel(debug_level)
+                        smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
                 except Exception as e2:
-                    raise e2
+                    print('[SMTP] SSL falhou, tentando sem TLS:', e2)
+                    _send_plain()
+
         return True
     except Exception as e:
         print('[SMTP] Erro ao enviar e-mail:', e)
         if 'Username and Password not accepted' in str(e) or '5.7.8' in str(e):
             print('[SMTP] Dica: no Gmail, habilite 2FA e use uma "Senha de app".')
             print('[SMTP] Ajuda: https://support.google.com/accounts/answer/185833')
+        if '530 5.7.0' in str(e) or 'STARTTLS' in str(e):
+            print('[SMTP] Dica: o servidor requer STARTTLS. Defina SMTP_SECURITY=starttls e SMTP_PORT=587.')
+        if 'Must issue a STARTTLS command first' in str(e):
+            print('[SMTP] Dica: habilite STARTTLS ou use porta 587.')
+        if 'SSL' in str(e) and 'wrong version number' in str(e).lower():
+            print('[SMTP] Dica: ajuste SMTP_SECURITY=ssl e SMTP_PORT=465 para servidores que exigem SSL.')
         print('[SMTP] Código de redefinição:', token)
         return False
 
@@ -293,7 +360,8 @@ def get_db_connection():
         if db_url:
             if db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql://", 1)
-            conn = psycopg.connect(db_url)
+            # Timeout curto para evitar travamentos quando o serviço está indisponível
+            conn = psycopg.connect(db_url, connect_timeout=5)
             # Garante search_path correto para o schema informado
             try:
                 with conn.cursor() as cur:
@@ -301,7 +369,20 @@ def get_db_connection():
             except Exception:
                 pass
             return conn
-        conn = psycopg.connect(**DB_CONFIG)
+        # Sanitiza valores do DB_CONFIG (remove espaços e normaliza porta)
+        cfg = {k: (str(v).strip() if isinstance(v, str) else v) for k, v in DB_CONFIG.items()}
+        try:
+            # Porta deve ser int para algumas instalações
+            if 'port' in cfg:
+                try:
+                    cfg['port'] = int(str(cfg['port']).strip())
+                except Exception:
+                    # Fallback: mantém como string se conversão falhar
+                    pass
+        except Exception:
+            pass
+
+        conn = psycopg.connect(**cfg, connect_timeout=5)
         try:
             with conn.cursor() as cur:
                 cur.execute(f'SET search_path TO "{db_schema}", public')
@@ -311,15 +392,22 @@ def get_db_connection():
     except InvalidCatalogName:
         # Tenta criar o banco se não existir e reconecta
         try:
-            tmp = dict(DB_CONFIG)
+            tmp = {k: (str(v).strip() if isinstance(v, str) else v) for k, v in DB_CONFIG.items()}
             dbname = tmp.pop('dbname', None)
-            admin = psycopg.connect(**tmp)
+            # Garante tipo correto da porta
+            if 'port' in tmp:
+                try:
+                    tmp['port'] = int(str(tmp['port']).strip())
+                except Exception:
+                    pass
+            # Conecta no banco administrativo padrão 'postgres'
+            admin = psycopg.connect(**{**tmp, 'dbname': 'postgres'}, connect_timeout=5)
             cur = admin.cursor()
             if dbname:
                 cur.execute(f'CREATE DATABASE "{dbname}"')
                 admin.commit()
             cur.close(); admin.close()
-            conn = psycopg.connect(**DB_CONFIG)
+            conn = psycopg.connect(**DB_CONFIG, connect_timeout=5)
             try:
                 with conn.cursor() as cur2:
                     _schema = os.getenv("DB_SCHEMA", "public").strip() or "public"
@@ -327,9 +415,48 @@ def get_db_connection():
             except Exception:
                 pass
             return conn
-        except Exception:
+        except Exception as e:
+            # Log detalhado para facilitar diagnóstico
+            print(f"[DB] Falha ao criar/conectar banco: {e}")
             return None
-    except Exception:
+    except Exception as e:
+        # Se o erro indicar banco inexistente, tenta criar automaticamente
+        msg = str(e).lower()
+        # Cobrir casos de encoding quebrado: 'não existe' pode aparecer como 'n�o existe' em alguns logs
+        if (
+            'does not exist' in msg or
+            'não existe' in msg or  # UTF-8 correto
+            'n�o existe' in msg or  # variante com REPLACEMENT CHARACTER
+            'invalidcatalogname' in msg
+        ):
+            try:
+                tmp = {k: (str(v).strip() if isinstance(v, str) else v) for k, v in DB_CONFIG.items()}
+                dbname = tmp.pop('dbname', None)
+                if 'port' in tmp:
+                    try:
+                        tmp['port'] = int(str(tmp['port']).strip())
+                    except Exception:
+                        pass
+                admin = psycopg.connect(**{**tmp, 'dbname': 'postgres'}, connect_timeout=5)
+                with admin.cursor() as cur:
+                    if dbname:
+                        cur.execute(f'CREATE DATABASE "{dbname}"')
+                        admin.commit()
+                admin.close()
+                conn = psycopg.connect(**DB_CONFIG, connect_timeout=5)
+                try:
+                    with conn.cursor() as cur2:
+                        _schema = os.getenv("DB_SCHEMA", "public").strip() or "public"
+                        cur2.execute(f'SET search_path TO "{_schema}", public')
+                    
+                except Exception:
+                    pass
+                return conn
+            except Exception as e2:
+                print(f"[DB] Tentativa de criação do banco falhou: {e2}")
+                return None
+        # Loga erro real (ex.: connection refused, auth failed, etc.)
+        print(f"[DB] Erro ao conectar ao banco de dados: {e}")
         return None
 
 # Cache simples para rótulos de enum de status de publicação
@@ -1072,16 +1199,13 @@ def esqueci_senha():
 
             # Suporte a AJAX: se requisitado via XHR, retorna JSON
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                smtp_config_ok = bool(os.getenv('SMTP_HOST') and os.getenv('SMTP_USER') and os.getenv('SMTP_PASSWORD') and (os.getenv('SMTP_FROM') or os.getenv('SMTP_USER')))
                 payload = {'ok': True, 'email_sent': bool(send_ok)}
                 if not send_ok:
-                    # Não expõe token por padrão; só quando habilitado via env
+                    payload['error'] = 'Falha ao enviar e-mail. Verifique a configuração SMTP.'
+                    # Fallback: incluir token apenas quando explicitamente habilitado
                     show_token = os.getenv('SHOW_RESET_TOKEN_IN_UI', '0').lower() in {'1','true','yes'}
                     if show_token:
                         payload['dev_token'] = token
-                    payload['error'] = 'Falha ao enviar e-mail. Verifique a configuração SMTP.'
-                    if not smtp_config_ok:
-                        payload['dev_mode'] = True
                 return jsonify(payload)
             # Fluxo tradicional: ajusta mensagem conforme resultado
             if send_ok:
@@ -1110,10 +1234,12 @@ def esqueci_senha():
 @app.route('/api/smtp/self_test', methods=['GET'])
 def smtp_self_test():
     host = os.getenv('SMTP_HOST')
-    port = int(os.getenv('SMTP_PORT', '587'))
+    security = (os.getenv('SMTP_SECURITY', '').strip().lower() or 'starttls')
+    default_port = 587 if security != 'ssl' else 465
+    port = int(os.getenv('SMTP_PORT', str(default_port)))
     user = os.getenv('SMTP_USER')
     password = os.getenv('SMTP_PASSWORD')
-    use_ssl = os.getenv('SMTP_USE_SSL', '0').lower() in {'1','true','yes'}
+    debug_level = int(os.getenv('SMTP_DEBUG', '0'))
 
     if not host or not user or not password:
         return jsonify({
@@ -1122,34 +1248,33 @@ def smtp_self_test():
         }), 400
 
     try:
-        if use_ssl:
+        if security == 'ssl':
             try:
                 with smtplib.SMTP_SSL(host, port) as smtp:
-                    smtp.ehlo()
-                    smtp.login(user, password)
-                    code, _ = smtp.noop()
+                    smtp.set_debuglevel(debug_level)
+                    smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
             except Exception as e1:
-                # Fallback: tenta STARTTLS na porta 587
                 with smtplib.SMTP(host, 587) as smtp:
-                    smtp.ehlo()
-                    smtp.starttls()
-                    smtp.ehlo()
-                    smtp.login(user, password)
-                    code, _ = smtp.noop()
-        else:
+                    smtp.set_debuglevel(debug_level)
+                    smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
+        elif security == 'none':
             try:
                 with smtplib.SMTP(host, port) as smtp:
-                    smtp.ehlo()
-                    smtp.starttls()
-                    smtp.ehlo()
-                    smtp.login(user, password)
-                    code, _ = smtp.noop()
+                    smtp.set_debuglevel(debug_level)
+                    smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
             except Exception as e1:
-                # Fallback: tenta SSL na porta 465
+                with smtplib.SMTP(host, 587) as smtp:
+                    smtp.set_debuglevel(debug_level)
+                    smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
+        else:  # starttls
+            try:
+                with smtplib.SMTP(host, port) as smtp:
+                    smtp.set_debuglevel(debug_level)
+                    smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
+            except Exception as e1:
                 with smtplib.SMTP_SSL(host, 465) as smtp:
-                    smtp.ehlo()
-                    smtp.login(user, password)
-                    code, _ = smtp.noop()
+                    smtp.set_debuglevel(debug_level)
+                    smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
         return jsonify({'ok': True, 'message': 'Login SMTP OK', 'noop_code': code})
     except Exception as e:
         msg = str(e)

@@ -187,7 +187,9 @@ document.addEventListener('DOMContentLoaded', () => {
       function togglePassword() {
         const isPassword = input.type === 'password';
         input.type = isPassword ? 'text' : 'password';
-        icon.textContent = isPassword ? 'visibility_off' : 'visibility';
+        if (icon) {
+          icon.textContent = isPassword ? 'visibility_off' : 'visibility';
+        }
         toggle.setAttribute('aria-label', isPassword ? 'Ocultar senha' : 'Mostrar senha');
       }
       

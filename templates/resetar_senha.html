@@ -4,9 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Nova senha</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Material+Symbols+Outlined:wght@400" rel="stylesheet">
+  <!-- Removido Google Fonts para evitar erros de carregamento em ambientes restritos -->
   <style>
     :root {
       --bg: #0f172a;
@@ -35,7 +33,7 @@
       box-shadow: 0 10px 25px rgba(0,0,0,.35);
     }
     .header { display:flex; align-items:center; gap:12px; margin-bottom: 6px; }
-    .key-icon { font-family: 'Material Symbols Outlined'; font-size: 28px; color: var(--primary-1); }
+    .key-icon { width: 28px; height: 28px; color: var(--primary-1); display:inline-flex; }
     .title { font-size: 22px; font-weight: 600; margin: 0; }
     .subtitle { color: var(--muted); margin: 4px 0 20px; }
     label { display:block; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
@@ -67,7 +65,10 @@
   <div class="container">
     <div class="card">
       <div class="header">
-        <span class="key-icon">key</span>
+        <!-- Ícone local (SVG) para evitar dependência de Google Fonts -->
+        <svg class="key-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M12.65 10A5 5 0 1 0 7 15h3v3h2v-3h3l3-3-5.35-2zM7 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0z" fill="currentColor"/>
+        </svg>
         <h1 class="title">Nova senha</h1>
       </div>
       <p class="subtitle">Código validado com sucesso! Agora defina sua nova senha.</p>

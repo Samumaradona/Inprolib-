@@ -911,13 +911,15 @@ function formatDate(v){
     });
   }
 
-  // Portaria (somente números) — presente em curso e publicação
+  // Portaria (alfanumérico): permitir letras, números e caracteres comuns
   const portariaInput = document.getElementById('portaria');
   if(portariaInput){
-    portariaInput.setAttribute('inputmode','numeric');
-    portariaInput.setAttribute('maxlength','10');
+    portariaInput.setAttribute('inputmode','text');
+    portariaInput.setAttribute('maxlength','40');
     portariaInput.addEventListener('input', function(){
-      portariaInput.value = onlyDigits(portariaInput.value).slice(0,10);
+      const val = portariaInput.value || '';
+      // permite letras, números, espaço, hífen, ponto e barra
+      portariaInput.value = val.replace(/[^A-Za-z0-9\-\.\/\s]/g,'').slice(0,40);
     });
   }
 
