@@ -110,7 +110,7 @@ header.topbar{
 .login-wrapper{
   display: grid;
   grid-template-columns: minmax(360px, 520px) 1fr;
-  min-height: 100vh;
+  min-height: calc(100vh - var(--topbar-height, 64px));
 }
 .left-pane{
   background: var(--bs-new-casual);
@@ -223,9 +223,14 @@ header.topbar{
 
 /* Responsivo */
 @media (max-width: 640px){
-  .login-wrapper{ grid-template-columns: 1fr; }
+  body { overflow-x: hidden; }
+  header.topbar .container { padding: 8px 12px; gap: 8px; flex-wrap: wrap; row-gap: 6px; }
+  .login-wrapper{ grid-template-columns: 1fr; min-height: calc(100vh - var(--topbar-height, 56px)); }
   .right-pane{ display:none; }
-  .left-pane{ min-height: 100vh; }
+  .left-pane{ min-height: unset; padding: 16px; }
+  .login-card{ width: 100%; max-width: 480px; margin: 0 auto; }
+  .actions{ flex-wrap: wrap; }
+  .links{ flex-wrap: wrap; gap: 10px; }
 }
 
 /* Ajuste intermediário para telas de laptop/tablet */
