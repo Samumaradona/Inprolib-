@@ -333,6 +333,11 @@ main{
   width:100%;
   box-shadow:0 14px 40px rgba(2,6,23,0.14);
   position:relative;
+  /* Permitir rolagem quando o formulário for maior que a viewport */
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; /* rolagem suave no iOS */
 }
 .modal-close{
   position:absolute;
@@ -347,6 +352,15 @@ main{
 body { overflow-x: hidden; }
 
 @media (max-width: 640px) {
+  /* Modal mobile: ocupa mais da tela e rola internamente */
+  .modal{ align-items: flex-start; padding: 12px; }
+  .modal-content{
+    max-width: 100%;
+    width: 100%;
+    max-height: 92dvh; /* usa viewport dinâmica em mobile */
+    margin: 0;
+    border-radius: 12px;
+  }
   header.topbar .container { padding: 8px 12px; gap: 8px; }
   main { padding: 12px; margin: 16px auto; }
   .container { padding: 10px 12px; }

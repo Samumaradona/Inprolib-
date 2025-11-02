@@ -409,8 +409,17 @@ data-id="{{ u.id_usuario }}">
       const confirmarGroup = document.getElementById('confirmarGroup');
       const captchaGroup = document.getElementById('captchaGroup');
 
-      function openModal(){ modal.setAttribute('aria-hidden','false'); modal.classList.add('open'); setTimeout(()=>{ nomeInput && nomeInput.focus(); }, 0); }
-      function closeModal(){ modal.setAttribute('aria-hidden','true'); modal.classList.remove('open'); }
+      function openModal(){
+        modal.setAttribute('aria-hidden','false');
+        modal.classList.add('open');
+        if(document && document.body) document.body.style.overflow = 'hidden';
+        setTimeout(()=>{ nomeInput && nomeInput.focus(); }, 0);
+      }
+      function closeModal(){
+        modal.setAttribute('aria-hidden','true');
+        modal.classList.remove('open');
+        if(document && document.body) document.body.style.overflow = '';
+      }
 
       function normalizeDigits(v){ return String(v||'').replace(/\D+/g,''); }
       function formatCPF(d){ const s = normalizeDigits(d); if(s.length !== 11) return d || ''; return `${s.slice(0,3)}.${s.slice(3,6)}.${s.slice(6,9)}-${s.slice(9)}`; }

@@ -330,8 +330,18 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
         });
       }
 
-      function openModal(){ modal.style.display='block'; document.body.style.overflow='hidden'; }
-      function closeModal(){ modal.style.display='none'; document.body.style.overflow=''; }
+      function openModal(){
+        modal.style.display='block';
+        // Garante que apenas o conteúdo do modal role
+        if(document && document.body) document.body.style.overflow='hidden';
+        // Evita que a rolagem do mouse atue no body em alguns navegadores
+        modal.style.overscrollBehavior = 'contain';
+      }
+      function closeModal(){
+        modal.style.display='none';
+        if(document && document.body) document.body.style.overflow='';
+        modal.style.overscrollBehavior = '';
+      }
 
       closeBtn.addEventListener('click', closeModal);
       modal.querySelector('.backdrop').addEventListener('click', closeModal);
