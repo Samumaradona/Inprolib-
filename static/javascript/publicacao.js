@@ -15,7 +15,7 @@
   const evalList = document.getElementById('pubEvalList');
 
   function openModal(data){
-    const {id, titulo, tipo, curso, data: dataPublicacao, url} = data;
+    const {id, titulo, tipo, curso, data: dataPublicacao, url, status} = data;
     titleEl.textContent = titulo || 'Publicação';
     meta.textContent = [tipo, curso, dataPublicacao].filter(Boolean).join(' • ');
     // usa rota de download (PDF) quando houver id; caso contrário, usa a URL direta
@@ -26,6 +26,22 @@
       // Sugere nome de download com o título
       link.setAttribute('download', (titulo || 'publicacao'));
     } catch(e){}
+
+    // Controle de permissão de download por status
+    const st = String(status || '').toLowerCase();
+    const isPublished = st.includes('public');
+    if(!isPublished){
+      link.href = '#';
+      link.classList.add('is-disabled');
+      link.setAttribute('aria-disabled','true');
+      link.title = 'Download disponível apenas quando Publicada';
+      link.textContent = 'Download indisponível';
+    } else {
+      link.classList.remove('is-disabled');
+      link.removeAttribute('aria-disabled');
+      link.textContent = 'Fazer download';
+      link.title = 'Fazer download';
+    }
 
 
     // preview
@@ -195,6 +211,11 @@
 
       link.addEventListener('click', async (ev)=>{
         ev.preventDefault();
+        // Bloqueia interação quando desabilitado por status
+        if(link.classList.contains('is-disabled') || link.getAttribute('aria-disabled') === 'true'){
+          try { window.showToast && window.showToast('Download disponível apenas quando Publicada.', 'info'); } catch(e) {}
+          return;
+        }
         const url = link.href;
         let suggested = (link.getAttribute('download') || 'arquivo');
         const progress = ensureProgressUI();
@@ -286,7 +307,8 @@
         tipo: row.dataset.tipo || '',
         curso: row.dataset.curso || '',
         data: row.dataset.data || '',
-        url: row.dataset.url || ''
+        url: row.dataset.url || '',
+        status: row.dataset.status || ''
       };
       openModal(data);
     });
@@ -346,7 +368,8 @@
             tipo: row.dataset.tipo || '',
             curso: row.dataset.curso || '',
             data: row.dataset.data || '',
-            url: row.dataset.url || ''
+            url: row.dataset.url || '',
+            status: row.dataset.status || ''
           };
           // chama openModal da IIFE principal
           try { window.openPubModal ? window.openPubModal(data) : openModal(data); } catch(e) { /* noop */ }

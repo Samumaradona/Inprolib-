@@ -1930,7 +1930,7 @@ def download_publicacao(id_publicacao):
     try:
         cur = conn.cursor(row_factory=dict_row)
         cur.execute("""
-            SELECT nome_arquivo, titulo
+            SELECT nome_arquivo, titulo, status
             FROM publicacao
             WHERE id_publicacao = %s
             LIMIT 1
@@ -1941,6 +1941,13 @@ def download_publicacao(id_publicacao):
         if not row or not row.get('nome_arquivo'):
             flash('Publicação não encontrada ou sem arquivo.', 'error')
             return redirect(url_for('publicacao'))
+        # Bloqueia download se não estiver Publicada
+        try:
+            pub_label = status_label('Publicado')
+        except Exception:
+            pub_label = 'Publicado'
+        if _norm(str(row.get('status') or '')) != _norm(pub_label):
+            return make_response('Download indisponível: publicação pendente ou não publicada.', 403)
         stored_name = row['nome_arquivo']
         titulo = (row['titulo'] or 'publicacao').strip()
         upload_dir = app.config['UPLOAD_FOLDER']
@@ -2494,7 +2501,7 @@ def download_pdf_publicacao(id_publicacao):
         conn = get_db_connection()
         cur = conn.cursor(row_factory=dict_row)
         cur.execute("""
-            SELECT titulo, nome_arquivo, arquivo
+            SELECT titulo, nome_arquivo, arquivo, status
             FROM publicacao
             WHERE id_publicacao = %s
             LIMIT 1
@@ -2505,6 +2512,13 @@ def download_pdf_publicacao(id_publicacao):
             # gera PDF mínimo informando que não encontrou a publicação
             pdf_bytes = generate_error_pdf(f'Publicação {id_publicacao} não encontrada.')
             return send_file(io.BytesIO(pdf_bytes), mimetype='application/pdf', as_attachment=True, download_name=f'publicacao_{id_publicacao}.pdf')
+        # Bloqueia download se não estiver Publicada
+        try:
+            pub_label = status_label('Publicado')
+        except Exception:
+            pub_label = 'Publicado'
+        if _norm(str(row.get('status') or '')) != _norm(pub_label):
+            return make_response('Download indisponível: publicação pendente ou não publicada.', 403)
         titulo = (row.get('titulo') or 'publicacao').strip()
         stored_name = (row.get('nome_arquivo') or '').strip()
         upload_dir = app.config['UPLOAD_FOLDER']
