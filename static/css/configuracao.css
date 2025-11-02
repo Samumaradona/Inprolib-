@@ -426,6 +426,24 @@ main{
   .btn-group .button { width: 100%; }
 }
 
+/* ===== Fix layout mobile: Tema Visual ===== */
+/* Evita sobreposição de textos/checkbox no bloco de tema em telas pequenas */
+#formTema > div {
+  flex-wrap: wrap;            /* permite quebrar linha quando não couber */
+  row-gap: 6px;               /* espaço vertical entre linhas quando quebrar */
+}
+#formTema .switch-label {      
+  line-height: 1.4;           /* previne colagem das linhas do texto */
+}
+#formTema #temaAtual {
+  margin-left: auto;          /* empurra para a direita em telas maiores */
+}
+
+@media (max-width: 640px) {
+  #formTema .switch-label { width: 100%; } /* ocupa linha inteira */
+  #formTema #temaAtual { width: 100%; margin-left: 0; } /* quebra abaixo do rótulo */
+}
+
 /* Tema escuro: sobrescreve variáveis base quando .theme-dark está no root */
 :root.theme-dark {
   --bs-body-bg: #0f172a; /* slate-900 */
