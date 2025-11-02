@@ -200,6 +200,10 @@ main{
   background: var(--bs-new-dark);
 }
 
+/* Variante azul para padronização com demais telas */
+.button.is-blue { background: #1d4ed8; color: #fff; }
+.button.is-blue:hover { background: #1e40af; }
+
 /* btn-group: ocupa as 2 colunas e centraliza */
 .btn-group{
   grid-column: 1 / -1;        /* ocupa as duas colunas */

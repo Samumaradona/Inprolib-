@@ -148,6 +148,20 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
       }
     })();
   </script>
+  <script>
+    // Feedback padrão ao anexar imagem
+    (function(){
+      const imgInput = document.getElementById('imagem');
+      if(imgInput){
+        imgInput.addEventListener('change', (e)=>{
+          const hasFile = e.target && e.target.files && e.target.files.length > 0;
+          if(hasFile){
+            try{ window.showToast && window.showToast('Imagem anexada com sucesso!', 'success'); }catch(_){ }
+          }
+        });
+      }
+    })();
+  </script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
     </body>
 </html>

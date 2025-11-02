@@ -377,7 +377,7 @@ renderRoutes();
 
   /* Ver foto -> abre modal com a imagem atual */
   if(viewPhoto){
-    viewPhoto.addEventListener('click', () => {
+    viewPhoto.addEventListener('click', (ev) => {
       if (modalImg && avatarImg) modalImg.src = avatarImg.src || DEFAULT_AVATAR;
       if (avatarModal) {
         avatarModal.setAttribute('aria-hidden','false');
@@ -386,14 +386,18 @@ renderRoutes();
       closeAllMenus();
       // foco no botão fechar do modal para facilitar teclado
       if (closeModal) closeModal.focus();
+      // impede que o clique feche o modal pelo listener global
+      ev.stopPropagation();
     });
   }
 
   /* Mudar foto -> dispara input file (visível somente para seleção local) */
   if(changePhoto){
-    changePhoto.addEventListener('click', () => {
+    changePhoto.addEventListener('click', (ev) => {
       if (fileInput) fileInput.click();
       closeAllMenus();
+      // evita fechamento imediato por clique global
+      ev.stopPropagation();
     });
   }
 

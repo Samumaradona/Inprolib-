@@ -136,7 +136,7 @@
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.coordenador or '-' }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">
                     <div class="action-buttons">
-                      <button type="button" class="icon-btn is-blue" aria-label="Editar curso {{ c.nome_curso }}"
+                      <button type="button" class="icon-btn is-blue" aria-label="Editar curso {{ c.nome_curso }}" title="Editar"
                               data-action="edit"
                               data-id="{{ c.id_curso }}"
                               data-nome="{{ c.nome_curso }}"
@@ -149,7 +149,7 @@
                       <form method="POST" action="/cadastro_curso" style="display:inline">
                         <input type="hidden" name="action" value="toggle">
                         <input type="hidden" name="id_curso" value="{{ c.id_curso }}">
-                        <button type="submit" class="icon-btn {{ 'is-danger' if c.ativo else 'is-success' }}" aria-label="{{ 'Inativar' if c.ativo else 'Reativar' }} curso {{ c.nome_curso }}">
+                        <button type="submit" class="icon-btn {{ 'is-danger' if c.ativo else 'is-success' }}" aria-label="{{ 'Inativar' if c.ativo else 'Reativar' }} curso {{ c.nome_curso }}" title="{{ 'Inativar' if c.ativo else 'Reativar' }}">
                           <span class="material-symbols-outlined" aria-hidden="true">{{ 'do_not_disturb_on' if c.ativo else 'check_circle' }}</span>
                         </button>
                       </form>
