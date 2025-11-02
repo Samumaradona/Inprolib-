@@ -975,6 +975,29 @@ body {
   font-size: 18px;
 }
 
+/* -------------------------------------------------
+   Correção mobile para o contador de resultados
+   Evitar quebra de linha em "Exibindo X de Y"
+   e permitir reorganização do layout da busca
+   em telas estreitas sem truncar texto.
+-------------------------------------------------- */
+@media (max-width: 520px) {
+  .search-row {
+    flex-wrap: wrap;  /* reorganiza input e contador em duas linhas */
+    gap: 8px;
+  }
+  .search-input {
+    flex: 1 1 100%;   /* ocupa toda a primeira linha */
+  }
+  .results-counter {
+    white-space: nowrap;  /* mantém texto em uma linha */
+    margin-left: 0;       /* evita deslocamento lateral quando quebra */
+    font-size: 12px;      /* ajuste fino para caber sem cortar */
+    flex: 0 0 auto;
+    order: 2;             /* aparece abaixo do campo de busca */
+  }
+}
+
 /* Ajuste específico para o modal de avatar (centralização consistente) */
 #avatarModal .modal-content{
   max-width: 640px;
