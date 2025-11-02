@@ -241,20 +241,29 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
           const raw = localStorage.getItem(FILTERS_KEY);
           if(!raw) return;
           const f = JSON.parse(raw);
-          ['autor','orientador','curso','tipo','data_inicial','data_final'].forEach(k=>{
+          // Não restaurar datas para evitar persistência após login
+          ['autor','orientador','curso','tipo'].forEach(k=>{
             const el = form.querySelector(`[name="${k}"]`);
             if(el && f[k] != null) el.value = f[k];
           });
+          const di = form.querySelector('[name="data_inicial"]');
+          const df = form.querySelector('[name="data_final"]');
+          if(di) di.value = '';
+          if(df) df.value = '';
         }catch(e){}
       }
 
       function saveFilters(){
         try{
           const obj = {};
-          ['autor','orientador','curso','tipo','data_inicial','data_final'].forEach(k=>{
+          // Persistir apenas filtros não relacionados a data
+          ['autor','orientador','curso','tipo'].forEach(k=>{
             const el = form.querySelector(`[name="${k}"]`);
             obj[k] = el ? el.value : '';
           });
+          // Limpar sempre as datas no armazenamento
+          obj['data_inicial'] = '';
+          obj['data_final'] = '';
           localStorage.setItem(FILTERS_KEY, JSON.stringify(obj));
         }catch(e){}
       }
@@ -342,12 +351,20 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
         return val;
       }
 
+      function parseBRDate(s){
+        if(!s) return null;
+        const parts = String(s).split('/');
+        if(parts.length !== 3) return new Date(s);
+        const [dd, mm, yyyy] = parts.map(p=>parseInt(p,10));
+        if(!dd || !mm || !yyyy) return new Date(s);
+        return new Date(yyyy, mm-1, dd);
+      }
       function compare(a, b){
         const key = sortKey;
         let va = a[key];
         let vb = b[key];
         if(key === 'data_publicacao'){
-          try { va = new Date(a[key]); vb = new Date(b[key]); } catch(e){}
+          try { va = parseBRDate(a[key]); vb = parseBRDate(b[key]); } catch(e){}
         }
         va = normalize(va);
         vb = normalize(vb);
@@ -425,6 +442,22 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
           let html = '';
           selectedCols.forEach(k => {
             let v = r[k];
+            // Formatação específica para data_publicacao → dd/mm/aaaa
+            if(k === 'data_publicacao' && v) {
+              try {
+                if(typeof v === 'string' && v.includes('/')){
+                  // já no padrão
+                } else {
+                  const d = new Date(v);
+                  if(!isNaN(d.getTime())) {
+                    const dd = String(d.getDate()).padStart(2,'0');
+                    const mm = String(d.getMonth()+1).padStart(2,'0');
+                    const yyyy = d.getFullYear();
+                    v = `${dd}/${mm}/${yyyy}`;
+                  }
+                }
+              } catch(e) { /* mantém original */ }
+            }
             html += `<td style="padding:8px;border-bottom:1px solid #f1f5f9">${v ?? ''}</td>`;
           });
           tr.innerHTML = html;
@@ -494,6 +527,7 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
       }
 
       async function doPreview(){
+        // Salva filtros sem datas
         saveFilters();
         updateDownloadURLs();
         const url = '/relatorio/preview' + (qs() ? ('?' + qs()) : '');
@@ -514,6 +548,14 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
           count.textContent = 'Erro ao carregar';
           empty.style.display = 'block';
           openModal();
+        } finally {
+          // Após a filtragem, limpar campos de data no formulário
+          const di = form.querySelector('[name="data_inicial"]');
+          const df = form.querySelector('[name="data_final"]');
+          if(di) di.value = '';
+          if(df) df.value = '';
+          // Regravar filtros sem datas
+          saveFilters();
         }
       }
 

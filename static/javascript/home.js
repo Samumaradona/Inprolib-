@@ -527,9 +527,13 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
   // dados reais vindos do backend
   const DOCS_RAW = Array.isArray(window.PUBLICACOES) ? window.PUBLICACOES : [];
   console.log('DOCS_RAW carregados:', DOCS_RAW);
-  function formatDate(v){
+function formatDate(v){
     try{
       if(!v) return '';
+      // Aceita já em dd/mm/aaaa; se estiver em ISO, converte
+      if(typeof v === 'string' && v.includes('/')){
+        return v; // já está em dd/mm/aaaa
+      }
       const d = new Date(v);
       if(isNaN(d.getTime())) return String(v);
       const dd = String(d.getDate()).padStart(2,'0');
@@ -537,7 +541,7 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
       const yyyy = d.getFullYear();
       return `${dd}/${mm}/${yyyy}`;
     }catch{ return String(v||''); }
-  }
+}
   const DOCS = DOCS_RAW.map(p => ({
     id: p.id_publicacao || null,
     title: p.titulo || 'Sem título',

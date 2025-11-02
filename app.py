@@ -3231,8 +3231,8 @@ def exportar_relatorio():
             v = r.get(col_key)
             if col_key == 'data_publicacao' and v:
                 try:
-                    # psycopg returns date/datetime; for CSV/PDF use YYYY-MM-DD
-                    return v.strftime('%Y-%m-%d')
+                    # psycopg returns date/datetime; para CSV/PDF usar dd/mm/aaaa
+                    return v.strftime('%d/%m/%Y')
                 except Exception:
                     return str(v)
             return v if (v is not None) else ''
@@ -3497,7 +3497,7 @@ def preview_relatorio():
                 'tipo': r.get('tipo'),
                 'autor': r.get('autor'),
                 'curso': r.get('curso'),
-                'data_publicacao': r.get('data_publicacao').strftime('%Y-%m-%d') if r.get('data_publicacao') else '',
+                'data_publicacao': r.get('data_publicacao').strftime('%d/%m/%Y') if r.get('data_publicacao') else '',
                 'status': r.get('status'),
                 'assuntos': r.get('assuntos')
             })
@@ -3822,12 +3822,17 @@ def api_publicacoes():
             # Converter para formato JSON
             resultados_json = []
             for r in resultados:
+                # Padroniza formato de data para dd/mm/aaaa
+                try:
+                    dt_str = r['data_publicacao'].strftime('%d/%m/%Y') if r['data_publicacao'] else ''
+                except Exception:
+                    dt_str = str(r['data_publicacao']) if r.get('data_publicacao') else ''
                 resultados_json.append({
                     'id': r['id_publicacao'],
                     'titulo': r['titulo'],
                     'autor': r['autor_nome'],
                     'curso': r['nome_curso'],
-                    'data': r['data_publicacao'].strftime('%d/%m/%Y'),
+                    'data': dt_str,
                     'tipo': r['tipo'],
                     'assuntos': r['assuntos_relacionados']
                 })
