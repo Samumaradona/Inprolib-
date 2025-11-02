@@ -1,0 +1,75 @@
+:root.theme-dark {
+  /* Base */
+  --bs-body-bg: #0b1220;
+  --bs-body-color: #e5e7eb;
+
+  /* Layout */
+  --page-bg: #0b1220;
+  --card-bg: #0f172a;
+  --card-shadow: 0 8px 28px rgba(2,6,23,0.55);
+
+  /* Inputs e bordas */
+  --input-bg: #0b1220;
+  --input-border: #334155;
+  --border-color: #334155;
+
+  /* Estado e texto secundário */
+  --muted-bg: #0b1320;
+  --muted-text: #94a3b8;
+
+  /* Tabela e listas */
+  --table-header-bg: #0f172a;
+  --table-row-hover-bg: rgba(148,163,184,0.08);
+
+  /* Botões principais */
+  --btn-primary-bg: #2563eb;
+  --btn-primary-text: #ffffff;
+}
+
+/* Aplicações genéricas para quando os arquivos usam cores fixas */
+html.theme-dark body {
+  background-color: var(--page-bg);
+  color: var(--bs-body-color);
+}
+
+html.theme-dark header.topbar {
+  background-color: var(--card-bg);
+  border-bottom-color: rgba(148,163,184,0.12);
+}
+
+/* Cartões / containers */
+html.theme-dark .card,
+html.theme-dark .login-card,
+html.theme-dark .filter-card,
+html.theme-dark .form-card,
+html.theme-dark .modal-content,
+html.theme-dark .dropdown-menu,
+html.theme-dark .table-wrapper {
+  background: var(--card-bg) !important;
+  color: var(--bs-body-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Inputs */
+html.theme-dark input,
+html.theme-dark select,
+html.theme-dark textarea {
+  background-color: var(--input-bg) !important;
+  color: var(--bs-body-color) !important;
+  border-color: var(--input-border) !important;
+}
+html.theme-dark input::placeholder,
+html.theme-dark textarea::placeholder { color: var(--muted-text) !important; }
+
+/* Tabelas */
+html.theme-dark table { color: var(--bs-body-color); }
+html.theme-dark thead { background: var(--table-header-bg); }
+html.theme-dark tbody tr:hover { background: var(--table-row-hover-bg); }
+
+/* Botões */
+html.theme-dark .btn-primary { background: var(--btn-primary-bg) !important; color: var(--btn-primary-text) !important; border-color: transparent; }
+html.theme-dark .btn-secondary { background: #475569 !important; color: #fff !important; border-color: transparent; }
+
+/* Utilidades */
+html.theme-dark .muted,
+html.theme-dark .text-muted { color: var(--muted-text) !important; }

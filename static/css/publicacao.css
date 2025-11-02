@@ -564,3 +564,23 @@ form button:hover {
   .toolbar .filters { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
   .toolbar .button { width: 100%; }
 }
+/* Azul nos títulos das colunas do quadro de publicações */
+table thead th { color: var(--bs-new-casual); }
+
+/* Garantir aplicação também no mobile */
+@media (max-width: 640px) {
+  table thead th { color: var(--bs-new-casual); }
+}
+
+/* Azul nos títulos de seções e modal desta página */
+section > h3,
+.form-container h3 { color: var(--bs-new-casual); }
+#pubCreateModalTitle { color: var(--bs-new-casual); }
+#avatarModalTitle { color: var(--bs-new-casual); }
+
+@media (max-width: 640px) {
+  section > h3,
+  .form-container h3,
+  #pubCreateModalTitle,
+  #avatarModalTitle { color: var(--bs-new-casual); }
+}

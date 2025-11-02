@@ -523,3 +523,19 @@ body { overflow-x: hidden; }
   .table-container, .table-wrapper { overflow: auto; }
 }
   
+/* Azul nos títulos das colunas do quadro de vinculações */
+table thead th { color: var(--bs-new-casual); }
+/* Mobile: assegurar o mesmo azul nos cabeçalhos */
+@media (max-width: 640px) {
+  table thead th { color: var(--bs-new-casual); }
+}
+
+/* Azul nos títulos de seção desta página */
+.form-container h3,
+section > h3 { color: var(--bs-new-casual); }
+
+@media (max-width: 640px) {
+  .form-container h3,
+  section > h3 { color: var(--bs-new-casual); }
+}
+  

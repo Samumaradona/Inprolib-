@@ -507,3 +507,20 @@ body { overflow-x: hidden; }
   .input-with-icon input { width: 140px; }
   .table-container, .table-wrapper { overflow: auto; }
 }
+/* Azul nos títulos das colunas do quadro de cursos */
+.form-container table thead th { color: var(--bs-new-casual); }
+/* Mobile: assegurar o mesmo azul nos cabeçalhos */
+@media (max-width: 640px) {
+  .form-container table thead th { color: var(--bs-new-casual); }
+}
+
+/* Azul nos títulos de seções e modal desta página */
+section > h3,
+.form-container h3 { color: var(--bs-new-casual); }
+#cursoModalTitle { color: var(--bs-new-casual); }
+
+@media (max-width: 640px) {
+  section > h3,
+  .form-container h3,
+  #cursoModalTitle { color: var(--bs-new-casual); }
+}

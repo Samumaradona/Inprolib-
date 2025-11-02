@@ -694,3 +694,14 @@ body { overflow-x: hidden; }
   .toolbar select { min-width: 140px; }
   .input-with-icon input#searchAv { width: 180px; }
   
+/* Azul dos títulos das colunas no quadro de tabela */
+table thead th { color: var(--bs-new-casual); }
+
+/* Mensagem de vazio no quadro em azul (sem afetar demais células) */
+tbody td[colspan="6"] { color: var(--bs-new-casual) !important; }
+/* Mobile: manter o mesmo azul em telas pequenas */
+@media (max-width: 640px) {
+  table thead th { color: var(--bs-new-casual); }
+  tbody td[colspan] { color: var(--bs-new-casual) !important; }
+}
+  

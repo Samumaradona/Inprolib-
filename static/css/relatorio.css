@@ -384,6 +384,51 @@ aside.sidemenu.open{ transform:translateX(0) }
   #reportModal .modal-card{ max-height: 92dvh; width: 100%; max-width: 100%; border-radius: 12px; }
 }
 
+/* Harmonização: Visualizar Relatórios igual aos demais modais */
+#reportModal .modal-card{
+  background: var(--bs-body-bg) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 14px 40px rgba(2,6,23,0.14) !important;
+  max-width: 900px !important;
+  width: calc(100% - 32px) !important;
+  margin: 24px auto !important;
+}
+#reportModal header{
+  padding: 16px 20px !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+#reportModal section{
+  padding: 16px 20px !important;
+}
+#reportModal footer{
+  padding: 14px 20px !important;
+  border-top: 1px solid #e5e7eb !important;
+}
+/* Botão de fechar no padrão dos demais modais */
+#closeReportModal{
+  position: absolute !important;
+  right: 12px !important;
+  top: 12px !important;
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--bs-body-color) !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  font-size: 0 !important; /* esconde o texto */
+}
+#closeReportModal::before{
+  content: "✕";
+  font-size: 18px;
+  line-height: 1;
+}
+#closeReportModal:hover{
+  background: rgba(148,163,184,0.15) !important;
+}
+
+@media (max-width: 640px){
+  #reportModal .modal-card{ max-width: 100% !important; width: 100% !important; margin: 12px auto !important; }
+}
+
 /* Main + formulário */
 main{
   max-width: 900px;
@@ -536,3 +581,22 @@ main{
 /* Variação azul padronizada com o restante do sistema */
 .button.is-blue{ background: var(--bs-new-casual); color: #fff; }
 .button.is-blue:hover{ background: var(--bs-new-dark); }
+/* Azul nos títulos das colunas do quadro de relatório */
+#reportTable thead th { color: var(--bs-new-casual); }
+
+/* Mensagem de vazio do relatório em azul, preservando estrutura */
+#reportEmpty { color: var(--bs-new-casual) !important; }
+/* Mobile: manter o azul nos cabeçalhos e mensagem vazia */
+@media (max-width: 640px) {
+  #reportTable thead th { color: var(--bs-new-casual); }
+  #reportEmpty { color: var(--bs-new-casual) !important; }
+}
+
+/* Azul nos títulos de seção e cabeçalho do modal de relatório */
+.form-container h3 { color: var(--bs-new-casual); }
+#reportModalTitle { color: var(--bs-new-casual); }
+
+@media (max-width: 640px) {
+  .form-container h3,
+  #reportModalTitle { color: var(--bs-new-casual); }
+}
