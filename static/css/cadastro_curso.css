@@ -495,3 +495,15 @@ main{
 .icon-btn.is-blue .material-symbols-outlined { color: var(--bs-new-casual); }
 .icon-btn.is-success { color:#166534; border-color:#bbf7d0; background:#f0fdf4; }
 .icon-btn.is-success:hover { background:#dcfce7; }
+/* ===== Ajustes de responsividade globais ===== */
+body { overflow-x: hidden; }
+
+@media (max-width: 640px) {
+  header.topbar .container { padding: 8px 12px; gap: 8px; }
+  main { padding: 12px; margin: 16px auto; }
+  .container { padding: 10px 12px; }
+  .container-grid { grid-template-columns: 1fr; }
+  #filterBar { flex-wrap: wrap; gap: 8px; }
+  .input-with-icon input { width: 140px; }
+  .table-container, .table-wrapper { overflow: auto; }
+}

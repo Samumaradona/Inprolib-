@@ -444,3 +444,15 @@ main{
   background: var(--card-bg);
   color: var(--bs-body-color);
 }
+/* ===== Ajustes de responsividade globais ===== */
+body { overflow-x: hidden; }
+
+@media (max-width: 640px) {
+  header.topbar .container { padding: 8px 12px; gap: 8px; }
+  main { padding: 12px; margin: 16px auto; }
+  .container { padding: 10px 12px; }
+  .container-grid { grid-template-columns: 1fr; }
+  .btn-group { width: 100%; }
+  .btn-group .button { width: 100%; }
+  .table-container, .table-wrapper { overflow: auto; }
+}

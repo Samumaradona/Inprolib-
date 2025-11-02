@@ -85,7 +85,8 @@
     }
 
     html,body,#app{
-        height:100%
+        height:100%;
+        overflow-x:hidden; /* evita rolagem horizontal em mobile */
     }
 
     body{
@@ -349,6 +350,16 @@
       nav.primary{
         display:flex
     }
+    }
+
+    /* Ajustes mobile gerais */
+    @media(max-width:640px){
+      .container{ padding:10px 12px; }
+      main{ padding:12px; }
+    }
+
+    @media(max-width:520px){
+      .carousel-arrow{ display:none; }
     }
 
 /* NOTIFICATIONS */

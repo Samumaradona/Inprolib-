@@ -86,6 +86,7 @@ body{
   line-height: 1.4;
   color: var(--bs-body-color);
   background-color: var(--page-bg);
+  overflow-x: hidden; /* previne rolagem horizontal em mobile */
 }
 
 /* Topbar (simplificado para esta tela) */
@@ -556,3 +557,10 @@ form button:hover {
 .pub-row.inactive td { color: #64748b; background: #f8fafc; }
 
 /* ... existing code ... */
+/* Ajustes mobile adicionais */
+@media (max-width: 640px) {
+  main { padding: 12px; }
+  .toolbar { flex-wrap: wrap; gap: 8px; }
+  .toolbar .filters { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
+  .toolbar .button { width: 100%; }
+}

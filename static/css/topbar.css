@@ -99,3 +99,30 @@ header.topbar .notif-wrap > .dropdown-menu { right: 0; left: auto; }
 header.topbar .notif-btn:focus,
 header.topbar .hamburger:focus,
 header.topbar .profile-btn:focus { outline: 2px solid #99ACF7; outline-offset: 2px; }
+
+/* Responsividade da topbar */
+@media (max-width: 640px) {
+  :root {
+    --topbar-height: 88px;
+    --topbar-padding-x: 12px;
+    --topbar-gap: 10px;
+  }
+  header.topbar .container {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  header.topbar .left, header.topbar .right {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  :root {
+    --topbar-height: 84px;
+    --topbar-padding-x: 10px;
+    --topbar-gap: 8px;
+  }
+  header.topbar .container {
+    flex-wrap: wrap;
+  }
+}
