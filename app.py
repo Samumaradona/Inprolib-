@@ -1819,7 +1819,7 @@ def publicacao():
                     pass
                 audit_log('publicacao_error', {'error': str(e)})
         return redirect(url_for('publicacao'))
-    
+
     # Buscar cursos e tipos de publicação para o formulário e listar últimas publicações
     cursos = []
     tipos = []
@@ -2823,6 +2823,51 @@ def reupload_publicacao(id_publicacao):
             pass
         return jsonify({'ok': True, 'filename': new_name})
     except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+# Histórico de avaliações por publicação (JSON)
+@app.route('/publicacao/<int:id_publicacao>/avaliacoes', methods=['GET'])
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def publicacao_avaliacoes(id_publicacao):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco'}), 500
+    try:
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute(
+            """
+            SELECT a.id_avaliacao,
+                   a.data_avaliacao,
+                   a.comentario,
+                   u.nome AS avaliador_nome
+            FROM avaliacao a
+            JOIN usuario u ON u.id_usuario = a.id_avaliador
+            WHERE a.id_publicacao = %s
+            ORDER BY a.data_avaliacao DESC, a.id_avaliacao DESC
+            """,
+            (id_publicacao,)
+        )
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        def fmt_row(r):
+            dt = r.get('data_avaliacao')
+            try:
+                dt_str = dt.strftime('%d/%m/%Y %H:%M') if dt else ''
+            except Exception:
+                dt_str = str(dt) if dt else ''
+            return {
+                'id_avaliacao': r.get('id_avaliacao'),
+                'avaliador': r.get('avaliador_nome') or '',
+                'data': dt_str,
+                'comentario': r.get('comentario') or ''
+            }
+        return jsonify({'ok': True, 'avaliacoes': [fmt_row(r) for r in rows]})
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 # Rota para a página de avaliação

@@ -10,6 +10,9 @@
   const preview = document.getElementById('pubPreview');
   const link = document.getElementById('pubDownload');
   const titleEl = document.getElementById('pubModalTitle');
+  const evalWrap = document.getElementById('pubEvalHistory');
+  const evalStatus = document.getElementById('pubEvalStatus');
+  const evalList = document.getElementById('pubEvalList');
 
   function openModal(data){
     const {id, titulo, tipo, curso, data: dataPublicacao, url} = data;
@@ -88,6 +91,43 @@
       msg.textContent = 'Nenhum arquivo anexado ou endereço indisponível.';
       msg.style.color = '#334155';
       preview.appendChild(msg);
+    }
+
+    // histórico de avaliações
+    if(evalStatus){ evalStatus.textContent = id ? 'Carregando histórico...' : 'Nenhuma publicação selecionada.'; }
+    if(evalList){ evalList.innerHTML = ''; }
+    if(id){
+      fetch(`/publicacao/${id}/avaliacoes`, { credentials: 'same-origin' })
+        .then(r=>r.json())
+        .then(json=>{
+          const ok = !!json && json.ok;
+          const items = ok ? (json.avaliacoes || []) : [];
+          if(!items.length){
+            if(evalStatus){ evalStatus.textContent = 'Nenhuma avaliação registrada para esta publicação.'; }
+            return;
+          }
+          if(evalStatus){ evalStatus.textContent = `${items.length} avaliação(ões) encontradas:`; }
+          items.forEach(it=>{
+            const wrap = document.createElement('div');
+            wrap.style.border = '1px solid #e5e7eb';
+            wrap.style.borderRadius = '8px';
+            wrap.style.padding = '8px';
+            wrap.style.background = '#F8FAFC';
+            const meta = document.createElement('div');
+            meta.style.color = '#334155';
+            meta.style.fontSize = '13px';
+            meta.style.marginBottom = '4px';
+            meta.innerHTML = `<strong>${(it.avaliador||'')}</strong> • ${(it.data||'')}`;
+            const comment = document.createElement('div');
+            comment.style.color = '#0f172a';
+            comment.style.fontSize = '14px';
+            comment.textContent = it.comentario ? it.comentario : '(sem comentário)';
+            wrap.appendChild(meta);
+            wrap.appendChild(comment);
+            evalList && evalList.appendChild(wrap);
+          });
+        })
+        .catch(()=>{ if(evalStatus){ evalStatus.textContent = 'Falha ao carregar histórico.'; } });
     }
 
     modal.style.display = 'flex';
