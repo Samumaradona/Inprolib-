@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Publicação de conteúdo no INPROLIB com validações e segurança." />
+  <title>INPROLIB - Publicação de Conteúdo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/publicacao.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+<body>
+  <div id="app">
+<header class="topbar">
+  <div class="container">
+    <!-- LADO ESQUERDO: apenas hambúrguer -->
+    <div class="left">
+      <button class="hamburger" id="btnHamburger" aria-controls="sideMenu" aria-expanded="false" aria-label="Abrir menu" title="Abrir menu">
+        <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+      </button>
+            <div class="profile-wrap" style="position:relative">
+        <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
+          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário">
+        </button>
+        <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
+          <button id="changePhoto" class="dropdown-action" role="menuitem">Mudar foto</button>
+        </div>
+        <input id="fileAvatarInput" type="file" accept="image/*" style="display:none" aria-hidden="true">
+      </div>
+      <div>
+        <p id="username">{{ session.get('user_name', '') }}</p>
+      </div>
+    </div>
+    <!-- LADO DIREITO: notificações + avatar -->
+    <div class="right" role="group" aria-label="Ações do usuário">
+      <!-- Notification button -->
+      <div class="notif-wrap" style="position:relative">
+        <button id="btnNotifications" class="notif-btn" aria-haspopup="true" aria-expanded="false" aria-label="Notificações">
+          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+          <span id="notifBadge" class="notif-badge" aria-hidden="true" style="display:none"></span>
+        </button>
+        <div id="notificationsDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <div class="dropdown-item">Você não tem novas notificações</div>
+        </div>
+      </div>
+      <!-- profile avatar -->
+    </div>
+  </div>
+</header>
+<!-- modal de visualização da foto -->
+<div id="avatarModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
+  <div class="modal-content">
+    <button id="closeModal" class="modal-close" aria-label="Fechar visualização"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+    <h3 id="avatarModalTitle" style="margin:0 0 12px 0">Foto do usuário</h3>
+    <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px">
+  </div>
+</div>
+    <!-- Backdrop e menu lateral -->
+    <div id="backdrop" class="backdrop" tabindex="-1" aria-hidden="true"></div>
+
+    <aside id="sideMenu" class="sidemenu" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="sideMenuTitle">
+      <header>
+        <div>
+          <strong id="sideMenuTitle">INPROLIB</strong>
+          <div style="font-size:12px;color:#64748b">Menu</div>
+        </div>
+        <div>
+          <button id="btnClose" aria-label="Fechar menu" title="Fechar"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+        </div>
+      </header>
+      <nav class="routes" id="routesList">
+        <!-- rotas inseridas por JS -->
+      </nav>
+      <footer>
+        <a id="logoutBtn" class="route" href="/logout"><span class="material-symbols-outlined">logout</span>Sair</a>
+      </footer>
+    </aside>
+
+    <main>
+      <nav aria-label="breadcrumb" style="margin:8px 16px;color:#64748b">
+        <a href="/home" style="color:#1d4ed8;text-decoration:none">Home</a> · Publicação de conteúdo
+      </nav>
+
+      <!-- Toolbar: apenas ação de adicionar publicação (sem filtros) -->
+      <div class="toolbar">
+        <div class="filters" id="pubFilterBar">
+          <button type="button" id="btnTogglePubForm" class="button is-sm" title="Adicionar publicação" aria-label="Adicionar publicação">
+            Adicionar publicação
+          </button>
+        </div>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+          <script>
+            window.FLASH_MESSAGES = {{ messages|tojson|safe }};
+          </script>
+        {% endif %}
+      {% endwith %}
+  <!-- Modal de cadastro/edição de publicação -->
+  <div id="pubCreateModal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);z-index:50" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pubCreateModalTitle">
+    <div style="background:#fff;max-width:860px;width:92%;border-radius:10px;box-shadow:0 10px 25px rgba(0,0,0,0.15);overflow:hidden">
+      <header style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb">
+        <div>
+          <h3 id="pubCreateModalTitle" style="margin:0">Informações da publicação</h3>
+        </div>
+        <button id="pubCreateModalClose" aria-label="Fechar" style="border:none;background:#f1f5f9;color:#0f172a;padding:6px 10px;border-radius:6px;cursor:pointer"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+      </header>
+      <div style="padding:12px 16px">
+        <form id="pubFormContainer" class="form-container" method="POST" action="/publicacao" enctype="multipart/form-data">
+          <!-- Coluna 1 -->
+          <div class="container-grid">
+            <div>
+              <label for="nome">Autor</label>
+              <input type="text" id="autor" name="autor" placeholder="Insira o autor do conteúdo">
+
+              <label for="descricao">Título do conteúdo</label>
+              <input type="text" id="titulo_conteudo" name="titulo_conteudo" placeholder="Insira o título da publicação" required maxlength="255">
+
+              <label for="codigo">Tipo da publicação</label>
+              <select id="tipo_publicacao" name="tipo_publicacao" required>
+                <option value="">Selecione o tipo</option>
+                {% if tipos and tipos|length > 0 %}
+                  {% for t in tipos %}
+                    <option value="{{ t.nome_tipo }}">{{ t.nome_tipo }}</option>
+                  {% endfor %}
+                {% else %}
+                  <option value="" disabled>(Nenhum tipo cadastrado)</option>
+                {% endif %}
+              </select>
+            </div>
+
+            <!-- Coluna 2 -->
+            <div>
+              <label for="curso">Curso</label>
+              <select id="curso" name="curso" required>
+                <option value="">Selecione o curso</option>
+                {% if cursos and cursos|length > 0 %}
+                  {% for c in cursos %}
+                    <option value="{{ c.id_curso }}">{{ c.nome_curso }}</option>
+                  {% endfor %}
+                {% else %}
+                  <option value="" disabled>(Nenhum curso cadastrado)</option>
+                {% endif %}
+              </select>
+              
+              <label for="orientador">Orientado/Professor</label>
+              <select id="orientador" name="orientador" required>
+                <option value="">Selecione o orientado/professor</option>
+                {% if professores and professores|length > 0 %}
+                  {% for p in professores %}
+                    <option value="{{ p.id_usuario }}">{{ p.nome }}</option>
+                  {% endfor %}
+                {% else %}
+                  <option value="" disabled>(Nenhum professor cadastrado)</option>
+                {% endif %}
+              </select>
+
+              <label for="captcha">Captcha: {{ captcha_question }}</label>
+              <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required>
+            </div>
+          </div>
+
+          <div class="btn-group" style="margin-top:12px">
+            <input type="file" name="conteudo" id="conteudo" hidden>
+            <label for="conteudo" class="button">
+              Anexar Conteúdo
+            </label>
+
+            <input type="file" name="termo" id="termo" hidden>
+            <label for="termo" class="button">
+              Anexar Termo de Autorização
+            </label>
+
+            <button type="submit">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if publicacoes %}
+    <section style="padding:16px">
+      <h3 style="margin:0 0 8px 0">Últimas publicações</h3>
+      <div style="overflow:auto;border:1px solid #e5e7eb;border-radius:8px">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="background:#f8fafc">
+              <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Título</th>
+              <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Tipo</th>
+              <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Curso</th>
+              <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Status</th>
+              <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;width:140px">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in publicacoes %}
+              <tr class="pub-row" style="cursor:pointer" 
+                  data-id="{{ p.id_publicacao }}"
+                  data-titulo="{{ p.titulo }}" 
+                  data-tipo="{{ p.tipo }}" 
+                  data-curso="{{ p.curso }}" 
+                  data-data="{{ p.data_publicacao.strftime('%d/%m/%Y') if p.data_publicacao else '' }}" 
+                  data-url="{{ url_for('static', filename='uploads/' ~ p.nome_arquivo) if p.nome_arquivo else '' }}" 
+                  data-status="{{ p.status }}"
+                  title="Visualizar publicação">
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.titulo }}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.tipo }}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.curso }}</td>
+                {% set _s = (p.status or '')|lower %}
+                {# Mapear diferentes rótulos para visualização consistente #}
+                {% if 'pend' in _s or 'avali' in _s or 'analis' in _s or 'desativ' in _s %}
+                  {% set status_str = 'Pendente' %}
+                {% elif 'public' in _s %}
+                  {% set status_str = 'Publicada' %}
+                {% elif 'reprov' in _s or 'indef' in _s %}
+                  {% set status_str = 'Indeferida' %}
+                {% else %}
+                  {# Para Aluno, qualquer status que não seja publicado/reprovado aparece como Pendente #}
+                  {% if (session.get('user_tipo') or session.get('role') or '') == 'Aluno' %}
+                    {% set status_str = 'Pendente' %}
+                  {% else %}
+                    {% set status_str = p.status %}
+                  {% endif %}
+                {% endif %}
+                <td class="status-cell" style="padding:8px;border-bottom:1px solid #f1f5f9">{{ status_str }}</td>
+                <td class="actions-cell" style="padding:4px 8px;border-bottom:1px solid #f1f5f9;text-align:center">
+                  <button type="button" class="icon-btn is-blue action-edit" title="Visualizar publicação" aria-label="Visualizar publicação">
+                    <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                  </button>
+                  
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+    
+    </main>
+  </div>
+
+  <!-- Modal de visualização de publicação -->
+  <div id="pubModal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);z-index:50" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pubModalTitle">
+    <div style="background:#fff;max-width:860px;width:92%;border-radius:10px;box-shadow:0 10px 25px rgba(0,0,0,0.15);overflow:hidden">
+      <header style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb">
+        <div>
+          <h3 id="pubModalTitle" style="margin:0">Visualização da publicação</h3>
+          <div id="pubMeta" style="font-size:12px;color:#64748b;margin-top:4px"></div>
+        </div>
+        <button id="pubModalClose" aria-label="Fechar" style="border:none;background:#f1f5f9;color:#0f172a;padding:6px 10px;border-radius:6px;cursor:pointer"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+      </header>
+      <div style="padding:12px 16px">
+        <div id="pubPreview" style="border:1px solid #e5e7eb;border-radius:8px;min-height:240px;display:flex;align-items:center;justify-content:center;background:#f8fafc"></div>
+        <div id="pubActions" style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <a id="pubDownload" href="#" rel="noopener" aria-label="Fazer download" title="Fazer download" style="text-decoration:none;background:#1d4ed8;color:#fff;padding:8px 12px;border-radius:6px">Fazer download</a>
+        </div>
+        <section id="pubEvalHistory" style="margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
+          <h4 style="margin:0 0 8px 0;color:#0f172a;font-size:16px">Histórico de avaliações</h4>
+          <div id="pubEvalStatus" style="color:#64748b;font-size:13px">Selecione uma publicação para ver o histórico.</div>
+          <div id="pubEvalList" style="margin-top:8px;display:flex;flex-direction:column;gap:8px"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
+    window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
+window.USER_ID = "{{ session.get('user_id', '') }}";
+  </script>
+  <script src="{{ url_for('serve_js', script_name='notifications') }}?v=1"></script>
+  <script src="{{ url_for('serve_js', script_name='home') }}?v=aval-fix-1"></script>
+  <script src="{{ url_for('serve_js', script_name='publicacao') }}?v=pub-ui-2"></script>
+  <script>window.initFlashToasts && window.initFlashToasts();</script>
+</body>
+</html>

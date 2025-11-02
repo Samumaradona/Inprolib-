@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>INPROLIB - Suporte</title>
+  <link rel="stylesheet" href="suporte.css">
+  <link rel="stylesheet" href="topbar.css">
+  <link rel="stylesheet" href="notifications.css?v=1">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+<body>
+  <div id="app">
+<header class="topbar">
+  <div class="container">
+    <!-- LADO ESQUERDO: apenas hambúrguer -->
+    <div class="left">
+      <button class="hamburger" id="btnHamburger" aria-controls="sideMenu" aria-expanded="false" aria-label="Abrir menu" title="Abrir menu">
+        <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+      </button>
+            <div class="profile-wrap" style="position:relative">
+        <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
+          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário">
+        </button>
+        <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
+          <button id="changePhoto" class="dropdown-action" role="menuitem">Mudar foto</button>
+        </div>
+        <input id="fileAvatarInput" type="file" accept="image/*" style="display:none" aria-hidden="true">
+      </div>
+      <div>
+        <p id="username">{{ session.get('user_name', '') }}</p>
+      </div>
+    </div>
+    <!-- LADO DIREITO: notificações + avatar -->
+    <div class="right" role="group" aria-label="Ações do usuário">
+      <!-- Notification button -->
+      <div class="notif-wrap" style="position:relative">
+        <button id="btnNotifications" class="notif-btn" aria-haspopup="true" aria-expanded="false" aria-label="Notificações">
+          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+          <span id="notifBadge" class="notif-badge" aria-hidden="true" style="display:none"></span>
+        </button>
+        <div id="notificationsDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <div class="dropdown-item">Você não tem novas notificações</div>
+        </div>
+      </div>
+      <!-- profile avatar -->
+    </div>
+  </div>
+</header>
+<!-- modal de visualização da foto -->
+<div id="avatarModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
+  <div class="modal-content">
+    <button id="closeModal" class="modal-close" aria-label="Fechar visualização">✕</button>
+    <h3 id="avatarModalTitle" style="margin:0 0 12px 0">Foto do usuário</h3>
+    <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px">
+  </div>
+</div>
+    <!-- Backdrop e menu lateral -->
+    <div id="backdrop" class="backdrop" tabindex="-1" aria-hidden="true"></div>
+
+    <aside id="sideMenu" class="sidemenu" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="sideMenuTitle">
+      <header>
+        <div>
+          <strong id="sideMenuTitle">INPROLIB</strong>
+          <div style="font-size:12px;color:#64748b">Menu</div>
+        </div>
+        <div>
+          <button id="btnClose" aria-label="Fechar menu" title="Fechar">✕</button>
+        </div>
+      </header>
+      <nav class="routes" id="routesList">
+        <!-- rotas inseridas por JS -->
+      </nav>
+      <footer>
+        <a id="logoutBtn" class="route" href="/logout"><span class="material-symbols-outlined">logout</span>Sair</a>
+      </footer>
+    </aside>
+
+    <main>
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+          <script>
+            window.FLASH_MESSAGES = {{ messages|tojson|safe }};
+          </script>
+        {% endif %}
+      {% endwith %}
+  <form class="form-container" method="POST" action="/suporte" enctype="multipart/form-data" novalidate>
+      <h3>Suporte</h3>
+      <!-- FAQ dentro do mesmo card do formulário -->
+      <div class="faq-block" aria-labelledby="faqTitle" style="margin-bottom:12px">
+        <h3 id="faqTitle" style="margin-bottom:8px">Perguntas Frequentes (FAQ)</h3>
+        <details>
+          <summary>Não consigo visualizar o arquivo da publicação. O que fazer?</summary>
+          <div>Verifique se o arquivo foi anexado corretamente. Em alguns formatos, o sistema converte para PDF para preview. Se persistir, use o botão de download para baixar e abrir localmente.</div>
+        </details>
+        <details>
+          <summary>Como faço o download de uma publicação?</summary>
+          <div>No modal da publicação, clique em “Fazer download”. Uma barra de progresso aparece e o arquivo é salvo com o nome sugerido.</div>
+        </details>
+        <details>
+          <summary>Posso filtrar ou buscar publicações específicas?</summary>
+          <div>Sim. Utilize a busca por texto (título/tipo/curso) e os filtros de status para encontrar rapidamente o que precisa.</div>
+        </details>
+        <details>
+          <summary>Como altero minha foto ou dados do perfil?</summary>
+          <div>Abra o menu do usuário no topo (avatar) e utilize as opções disponíveis. Dependendo do seu perfil, algumas alterações podem exigir contato com o administrador.</div>
+        </details>
+        <details>
+          <summary>Recebi um erro ou comportamento inesperado. Como reporto?</summary>
+          <div>Use o formulário abaixo para enviar sua mensagem ao suporte. Descreva o passo a passo, inclua o ID da publicação (se houver) e, opcionalmente, anexe uma imagem do erro.</div>
+        </details>
+      </div>
+    <!-- Coluna 1 -->
+    <div class="container-grid">
+    
+      <label for="mensagem">Mensagem</label>
+      <textarea id="mensagem" name="mensagem" placeholder="Insira a mensagem..." maxlength="3200" required></textarea>
+      <div id="msgHint" style="margin-top:6px;font-size:12px;color:#64748b">Máx. 3200 caracteres. <span id="msgCount">0</span>/3200</div>
+                    <!-- Botão centralizado -->
+                    <div class="btn-group">
+                        <input type="file" name="imagem" id="imagem" hidden>
+                        <label for="imagem" class="button is-success">
+                          Anexar Imagem
+                        </label>
+                        <button type="submit" class="button">Salvar</button>
+                    </div>
+                </div>
+            </form>
+        </main>
+      </div>
+      <script>window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";</script>
+  <script>
+    window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
+    window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
+window.USER_ID = "{{ session.get('user_id', '') }}";
+  </script>
+  <script src="notifications.js?v=1"></script>
+  <script src="home.js?v=aval-fix-1"></script>
+  <script>
+    (function(){
+      const ta = document.getElementById('mensagem');
+      const count = document.getElementById('msgCount');
+      if(ta && count){
+        const update = () => { count.textContent = String(ta.value.length); };
+        ta.addEventListener('input', update);
+        update();
+      }
+    })();
+  </script>
+  <script>window.initFlashToasts && window.initFlashToasts();</script>
+    </body>
+</html>

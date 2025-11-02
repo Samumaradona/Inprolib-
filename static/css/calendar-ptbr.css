@@ -1,0 +1,158 @@
+/**
+ * Estilos do Calendário pt-BR Reutilizável
+ */
+
+/* Wrapper para campos de data com ícone */
+.input-with-icon {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.input-with-icon input {
+  padding-right: 40px;
+}
+
+.calendar-trigger {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--bs-gray-600, #6c757d);
+  cursor: pointer;
+  transition: color 0.2s ease;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.calendar-trigger:hover {
+  color: var(--bs-new-casual, #4e62a6);
+  background-color: rgba(78, 98, 166, 0.1);
+}
+
+/* Calendário popup */
+.date-picker {
+  background: white;
+  border: 1px solid var(--bs-gray-300, #dee2e6);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 16px;
+  min-width: 280px;
+  font-family: inherit;
+  display: none;
+}
+
+/* Cabeçalho do calendário */
+.dp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.dp-month-year {
+  font-weight: 600;
+  color: var(--bs-new-casual, #4e62a6);
+  font-size: 16px;
+}
+
+.dp-nav {
+  background: none;
+  border: none;
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--bs-gray-600, #6c757d);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.dp-nav:hover {
+  background-color: var(--bs-gray-100, #f8f9fa);
+  color: var(--bs-new-casual, #4e62a6);
+}
+
+.dp-nav:focus {
+  outline: 2px solid var(--bs-new-casual, #4e62a6);
+  outline-offset: 2px;
+}
+
+/* Dias da semana */
+.dp-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.dp-weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bs-gray-600, #6c757d);
+  padding: 8px 4px;
+}
+
+/* Grade de dias */
+.dp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.dp-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  min-height: 32px;
+}
+
+.dp-cell:not(.dp-empty):hover {
+  background-color: var(--bs-gray-100, #f8f9fa);
+  color: var(--bs-new-casual, #4e62a6);
+}
+
+.dp-cell.selected {
+  background-color: var(--bs-new-casual, #4e62a6);
+  color: white;
+}
+
+.dp-cell.dp-empty {
+  cursor: default;
+}
+
+/* Mensagens de erro */
+.field-message {
+  font-size: 12px;
+  color: var(--bs-danger, #dc3545);
+  margin-top: 4px;
+  display: none;
+}
+
+/* Responsividade */
+@media (max-width: 480px) {
+  .date-picker {
+    min-width: 260px;
+    padding: 12px;
+  }
+  
+  .dp-cell {
+    min-height: 28px;
+    font-size: 13px;
+  }
+  
+  .dp-month-year {
+    font-size: 15px;
+  }
+}

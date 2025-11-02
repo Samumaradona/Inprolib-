@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Avaliação de Publicações</title>
+  <link rel="stylesheet" href="topbar.css?v=1">
+  <link rel="stylesheet" href="publicacao.css?v=1">
+  <link rel="stylesheet" href="notifications.css?v=1">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <style>
+    .button{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:6px;border:1px solid #e5e7eb;background:#e2e8f0;color:#0f172a;cursor:pointer}
+    .button.is-green{background:#22c55e;color:#fff;border-color:#16a34a}
+    .button.is-red{background:#ef4444;color:#fff;border-color:#dc2626}
+    .button.is-sm{padding:6px 10px;font-size:13px}
+    .input{padding:8px;border:1px solid #e5e7eb;border-radius:6px}
+    .modal{position:fixed;inset:0;background:rgba(2,6,23,.6);display:none;align-items:center;justify-content:center;padding:16px}
+    .modal .panel{background:#fff;border-radius:10px;box-shadow:0 8px 24px rgba(2,6,23,.25);max-width:520px;width:100%}
+    .modal .panel header{padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
+    .modal .panel .body{padding:12px 16px}
+    .modal .panel footer{padding:12px 16px;border-top:1px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+    .badge{display:inline-block;padding:3px 8px;border-radius:999px;background:#f1f5f9;color:#0f172a;font-size:12px}
+  </style>
+</head>
+<body>
+  <div id="app">
+<header class="topbar">
+  <div class="container">
+    <!-- LADO ESQUERDO: hambúrguer e perfil -->
+    <div class="left">
+      <button class="hamburger" id="btnHamburger" aria-controls="sideMenu" aria-expanded="false" aria-label="Abrir menu" title="Abrir menu">
+        <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+      </button>
+      <div class="profile-wrap" style="position:relative">
+        <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
+          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário">
+        </button>
+        <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
+          <a href="/configuracao" class="dropdown-action" role="menuitem">Configurações</a>
+          <a href="/logout" class="dropdown-action" role="menuitem">Sair</a>
+        </div>
+      </div>
+    </div>
+    <div class="right">
+      <button class="notif-btn" aria-label="Notificações" title="Notificações">
+        <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+    <!-- Backdrop e menu lateral -->
+    <div id="backdrop" class="backdrop" tabindex="-1" aria-hidden="true"></div>
+
+    <aside id="sideMenu" class="sidemenu" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="sideMenuTitle">
+      <header>
+        <div>
+          <strong id="sideMenuTitle">INPROLIB</strong>
+          <div style="font-size:12px;color:#64748b">Menu</div>
+        </div>
+        <div>
+          <button id="btnClose" aria-label="Fechar menu" title="Fechar">✕</button>
+        </div>
+      </header>
+
+      <nav class="routes" id="routesList">
+        <!-- rotas inseridas por JS -->
+      </nav>
+
+      <footer>
+        <a id="logoutBtn" class="route" href="/logout"><span class="material-symbols-outlined">logout</span>Sair</a>
+      </footer>
+    </aside>
+
+<main>
+  <section class="content" style="padding:16px">
+    <h2 style="margin:0 0 12px 0">Avaliação de Publicações Pendentes</h2>
+    <!-- Toolbar de filtros sempre visível -->
+    <div style="display:flex;gap:8px;align-items:center;margin:0 0 12px 0">
+      <input id="searchAv" class="input" type="search" placeholder="Buscar por título, autor, curso" style="flex:1;max-width:420px">
+      <span id="resultsCounterAv" class="badge" aria-live="polite">Exibindo 0 de 0</span>
+    </div>
+
+    <!-- Tabela sempre renderizada; mostra estado vazio quando não há publicações -->
+    <div style="overflow:auto;border:1px solid #e5e7eb;border-radius:8px">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:#f8fafc">
+            <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Título</th>
+            <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Autor</th>
+            <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Curso</th>
+            <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Tipo</th>
+            <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Status</th>
+            <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;width:220px">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if publicacoes and publicacoes|length > 0 %}
+            {% for p in publicacoes %}
+              <tr class="av-row" data-titulo="{{ p.titulo }}" data-autor="{{ p.autor_nome }}" data-curso="{{ p.nome_curso }}">
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.titulo }}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.autor_nome }}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.nome_curso }}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.tipo }}</td>
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9"><span class="badge">Pendente</span></td>
+                <td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;text-align:center">
+                  <button class="button is-green is-sm" data-action="deferir" data-id="{{ p.id_publicacao }}">Deferir</button>
+                  <button class="button is-red is-sm" data-action="indeferir" data-id="{{ p.id_publicacao }}">Indeferir</button>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="6" style="padding:12px;color:#475569;text-align:center">Nenhuma publicação pendente para avaliar.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+  </div>
+
+  <div id="avalModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="panel" role="document">
+      <header>
+        <strong id="avalTitle">Parecer do Orientador</strong>
+        <button id="avalClose" class="button is-sm">Fechar</button>
+      </header>
+      <div class="body">
+        <div id="avalMeta" style="font-size:13px;color:#64748b;margin:0 0 8px 0"></div>
+        <div id="avalPreview" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;background:#f8fafc;margin:0 0 12px 0">
+          <iframe id="avalPreviewFrame" title="Pré-visualização" style="width:100%;height:420px;border:0"></iframe>
+        </div>
+        <label for="avalComentario">Comentários / Parecer (opcional)</label>
+        <textarea id="avalComentario" class="input" rows="5" style="width:100%" placeholder="Escreva seu parecer..."></textarea>
+      </div>
+      <footer>
+        <button id="avalSubmit" class="button is-green">Confirmar</button>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
+    window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
+    window.USER_ID = "{{ session.get('user_id', '') }}";
+  </script>
+  <script src="notifications.js?v=1"></script>
+  <script src="home.js?v=aval-fix-1"></script>
+  <script src="avaliacao.js?v=1"></script>
+  <script>
+    window.initFlashToasts && window.initFlashToasts();
+    const modal = document.getElementById('avalModal');
+    const btnClose = document.getElementById('avalClose');
+    const btnSubmit = document.getElementById('avalSubmit');
+    const comentario = document.getElementById('avalComentario');
+    let current = { id: null, acao: null };
+
+    const meta = document.getElementById('avalMeta');
+    const frame = document.getElementById('avalPreviewFrame');
+    function openModal(id, acao, prefill){
+      current.id = id; current.acao = acao;
+      const t = document.getElementById('avalTitle');
+      if(t) t.textContent = acao === 'deferir' ? 'Deferir publicação' : 'Indeferir publicação';
+      const titulo = prefill && prefill.titulo ? prefill.titulo : '';
+      const autor = prefill && prefill.autor ? prefill.autor : '';
+      const curso = prefill && prefill.curso ? prefill.curso : '';
+      const tipo = prefill && prefill.tipo ? prefill.tipo : '';
+      if(meta){
+        const parts = [titulo && `Título: ${titulo}`, autor && `Autor: ${autor}`, curso && `Curso: ${curso}`, tipo && `Tipo: ${tipo}`].filter(Boolean);
+        meta.textContent = parts.join(' • ');
+      }
+      if(frame){ frame.src = id ? `/preview_pdf_publicacao/${id}` : 'about:blank'; }
+      modal.style.display = 'flex'; modal.setAttribute('aria-hidden','false'); comentario.value = '';
+    }
+    function closeModal(){ modal.style.display = 'none'; modal.setAttribute('aria-hidden','true'); if(frame){ frame.src = 'about:blank'; } }
+    btnClose && btnClose.addEventListener('click', closeModal);
+    modal && modal.addEventListener('click', (ev)=>{ if(ev.target === modal) closeModal(); });
+
+    document.querySelectorAll('button[data-action]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const row = btn.closest('tr.av-row');
+        const tipoCell = row ? row.querySelector('td:nth-child(4)') : null;
+        const prefill = {
+          titulo: row ? (row.dataset.titulo || '') : '',
+          autor: row ? (row.dataset.autor || '') : '',
+          curso: row ? (row.dataset.curso || '') : '',
+          tipo: tipoCell ? (tipoCell.textContent || '').trim() : ''
+        };
+        openModal(btn.dataset.id, btn.dataset.action, prefill);
+      });
+    });
+
+    async function decidir(){
+      if(!current.id || !current.acao) return;
+      btnSubmit.setAttribute('aria-busy','true'); btnSubmit.disabled = true;
+      try{
+        const resp = await fetch('/avaliacao/decidir', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id_publicacao: current.id, acao: current.acao, comentario: comentario.value || '' })
+        });
+        const data = await resp.json();
+        if(!resp.ok || !data.ok){ throw new Error(data && data.error || 'Falha ao registrar decisão'); }
+        window.showToast && window.showToast('Decisão registrada com sucesso.', 'success');
+        // Reload simples para atualizar lista
+        location.reload();
+      } catch(err){
+        window.showToast && window.showToast(String(err.message || err), 'error');
+      } finally {
+        btnSubmit.removeAttribute('aria-busy'); btnSubmit.disabled = false;
+      }
+    }
+    btnSubmit && btnSubmit.addEventListener('click', decidir);
+  </script>
+</body>
+</html>

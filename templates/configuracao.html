@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>INPROLIB - Configurações</title>
+  <link rel="stylesheet" href="configuracao.css">
+  <link rel="stylesheet" href="topbar.css">
+  <link rel="stylesheet" href="notifications.css?v=1">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+<body>
+  <div id="app">
+<header class="topbar">
+  <div class="container">
+    <!-- LADO ESQUERDO: apenas hambúrguer -->
+    <div class="left">
+      <button class="hamburger" id="btnHamburger" aria-controls="sideMenu" aria-expanded="false" aria-label="Abrir menu" title="Abrir menu">
+        <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+      </button>
+            <div class="profile-wrap" style="position:relative">
+        <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
+          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário">
+        </button>
+        <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
+          <button id="changePhoto" class="dropdown-action" role="menuitem">Mudar foto</button>
+        </div>
+        <input id="fileAvatarInput" type="file" accept="image/*" style="display:none" aria-hidden="true">
+      </div>
+      <div>
+        <p id="username">{{ session.get('user_name', '') }}</p>
+      </div>
+    </div>
+    <!-- LADO DIREITO: notificações + avatar -->
+    <div class="right" role="group" aria-label="Ações do usuário">
+      <!-- Notification button -->
+      <div class="notif-wrap" style="position:relative">
+        <button id="btnNotifications" class="notif-btn" aria-haspopup="true" aria-expanded="false" aria-label="Notificações">
+          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+          <span id="notifBadge" class="notif-badge" aria-hidden="true" style="display:none"></span>
+        </button>
+        <div id="notificationsDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <div class="dropdown-item">Você não tem novas notificações</div>
+        </div>
+      </div>
+      <!-- profile avatar -->
+    </div>
+  </div>
+</header>
+<!-- modal de visualização da foto -->
+<div id="avatarModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
+  <div class="modal-content">
+    <button id="closeModal" class="modal-close" aria-label="Fechar visualização">✕</button>
+    <h3 id="avatarModalTitle" style="margin:0 0 12px 0">Foto do usuário</h3>
+    <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px">
+  </div>
+</div>
+    <!-- Backdrop e menu lateral -->
+    <div id="backdrop" class="backdrop" tabindex="-1" aria-hidden="true"></div>
+
+    <aside id="sideMenu" class="sidemenu" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="sideMenuTitle">
+      <header>
+        <div>
+          <strong id="sideMenuTitle">INPROLIB</strong>
+          <div style="font-size:12px;color:#64748b">Menu</div>
+        </div>
+        <div>
+          <button id="btnClose" aria-label="Fechar menu" title="Fechar">✕</button>
+        </div>
+      </header>
+      <nav class="routes" id="routesList">
+        <!-- rotas inseridas por JS -->
+      </nav>
+      <footer>
+        <a id="logoutBtn" class="route" href="/logout"><span class="material-symbols-outlined">logout</span>Sair</a>
+      </footer>
+    </aside>
+
+    <main>
+      <section class="content" style="padding:16px">
+        <h2 style="margin:0 0 12px 0">Configurações</h2>
+        <div class="container-grid">
+          <div>
+            <h3>Editar Perfil</h3>
+            <form id="formPerfil" action="/configuracao/perfil" method="post" class="form-container" autocomplete="on">
+              <label for="nome">Nome completo</label>
+              <input type="text" id="nome" name="nome" placeholder="Seu nome" value="" required>
+
+              <label for="email">E-mail</label>
+              <input type="email" id="email" name="email" placeholder="Seu e-mail" value="" required>
+
+              <label for="telefone">Telefone</label>
+              <input type="tel" id="telefone" name="telefone" placeholder="(xx) xxxxx-xxxx" value="">
+
+              <label for="cpf">CPF</label>
+              <input type="text" id="cpf" value="" disabled>
+
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <button type="submit" class="button">Salvar Alterações</button>
+                <button type="button" id="btnChangePhotoInline" class="button with-icon"><span class="material-symbols-outlined">photo_camera</span>Mudar foto</button>
+              </div>
+            </form>
+          </div>
+
+          <div>
+            <h3>Alteração de Senha</h3>
+            <form id="formSenha" action="/configuracao/senha" method="post" class="form-container" autocomplete="off">
+              <label for="senha_atual">Senha atual</label>
+              <input type="password" id="senha_atual" name="senha_atual" placeholder="Digite sua senha atual" required>
+
+              <label for="nova_senha">Nova senha</label>
+              <input type="password" id="nova_senha" name="nova_senha" placeholder="Mínimo 8 caracteres com letras, números e símbolo" required>
+
+              <label for="confirmar_senha">Confirmar nova senha</label>
+              <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Repita a nova senha" required>
+
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <button type="submit" class="button">Salvar Nova Senha</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="full-width">
+            <h3>Tema Visual</h3>
+            <form id="formTema" action="/configuracao/tema" method="post" class="form-container">
+              <div style="display:flex;align-items:center;gap:12px">
+                <label class="switch-label" for="toggleTema" style="display:flex;align-items:center;gap:8px">
+                  <input type="checkbox" id="toggleTema" name="toggleTema" {{ 'checked' if (session.get('user_theme')=='escuro') else '' }}>
+                  <span>Ativar modo escuro</span>
+                </label>
+                <span id="temaAtual" style="color:#64748b">Tema atual: {{ (session.get('user_theme') or 'claro') }}</span>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
+    window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
+window.USER_ID = "{{ session.get('user_id', '') }}";
+window.USER_THEME = "{{ (session.get('user_theme') or 'claro') }}";
+  </script>
+  <script src="notifications.js?v=1"></script>
+  <script src="home.js?v=aval-fix-1"></script>
+  <script>
+    window.initFlashToasts && window.initFlashToasts();
+    (function(){
+      const formPerfil = document.getElementById('formPerfil');
+      const formSenha = document.getElementById('formSenha');
+      const toggleTema = document.getElementById('toggleTema');
+      const temaAtual = document.getElementById('temaAtual');
+      const btnChangePhotoInline = document.getElementById('btnChangePhotoInline');
+      const fileAvatarInput = document.getElementById('fileAvatarInput');
+
+      function toastOk(msg){ window.showToast && window.showToast({ type:'success', message: msg }); }
+      function toastErr(msg){ window.showToast && window.showToast({ type:'error', message: msg }); }
+
+      if(formPerfil){
+        formPerfil.addEventListener('submit', async (e)=>{
+          e.preventDefault();
+          const fd = new FormData(formPerfil);
+          try{
+            const res = await fetch(formPerfil.action, { method:'POST', body: fd, headers: { 'X-Requested-With':'XMLHttpRequest' } });
+            const data = await res.json();
+            if(data && data.ok){ toastOk(data.message || 'Perfil atualizado com sucesso.'); }
+            else { toastErr((data && data.error) || 'Falha ao atualizar perfil.'); }
+          }catch(err){ toastErr('Erro de conexão ao salvar perfil.'); }
+        });
+      }
+
+      if(formSenha){
+        formSenha.addEventListener('submit', async (e)=>{
+          e.preventDefault();
+          const fd = new FormData(formSenha);
+          try{
+            const res = await fetch(formSenha.action, { method:'POST', body: fd, headers: { 'X-Requested-With':'XMLHttpRequest' } });
+            const data = await res.json();
+            if(data && data.ok){ toastOk(data.message || 'Senha atualizada com sucesso.'); formSenha.reset(); }
+            else { toastErr((data && data.error) || 'Falha ao atualizar senha.'); }
+          }catch(err){ toastErr('Erro de conexão ao salvar senha.'); }
+        });
+      }
+
+      if(toggleTema){
+        toggleTema.addEventListener('change', async ()=>{
+          const tema = toggleTema.checked ? 'escuro' : 'claro';
+          try{
+            const fd = new FormData(); fd.append('tema', tema);
+            const res = await fetch('/configuracao/tema', { method:'POST', body: fd, headers: { 'X-Requested-With':'XMLHttpRequest' } });
+            const data = await res.json();
+            if(data && data.ok){
+              temaAtual.textContent = 'Tema atual: ' + (data.tema || tema);
+              // atualiza classe/variáveis via home.js se existir suporte
+              if(window.applyTheme){ window.applyTheme(data.tema || tema); }
+              toastOk('Tema atualizado.');
+            } else {
+              toastErr((data && data.error) || 'Não foi possível atualizar o tema.');
+              toggleTema.checked = ((window.USER_THEME || 'claro') === 'escuro');
+            }
+          }catch(err){ toastErr('Erro de conexão ao salvar tema.'); }
+        });
+      }
+
+      if(btnChangePhotoInline && fileAvatarInput){
+        btnChangePhotoInline.addEventListener('click', ()=>{ fileAvatarInput && fileAvatarInput.click(); });
+      }
+    })();
+  </script>
+</body>
+</html>

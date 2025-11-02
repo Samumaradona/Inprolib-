@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: inprolib-web
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    autoDeploy: true
+    envVars:
+      - key: SECRET_KEY
+        sync: false
+      - key: ADMIN_SETUP_TOKEN
+        sync: false
+      - key: ADMIN_TEMP_PASSWORD
+        sync: false
+      - key: RESET_TOKEN_EXP_SECONDS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+    disk:
+      name: uploads
+      mountPath: static/uploads
+      sizeGB: 1
