@@ -1,6 +1,6 @@
 /* Topbar padrão moderno para todas as telas */
 :root {
-  --topbar-height: 64px;
+  --topbar-height: 92px;
   --topbar-padding-x: 24px;
   --topbar-gap: 16px;
   --topbar-border: rgba(0,70,225,0.06);
@@ -20,6 +20,7 @@ header.topbar .container {
   width: 100%;
   margin: 0 auto;
   padding: 0 var(--topbar-padding-x);
+  min-height: var(--topbar-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
