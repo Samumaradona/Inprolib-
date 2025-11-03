@@ -116,6 +116,14 @@
         {% endif %}
       </select>
 
+      <label for="status">Status</label>
+      <select id="status" name="status">
+        <option value="">Todos</option>
+        <option value="Pendente">Pendente</option>
+        <option value="Publicado">Publicado</option>
+        <option value="Denunciado">Denunciado</option>
+      </select>
+
     </div>
 
     <!-- Coluna 2 -->
@@ -252,7 +260,7 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
           if(!raw) return;
           const f = JSON.parse(raw);
           // Não restaurar datas para evitar persistência após login
-          ['autor','orientador','curso','tipo'].forEach(k=>{
+          ['autor','orientador','curso','tipo','status'].forEach(k=>{
             const el = form.querySelector(`[name="${k}"]`);
             if(el && f[k] != null) el.value = f[k];
           });
@@ -267,7 +275,7 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
         try{
           const obj = {};
           // Persistir apenas filtros não relacionados a data
-          ['autor','orientador','curso','tipo'].forEach(k=>{
+          ['autor','orientador','curso','tipo','status'].forEach(k=>{
             const el = form.querySelector(`[name="${k}"]`);
             obj[k] = el ? el.value : '';
           });
@@ -511,7 +519,7 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
       // Serializa filtros do formulário para querystring
       function qs(){
         const params = new URLSearchParams();
-        ['autor','orientador','curso','tipo','data_inicial','data_final'].forEach(name => {
+        ['autor','orientador','curso','tipo','status','data_inicial','data_final'].forEach(name => {
           const el = form.querySelector(`[name="${name}"]`);
           const val = el && typeof el.value === 'string' ? el.value.trim() : '';
           if(val) params.append(name, val);

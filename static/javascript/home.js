@@ -569,9 +569,16 @@ function formatDate(v){
   const modalTitle = document.getElementById('homeCardModalTitle');
   const modalMeta = document.getElementById('homeCardModalMeta');
   const modalPreview = document.getElementById('homeCardModalPreview');
+  // Denúncia de copyright (apenas no modal da Home)
+  const complaintForm = document.getElementById('homeCardComplaintForm');
+  const complaintText = document.getElementById('homeCardComplaintText');
+  const complaintImage = document.getElementById('homeCardComplaintImage');
+  const complaintSubmit = document.getElementById('homeCardComplaintSubmit');
+  let currentDoc = null;
   // Botão de download removido na Home; o usuário baixa pela tela Publicação.
 
   function openCardModal(doc){
+    currentDoc = doc || null;
     if(!modal) return;
     // Abre o modal imediatamente para garantir visibilidade mesmo se a prévia falhar
     modal.setAttribute('aria-hidden','false');
@@ -682,6 +689,83 @@ function formatDate(v){
   if(modalClose) modalClose.addEventListener('click', closeCardModal);
   if(modal) modal.addEventListener('click', (ev)=>{ if(ev.target === modal) closeCardModal(); });
   document.addEventListener('keydown', (ev)=>{ if(ev.key === 'Escape' && modal && modal.classList.contains('open')) closeCardModal(); });
+
+  // Envio da denúncia de copyright para /suporte sem sair da Home
+  if (complaintForm) {
+    complaintForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        if (!currentDoc) {
+          try { window.showToast && window.showToast('Publicação não identificada.', 'error'); } catch(_) {}
+          return;
+        }
+        const desc = (complaintText && complaintText.value || '').trim();
+        if (!desc) {
+          if (complaintText) complaintText.focus();
+          try { window.showToast && window.showToast('Descreva a denúncia antes de enviar.', 'error'); } catch(_) {}
+          return;
+        }
+        const compose = (v) => (v==null||v==='') ? '—' : String(v);
+        const msg = [
+          'Denúncia de COPYRIGHT no INPROLIB:',
+          '',
+          `Título: ${compose(currentDoc.title)}`,
+          `Autor: ${compose(currentDoc.author)}`,
+          `Curso: ${compose(currentDoc.course)}`,
+          `Tipo: ${compose(currentDoc.tipo)}`,
+          `ID da publicação: ${compose(currentDoc.id)}`,
+          '',
+          'Descrição do usuário:',
+          desc
+        ].join('\n');
+
+        const fd = new FormData();
+        fd.append('mensagem', msg);
+        if (currentDoc && currentDoc.id != null) {
+          fd.append('id_publicacao', String(currentDoc.id));
+        }
+        if (complaintImage && complaintImage.files && complaintImage.files.length > 0) {
+          fd.append('imagem', complaintImage.files[0]);
+        }
+
+        const prevText = complaintSubmit ? complaintSubmit.textContent : '';
+        if (complaintSubmit) {
+          complaintSubmit.disabled = true;
+          complaintSubmit.textContent = 'Enviando...';
+        }
+        try { window.showToast && window.showToast('Enviando sua denúncia...', 'info'); } catch(_) {}
+
+        const resp = await fetch('/publicacao/denuncia', { method: 'POST', body: fd, redirect: 'follow' });
+        const ok = resp && resp.ok;
+        if (ok) {
+          if (complaintText) complaintText.value = '';
+          if (complaintImage) complaintImage.value = '';
+          try { window.showToast && window.showToast('Denúncia enviada com sucesso!', 'success'); } catch(_) {}
+        } else {
+          try { window.showToast && window.showToast('Falha ao enviar a denúncia.', 'error'); } catch(_) {}
+        }
+        if (complaintSubmit) {
+          complaintSubmit.disabled = false;
+          complaintSubmit.textContent = prevText || 'Enviar denúncia';
+        }
+      } catch (err) {
+        try { window.showToast && window.showToast('Erro inesperado. Verifique sua conexão.', 'error'); } catch(_) {}
+        if (complaintSubmit) {
+          complaintSubmit.disabled = false;
+          complaintSubmit.textContent = 'Enviar denúncia';
+        }
+      }
+    });
+  }
+
+  if (complaintImage) {
+    complaintImage.addEventListener('change', (e) => {
+      const hasFile = e.target && e.target.files && e.target.files.length > 0;
+      if (hasFile) {
+        try { window.showToast && window.showToast('Imagem anexada à denúncia!', 'success'); } catch(_) {}
+      }
+    });
+  }
 
   // cria um card DOM a partir de um objeto doc
   function createCard(doc) {

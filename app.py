@@ -510,6 +510,13 @@ def status_label(preferred: str) -> str:
                 if 'reprov' in nl or 'indef' in nl:
                     STATUS_LABEL_CACHE[key] = lab
                     return lab
+        # suporte explícito ao rótulo "Denunciado"
+        if key in {'denunciado','denunciada'}:
+            for lab in labels:
+                nl = _norm(lab)
+                if 'denunc' in nl:
+                    STATUS_LABEL_CACHE[key] = lab
+                    return lab
         if key == 'pendente':
             # 1) Tentativa direta por "pend"
             for lab in labels:
@@ -731,6 +738,39 @@ def ensure_status_enum_pending():
         except Exception:
             pass
 
+# Garante que o enum de status possua um rótulo para denúncias (e.g., Denunciado)
+def ensure_status_enum_denunciado():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT e.enumlabel
+            FROM pg_enum e
+            JOIN pg_type t ON e.enumtypid = t.oid
+            WHERE t.typname = %s
+            ORDER BY e.enumsortorder
+            """,
+            ('status_publicacao',)
+        )
+        labels = [r[0] for r in cur.fetchall()]
+        has_denunc = any('denunc' in _norm(lab) for lab in labels)
+        if not has_denunc:
+            try:
+                cur.execute("ALTER TYPE status_publicacao ADD VALUE 'Denunciado'")
+                conn.commit()
+            except Exception:
+                # Ignora se já existir ou não puder adicionar
+                pass
+        cur.close(); conn.close()
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
 # Helper para garantir coluna de vínculo direto usuario.id_curso_usuario
 def ensure_usuario_curso_fk_column():
     conn = get_db_connection()
@@ -806,6 +846,15 @@ def init_schema_once():
         ensure_usuario_curso_fk_column()
         ensure_usuario_preferences_columns()
         ensure_avaliacao_table()
+        # garante rótulos essenciais no enum de status
+        try:
+            ensure_status_enum_pending()
+        except Exception:
+            pass
+        try:
+            ensure_status_enum_denunciado()
+        except Exception:
+            pass
         SCHEMA_INIT_DONE = True
         print("Schema inicial garantido: usuario.ativo, endereço, publicacao.id_orientador, usuario.id_curso_usuario, preferências e tabela avaliacao.")
     except Exception as e:
@@ -3023,6 +3072,7 @@ def avaliacao():
             is_admin = (session.get('user_tipo') == 'Administrador')
             uid = session.get('user_id')
             pend_label = status_label('Pendente')
+            denunc_label = status_label('Denunciado')
             if is_admin:
                 cur.execute(
                     """
@@ -3031,10 +3081,17 @@ def avaliacao():
                     FROM publicacao p
                     JOIN usuario u ON p.id_autor = u.id_usuario
                     LEFT JOIN curso c ON p.id_curso = c.id_curso
-                    WHERE p.status = %s
+                    WHERE (
+                        p.status = %s
+                    ) OR (
+                        p.status = %s
+                        AND NOT EXISTS (
+                            SELECT 1 FROM avaliacao a WHERE a.id_publicacao = p.id_publicacao
+                        )
+                    )
                     ORDER BY p.data_publicacao DESC
                     """,
-                    (pend_label,)
+                    (pend_label, denunc_label)
                 )
             else:
                 cur.execute(
@@ -3044,17 +3101,25 @@ def avaliacao():
                     FROM publicacao p
                     JOIN usuario u ON p.id_autor = u.id_usuario
                     LEFT JOIN curso c ON p.id_curso = c.id_curso
-                    WHERE p.status = %s AND p.id_orientador = %s
+                    WHERE p.id_orientador = %s AND (
+                        p.status = %s
+                        OR (
+                            p.status = %s
+                            AND NOT EXISTS (
+                                SELECT 1 FROM avaliacao a WHERE a.id_publicacao = p.id_publicacao
+                            )
+                        )
+                    )
                     ORDER BY p.data_publicacao DESC
                     """,
-                    (pend_label, uid)
+                    (uid, pend_label, denunc_label)
                 )
             publicacoes = cur.fetchall()
             cur.close()
             conn.close()
         except Exception as e:
             flash(f'Erro ao buscar publicações: {e}', 'error')
-    
+
     return render_template('avaliacao.html', publicacoes=publicacoes)
 
 # Endpoint para decisão de avaliação (Deferir/Indeferir)
@@ -3081,7 +3146,11 @@ def avaliacao_decidir():
         if not row:
             cur.close(); conn.close()
             return jsonify({'ok': False, 'error': 'Publicação não encontrada'}), 404
-        if _norm(str(row.get('status') or '')) != _norm(status_label('Pendente')):
+        # Permitir decisão quando status for 'Pendente' ou 'Denunciado'
+        current_status_norm = _norm(str(row.get('status') or ''))
+        pend_norm = _norm(status_label('Pendente'))
+        denunc_norm = _norm(status_label('Denunciado'))
+        if current_status_norm not in {pend_norm, denunc_norm}:
             cur.close(); conn.close()
             return jsonify({'ok': False, 'error': 'Publicação já avaliada'}), 400
         is_admin = (session.get('user_tipo') == 'Administrador')
@@ -3089,7 +3158,11 @@ def avaliacao_decidir():
         if not is_admin and int(row.get('id_orientador') or 0) != int(uid or 0):
             cur.close(); conn.close()
             return jsonify({'ok': False, 'error': 'Não autorizado para avaliar esta publicação'}), 403
-        novo_status = status_label('Publicado') if acao == 'deferir' else status_label('Reprovado')
+        # Se estiver denunciado e o Docente indeferir, mantém o status como 'Denunciado'
+        if acao == 'deferir':
+            novo_status = status_label('Publicado')
+        else:
+            novo_status = status_label('Denunciado') if current_status_norm == denunc_norm else status_label('Reprovado')
         cur2 = conn.cursor()
         # Atualiza status
         cur2.execute("UPDATE publicacao SET status=%s WHERE id_publicacao=%s", (novo_status, id_pub_int))
@@ -3105,7 +3178,13 @@ def avaliacao_decidir():
         )
         conn.commit()
         cur2.close(); cur.close(); conn.close()
-        ui_status = 'Publicada' if _norm(novo_status) in {'publicado','publicada'} else 'Indeferida'
+        nlab = _norm(novo_status)
+        if 'public' in nlab:
+            ui_status = 'Publicada'
+        elif 'denunc' in nlab:
+            ui_status = 'Denunciado'
+        else:
+            ui_status = 'Indeferida'
         return jsonify({'ok': True, 'status': novo_status, 'status_label': ui_status})
     except Exception as e:
         try:
@@ -3277,6 +3356,7 @@ def exportar_relatorio():
     orientador = (request.args.get('orientador') or '').strip()
     curso = (request.args.get('curso') or '').strip()
     tipo = (request.args.get('tipo') or '').strip()
+    status = (request.args.get('status') or '').strip()
     data_inicial = (request.args.get('data_inicial') or '').strip()
     data_final = (request.args.get('data_final') or '').strip()
 
@@ -3296,6 +3376,12 @@ def exportar_relatorio():
     if tipo:
         where.append("p.tipo = %s")
         params.append(tipo)
+    # Status
+    if status:
+        valid_status = {'Pendente','Publicado','Denunciado'}
+        if status in valid_status:
+            where.append("p.status = %s")
+            params.append(status)
     # Datas (YYYY-MM-DD)
     try:
         from datetime import datetime
@@ -3564,6 +3650,7 @@ def exportar_relatorio():
                     'orientador': orientador,
                     'curso': curso,
                     'tipo': tipo,
+                    'status': status,
                     'data_inicial': data_inicial,
                     'data_final': data_final
                 }
@@ -3588,6 +3675,7 @@ def preview_relatorio():
     orientador = (request.args.get('orientador') or '').strip()
     curso = (request.args.get('curso') or '').strip()
     tipo = (request.args.get('tipo') or '').strip()
+    status = (request.args.get('status') or '').strip()
     data_inicial = (request.args.get('data_inicial') or '').strip()
     data_final = (request.args.get('data_final') or '').strip()
 
@@ -3605,6 +3693,11 @@ def preview_relatorio():
     if tipo:
         where.append("p.tipo = %s")
         params.append(tipo)
+    if status:
+        valid_status = {'Pendente','Publicado','Denunciado'}
+        if status in valid_status:
+            where.append("p.status = %s")
+            params.append(status)
     try:
         from datetime import datetime
         if data_inicial:
@@ -3737,6 +3830,79 @@ def suporte():
             audit_log('suporte_email_error', {'user_id': user_id})
         return redirect(url_for('suporte'))
     return render_template('suporte.html')
+
+# Denúncia de publicação: volta para avaliação do orientador com status 'Denunciado'
+@app.route('/publicacao/denuncia', methods=['POST'])
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def publicacao_denuncia():
+    try:
+        key = f"{request.remote_addr}:denuncia"
+        if not check_rate_limit(key, limit=10, window=60):
+            audit_log('rate_limit', {'route': 'publicacao_denuncia'})
+            return jsonify({'ok': False, 'error': 'Muitas tentativas. Tente novamente em instantes.'}), 429
+
+        id_pub = request.form.get('id_publicacao') or (request.json and request.json.get('id_publicacao'))
+        try:
+            id_pub_int = int(id_pub)
+        except Exception:
+            id_pub_int = None
+        mensagem = (request.form.get('mensagem') or '').strip()[:1500]
+        arquivo = request.files.get('imagem')
+        attach_tuple = None
+        try:
+            if arquivo and arquivo.filename:
+                filename = secure_filename(arquivo.filename)
+                data_bytes = arquivo.read()
+                mimetype = arquivo.mimetype or (mimetypes.guess_type(filename)[0] or 'application/octet-stream')
+                attach_tuple = (filename, data_bytes, mimetype)
+        except Exception:
+            attach_tuple = None
+
+        if not id_pub_int:
+            return jsonify({'ok': False, 'error': 'Publicação inválida.'}), 400
+
+        # Atualiza status para Denunciado para aparecer na tela de avaliação
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco.'}), 500
+        try:
+            denunc = status_label('Denunciado')
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute("SELECT id_publicacao, titulo, id_orientador FROM publicacao WHERE id_publicacao=%s", (id_pub_int,))
+                row = cur.fetchone()
+                if not row:
+                    conn.close()
+                    return jsonify({'ok': False, 'error': 'Publicação não encontrada.'}), 404
+                cur.execute("UPDATE publicacao SET status=%s WHERE id_publicacao=%s", (denunc, id_pub_int))
+                conn.commit()
+            conn.close()
+        except Exception as e:
+            try:
+                conn and conn.close()
+            except Exception:
+                pass
+            return jsonify({'ok': False, 'error': f'Falha ao atualizar status: {e}'}), 500
+
+        # Envia e-mail ao suporte com contexto (mantém padrão existente de suporte)
+        user_name = (session.get('user_name') or '').strip()
+        role = (session.get('role') or session.get('user_tipo') or '').strip()
+        body_text = (
+            'Denúncia de COPYRIGHT no INPROLIB:\n\n'
+            f'Usuário: {user_name or "Desconhecido"}\n'
+            f'Perfil: {role or "-"}\n'
+            f'ID da publicação: {id_pub_int}\n\n'
+            'Descrição do usuário:\n'
+            f'{mensagem or "(sem descrição)"}\n'
+        )
+        try:
+            send_support_email(body_text, attach_tuple, None, subject='INPROLIB - Denúncia de publicação')
+        except Exception:
+            pass
+        audit_log('denuncia_publicacao', {'id_publicacao': id_pub_int})
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 # Rota para a página de configuração
 @app.route('/configuracao')

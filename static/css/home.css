@@ -490,6 +490,27 @@
   .dropdown-menu{top:44px}
 }
 
+/* Botões padrão do sistema para a Home (padronização de cores/tamanho) */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--bs-new-casual);
+  border: 0;
+  cursor: pointer;
+  text-align: center;
+  transition: background .12s ease;
+}
+.button:hover { background: var(--bs-new-dark); }
+.button.is-sm { padding: 6px 12px; font-size: 13px; }
+.button.is-success { background: var(--bs-success); }
+.button.is-success:hover { background: var(--bs-green); }
+
 /* Material Symbols sizing */
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;

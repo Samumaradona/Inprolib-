@@ -105,7 +105,15 @@
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.autor_nome }}</td>
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.nome_curso }}</td>
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.tipo }}</td>
-                <td style="padding:8px;border-bottom:1px solid #f1f5f9"><span class="badge">Pendente</span></td>
+                {% set _s = (p.status or '')|lower %}
+                {% if 'denunc' in _s %}
+                  {% set status_str = 'Denunciado' %}
+                {% elif 'pend' in _s or 'avali' in _s or 'analis' in _s %}
+                  {% set status_str = 'Pendente' %}
+                {% else %}
+                  {% set status_str = p.status %}
+                {% endif %}
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9"><span class="badge">{{ status_str }}</span></td>
                 <td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;text-align:center">
                   <button class="button is-green is-sm" data-action="deferir" data-id="{{ p.id_publicacao }}">Deferir</button>
                   <button class="button is-red is-sm" data-action="indeferir" data-id="{{ p.id_publicacao }}">Indeferir</button>

@@ -151,6 +151,18 @@
         
         <!-- Botão de download removido: o download é feito na tela Publicação -->
         
+        <!-- Denúncia de Copyright (apenas neste contexto da Home) -->
+        <section id="homeCardComplaint" class="card" aria-labelledby="homeCardComplaintTitle" style="margin-top:12px">
+          <h4 id="homeCardComplaintTitle" style="margin:0 0 8px 0">Denúncia de direitos autorais</h4>
+          <form id="homeCardComplaintForm" novalidate>
+            <textarea id="homeCardComplaintText" class="input" placeholder="Escreva sua denúncia..." maxlength="1500" required style="margin-bottom:6px;resize:none"></textarea>
+            <div class="btn-group">
+              <input type="file" id="homeCardComplaintImage" name="imagem" accept="image/*" hidden>
+              <label for="homeCardComplaintImage" class="button is-success is-sm">Anexar imagem</label>
+              <button id="homeCardComplaintSubmit" type="submit" class="button is-sm" aria-label="Enviar denúncia">Enviar denúncia</button>
+            </div>
+          </form>
+        </section>
       </div>
     </div>
 
