@@ -1046,3 +1046,46 @@ if (typeof window !== 'undefined' && !window.applyTheme) {
     window.applyTheme(initial);
   })();
 }
+
+// Seletor de tema no menu lateral (único, discreto, sem alterar templates)
+(function(){
+  const sideMenu = document.getElementById('sideMenu');
+  if(!sideMenu) return;
+  // evita inserir duplicado
+  if (document.getElementById('sideThemeSelect')) return;
+
+  const wrap = document.createElement('div');
+  wrap.style.display = 'flex';
+  wrap.style.alignItems = 'center';
+  wrap.style.gap = '8px';
+  wrap.style.margin = '12px 16px';
+
+  const label = document.createElement('label');
+  label.setAttribute('for','sideThemeSelect');
+  label.textContent = 'Tema';
+  label.style.fontSize = '12px';
+  label.style.color = '#64748b';
+
+  const select = document.createElement('select');
+  select.id = 'sideThemeSelect';
+  select.setAttribute('aria-label','Selecionar tema');
+  select.innerHTML = '<option value="claro">Claro</option><option value="escuro">Escuro</option>';
+  try {
+    const saved = localStorage.getItem('preferred_theme') || 'claro';
+    select.value = (saved === 'escuro' ? 'escuro' : 'claro');
+  } catch(e) { select.value = 'claro'; }
+  select.addEventListener('change', function(){
+    const val = select.value === 'escuro' ? 'escuro' : 'claro';
+    if (window.applyTheme) window.applyTheme(val);
+  });
+
+  wrap.appendChild(label);
+  wrap.appendChild(select);
+
+  const footer = sideMenu.querySelector('footer');
+  if (footer) {
+    sideMenu.insertBefore(wrap, footer);
+  } else {
+    sideMenu.appendChild(wrap);
+  }
+})();

@@ -42,6 +42,7 @@ html.theme-dark .card,
 html.theme-dark .login-card,
 html.theme-dark .filter-card,
 html.theme-dark .form-card,
+html.theme-dark .form-container,
 html.theme-dark .modal-content,
 html.theme-dark .dropdown-menu,
 html.theme-dark .table-wrapper {
@@ -63,7 +64,7 @@ html.theme-dark textarea::placeholder { color: var(--muted-text) !important; }
 
 /* Tabelas */
 html.theme-dark table { color: var(--bs-body-color); }
-html.theme-dark thead { background: var(--table-header-bg); }
+html.theme-dark thead { background: var(--table-header-bg) !important; }
 html.theme-dark tbody tr:hover { background: var(--table-row-hover-bg); }
 
 /* Botões */
@@ -73,3 +74,13 @@ html.theme-dark .btn-secondary { background: #475569 !important; color: #fff !im
 /* Utilidades */
 html.theme-dark .muted,
 html.theme-dark .text-muted { color: var(--muted-text) !important; }
+
+/* Overrides mínimos para telas com estilos inline (Aluno/Docente) */
+html.theme-dark [style*="border:1px solid #e5e7eb"] { border-color: var(--border-color) !important; }
+html.theme-dark thead tr[style*="background:#f8fafc"] { background: var(--table-header-bg) !important; }
+html.theme-dark .results-counter, html.theme-dark .badge { color: var(--bs-body-color) !important; background: var(--muted-bg) !important; }
+
+/* Botões genéricos usados nessas telas */
+html.theme-dark .button { background: #475569 !important; color: #fff !important; border-color: transparent !important; }
+html.theme-dark .icon-btn { background: var(--card-bg) !important; color: var(--bs-body-color) !important; border-color: var(--border-color) !important; }
+html.theme-dark .icon-btn:hover { background: rgba(148,163,184,0.12) !important; }
