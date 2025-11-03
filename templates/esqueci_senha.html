@@ -9,6 +9,13 @@
   <link rel="stylesheet" href="theme-dark.css">
   <script src="theme.js"></script>
   <style>
+    /* Ícone de mostrar/ocultar senha — escopo desta página */
+    .password-wrapper{ position:relative; display:flex; align-items:center; }
+    .password-wrapper .password-input{ padding-right:40px; }
+    .password-toggle{ position:absolute; right:10px; top:50%; transform:translateY(-50%); background:transparent; border:0; cursor:pointer; width:24px; height:24px; display:flex; align-items:center; justify-content:center; color:#4a5568; }
+    .password-toggle:hover{ color:#2d3748; }
+  </style>
+  <style>
     /* Estilos modernos para a página de recuperação */
     .recovery-container {
       min-height: 100vh;
@@ -417,24 +424,34 @@
       
       <div class="input-group">
         <label class="input-label" for="novaSenha">Nova senha</label>
-        <input 
-          type="password" 
-          id="novaSenha" 
-          class="password-input"
-          placeholder="Digite sua nova senha"
-          required
-        />
+        <div class="password-wrapper">
+          <input 
+            type="password" 
+            id="novaSenha" 
+            class="password-input"
+            placeholder="Digite sua nova senha"
+            required
+          />
+          <button type="button" class="password-toggle" data-target="novaSenha" aria-label="Mostrar senha" title="Mostrar senha">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye"></use></svg>
+          </button>
+        </div>
       </div>
       
       <div class="input-group">
         <label class="input-label" for="confirmarSenha">Confirmar senha</label>
-        <input 
-          type="password" 
-          id="confirmarSenha" 
-          class="password-input"
-          placeholder="Confirme sua nova senha"
-          required
-        />
+        <div class="password-wrapper">
+          <input 
+            type="password" 
+            id="confirmarSenha" 
+            class="password-input"
+            placeholder="Confirme sua nova senha"
+            required
+          />
+          <button type="button" class="password-toggle" data-target="confirmarSenha" aria-label="Mostrar senha" title="Mostrar senha">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye"></use></svg>
+          </button>
+        </div>
       </div>
       
       <button class="modal-btn" id="salvarSenhaBtn">
@@ -445,6 +462,7 @@
 
   <script src="notifications.js?v=1"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
+  <script src="password-toggle.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function(){
       const form = document.querySelector('form[action="/esqueci_senha"]');

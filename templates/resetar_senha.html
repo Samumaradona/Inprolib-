@@ -8,6 +8,13 @@
   <link rel="stylesheet" href="theme-dark.css">
   <script src="theme.js"></script>
   <style>
+    /* Ícone de mostrar/ocultar senha — escopo desta página */
+    .password-wrapper{ position:relative; display:flex; align-items:center; }
+    .password-wrapper input[type="password"], .password-wrapper input[type="text"]{ padding-right:40px; }
+    .password-toggle{ position:absolute; right:10px; top:50%; transform:translateY(-50%); background:transparent; border:0; cursor:pointer; width:24px; height:24px; display:flex; align-items:center; justify-content:center; color:#64748b; }
+    .password-toggle:hover{ color:#4c5d9b; }
+  </style>
+  <style>
     :root {
       --bg: #0f172a;
       --card: #111827;
@@ -86,11 +93,21 @@
         <input type="hidden" name="email" value="{{ email }}" />
 
         <label for="nova_senha">Nova senha</label>
-        <input type="password" id="nova_senha" name="nova_senha" placeholder="Digite sua nova senha" required />
+        <div class="password-wrapper">
+          <input type="password" id="nova_senha" name="nova_senha" placeholder="Digite sua nova senha" required />
+          <button type="button" class="password-toggle" data-target="nova_senha" aria-label="Mostrar senha" title="Mostrar senha">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye"></use></svg>
+          </button>
+        </div>
         <div class="space"></div>
 
         <label for="confirmar_senha">Confirmar senha</label>
-        <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme sua nova senha" required />
+        <div class="password-wrapper">
+          <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme sua nova senha" required />
+          <button type="button" class="password-toggle" data-target="confirmar_senha" aria-label="Mostrar senha" title="Mostrar senha">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye"></use></svg>
+          </button>
+        </div>
 
         <div class="actions">
           <button type="submit" class="modern-btn">Salvar nova senha</button>
@@ -102,5 +119,6 @@
 
   <script src="notifications.js?v=1"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
+  <script src="password-toggle.js"></script>
 </body>
 </html>

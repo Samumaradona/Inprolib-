@@ -263,6 +263,8 @@ header.topbar{
   width: 24px;
   height: 24px;
   border-radius: 4px;
+  background: transparent;
+  border: 0;
 }
 
 .password-toggle:hover {
