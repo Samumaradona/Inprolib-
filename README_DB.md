@@ -377,3 +377,100 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 - **API GraphQL**: Interface moderna para consultas complexas
 - **Elasticsearch**: Busca full-text avançada
 - **Data Warehouse**: Analytics e Business Intelligence
+
+## 🧭 Diagrama ER (Entidade-Relacionamento)
+
+Para uma visão rápida dos relacionamentos entre entidades, segue o diagrama ER em Mermaid (suportado por diversos renderizadores de Markdown). Um diagrama ASCII é fornecido como fallback logo abaixo.
+
+```mermaid
+erDiagram
+    USUARIO {
+        id_usuario SERIAL
+        nome VARCHAR
+        cpf VARCHAR
+        email VARCHAR
+        senha VARCHAR
+        tipo tipo_usuario
+        curso_usuario VARCHAR
+        foto_perfil VARCHAR
+        ativo BOOLEAN
+        cep VARCHAR
+        logradouro VARCHAR
+        complemento VARCHAR
+        bairro VARCHAR
+        cidade VARCHAR
+        estado VARCHAR
+    }
+
+    CURSO {
+        id_curso SERIAL
+        nome_curso VARCHAR
+        descricao TEXT
+        codigo_curso VARCHAR
+        autorizacao VARCHAR
+        id_coordenador INTEGER
+        ativo BOOLEAN
+    }
+
+    TIPOS_DE_PUBLICACAO {
+        id_tipo SERIAL
+        nome_tipo VARCHAR
+    }
+
+    PUBLICACAO {
+        id_publicacao SERIAL
+        titulo VARCHAR
+        data_publicacao DATE
+        id_autor INTEGER
+        id_orientador INTEGER
+        id_curso INTEGER
+        tipo VARCHAR
+        status status_publicacao
+        arquivo VARCHAR
+        nome_arquivo VARCHAR
+        assuntos_relacionados TEXT
+        data_autoria DATE
+    }
+
+    AVALIACAO {
+        id_avaliacao SERIAL
+        id_publicacao INTEGER
+        id_avaliador INTEGER
+        nota DECIMAL
+        comentario TEXT
+        data_avaliacao TIMESTAMP
+    }
+
+    USUARIO ||--o{ PUBLICACAO : "id_autor"
+    USUARIO ||--o{ PUBLICACAO : "id_orientador"
+    USUARIO ||--o{ AVALIACAO : "id_avaliador"
+    USUARIO }o--o{ CURSO : "usuario_curso"
+    USUARIO ||--o{ CURSO : "id_coordenador"
+    CURSO   ||--o{ PUBLICACAO : "id_curso"
+    TIPOS_DE_PUBLICACAO ||--o{ PUBLICACAO : "tipo"
+    PUBLICACAO ||--o{ AVALIACAO : "id_publicacao"
+```
+
+### Fallback ASCII
+
+```
+USUARIO (id_usuario)
+  ||--o{ PUBLICACAO (id_autor)
+  ||--o{ PUBLICACAO (id_orientador)   [opcional]
+  ||--o{ AVALIACAO  (id_avaliador)
+  }o--o{ CURSO      [via USUARIO_CURSO]
+  ||--o{ CURSO      (id_coordenador)
+
+CURSO (id_curso)
+  ||--o{ PUBLICACAO (id_curso)
+
+TIPOS_DE_PUBLICACAO (nome_tipo)
+  ||--o{ PUBLICACAO (tipo)
+
+PUBLICACAO (id_publicacao)
+  ||--o{ AVALIACAO (id_publicacao)
+```
+
+Observações:
+- `publicacao.id_orientador` é um relacionamento opcional com `usuario.id_usuario`. O backend garante sua criação caso ausente no schema inicial.
+- `usuario_curso` representa a relação N:N entre `usuario` e `curso`.

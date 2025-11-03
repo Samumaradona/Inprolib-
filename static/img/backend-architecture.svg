@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <style><![CDATA[
+      .box { fill:#ffffff; stroke:#1f2937; stroke-width:2; rx:8; }
+      .group { fill:#f8fafc; stroke:#94a3b8; stroke-width:2; rx:12; }
+      .title { font-family:Segoe UI, Arial; font-size:18px; font-weight:bold; fill:#0f172a; }
+      .text { font-family:Segoe UI, Arial; font-size:14px; fill:#334155; }
+      .small { font-size:13px; fill:#475569; }
+      .line { stroke:#334155; stroke-width:2; }
+    ]]></style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#334155" />
+    </marker>
+  </defs>
+
+  <!-- Header -->
+  <text x="30" y="30" class="title">INPROLIB — Arquitetura Backend</text>
+  <text x="30" y="52" class="small">Visão de alto nível: rotas, serviços e integrações com armazenamento</text>
+
+  <!-- Client Browser -->
+  <rect x="40" y="100" width="180" height="70" class="box" />
+  <text x="60" y="130" class="title">Browser</text>
+  <text x="60" y="150" class="small">Cliente Web</text>
+
+  <!-- Flask App -->
+  <rect x="260" y="100" width="220" height="70" class="box" />
+  <text x="280" y="130" class="title">Flask App</text>
+  <text x="280" y="150" class="small">WSGI + Jinja2</text>
+
+  <!-- Routes Group -->
+  <rect x="260" y="200" width="320" height="260" class="group" />
+  <text x="280" y="225" class="title">Rotas</text>
+  <text x="280" y="250" class="text">/login, /setup_admin, /home</text>
+  <text x="280" y="275" class="text">/cadastro_alunos, /cadastro_curso</text>
+  <text x="280" y="300" class="text">/publicacao, /avaliacao</text>
+  <text x="280" y="325" class="text">/relatorio</text>
+  <text x="280" y="350" class="text">/api/publicacoes</text>
+  <text x="280" y="375" class="text">/esqueci_senha, /resetar_senha</text>
+
+  <!-- Services Group -->
+  <rect x="620" y="200" width="320" height="260" class="group" />
+  <text x="640" y="225" class="title">Serviços</text>
+  <text x="640" y="250" class="text">Autenticação & Sessão</text>
+  <text x="640" y="275" class="text">Usuários & Cursos</text>
+  <text x="640" y="300" class="text">Publicações & Preview</text>
+  <text x="640" y="325" class="text">Avaliações</text>
+  <text x="640" y="350" class="text">Relatórios & Exportação</text>
+  <text x="640" y="375" class="text">E-mail (SMTP)</text>
+  <text x="640" y="400" class="text">Templates (Jinja2)</text>
+
+  <!-- Storage Group -->
+  <rect x="620" y="500" width="320" height="220" class="group" />
+  <text x="640" y="525" class="title">Armazenamento</text>
+  <rect x="640" y="545" width="280" height="60" class="box" />
+  <text x="655" y="570" class="title">PostgreSQL</text>
+  <text x="655" y="590" class="small">usuario, curso, publicacao, avaliacao, tipos_de_publicacao</text>
+  <rect x="640" y="615" width="135" height="75" class="box" />
+  <text x="650" y="640" class="title">uploads/</text>
+  <text x="650" y="660" class="small">Arquivos enviados</text>
+  <rect x="785" y="615" width="135" height="75" class="box" />
+  <text x="795" y="640" class="title">previews/</text>
+  <text x="795" y="660" class="small">PDFs cacheados</text>
+
+  <!-- Connections -->
+  <line x1="220" y1="135" x2="260" y2="135" class="line" marker-end="url(#arrow)" />
+  <line x1="370" y1="170" x2="370" y2="200" class="line" marker-end="url(#arrow)" />
+  <line x1="580" y1="330" x2="620" y2="330" class="line" marker-end="url(#arrow)" />
+  <line x1="780" y1="460" x2="780" y2="500" class="line" marker-end="url(#arrow)" />
+
+  <!-- Templates -> Browser -->
+  <line x1="620" y1="400" x2="500" y2="160" class="line" marker-end="url(#arrow)" />
+
+  <!-- Legend -->
+  <rect x="940" y="100" width="220" height="190" class="group" />
+  <text x="960" y="125" class="title">Legenda</text>
+  <text x="960" y="150" class="text">Rotas: HTTP endpoints</text>
+  <text x="960" y="170" class="text">Serviços: lógica de negócios</text>
+  <text x="960" y="190" class="text">Armazenamento: DB & arquivos</text>
+  <text x="960" y="210" class="text">Templates: renderização HTML</text>
+
+  <!-- Footer -->
+  <text x="30" y="770" class="small">Diagrama gerado para documentação técnica — INPROLIB</text>
+</svg>

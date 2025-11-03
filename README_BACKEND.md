@@ -297,3 +297,121 @@ print(f"[SMTP] Configuração: {host}:{port}")
 - Implementar backup automático
 - Monitorar logs de auditoria
 - Rotacionar chaves secretas regularmente
+
+## 🧭 Diagrama de Arquitetura do Backend
+
+O diagrama abaixo apresenta uma visão de alto nível das rotas, serviços e integração com o banco de dados do INPROLIB.
+
+```mermaid
+flowchart LR
+    subgraph Client
+        Browser[Browser]
+    end
+
+    Browser -->|HTTP| Flask[Flask App]
+
+    subgraph Routes
+        r_root[GET /]
+        r_setup[GET/POST /setup_admin]
+        r_home[GET /home]
+        r_cad_alunos[GET/POST /cadastro_alunos]
+        r_cad_curso[GET/POST /cadastro_curso]
+        r_publicacao[GET/POST /publicacao]
+        r_avaliacao[GET/POST /avaliacao]
+        r_relatorio[GET/POST /relatorio]
+        r_api_pub[GET /api/publicacoes]
+        r_login[GET/POST /login]
+        r_reset[GET/POST /esqueci_senha | /resetar_senha]
+    end
+
+    subgraph Services
+        AuthService[Autenticação & Sessão]
+        UserService[Gestão de Usuários]
+        CourseService[Gestão de Cursos]
+        PublicationService[Gestão de Publicações]
+        EvaluationService[Avaliações]
+        ReportService[Relatórios & Exportação]
+        FileService[Upload/Download & Preview]
+        EmailService[SMTP / Tokens de recuperação]
+        Templates[Jinja2 Templates]
+        DBLayer[get_db_connection() & SQL]
+    end
+
+    subgraph Storage
+        Postgres[(PostgreSQL)]
+        Uploads[(static/uploads)]
+        Previews[(static/previews)]
+    end
+
+    %% Rotas -> Serviços
+    Flask --> r_root
+    Flask --> r_setup
+    Flask --> r_home
+    Flask --> r_cad_alunos
+    Flask --> r_cad_curso
+    Flask --> r_publicacao
+    Flask --> r_avaliacao
+    Flask --> r_relatorio
+    Flask --> r_api_pub
+    Flask --> r_login
+    Flask --> r_reset
+
+    r_root --> Templates
+    r_home --> Templates
+    r_setup --> AuthService
+    r_login --> AuthService
+    r_reset --> EmailService
+    r_cad_alunos --> UserService
+    r_cad_curso --> CourseService
+    r_publicacao --> PublicationService
+    r_avaliacao --> EvaluationService
+    r_relatorio --> ReportService
+    r_api_pub --> ReportService
+
+    %% Serviços -> DB/Storage
+    AuthService --> DBLayer
+    UserService --> DBLayer
+    CourseService --> DBLayer
+    PublicationService --> DBLayer
+    EvaluationService --> DBLayer
+    ReportService --> DBLayer
+    DBLayer -->|psycopg| Postgres
+    FileService --> Uploads
+    FileService --> Previews
+    Templates --> Browser
+```
+
+### Fallback ASCII
+
+```
+Browser -> Flask -> Rotas
+  /, /home                 -> Templates -> Browser
+  /setup_admin, /login     -> AuthService -> DB (PostgreSQL)
+  /esqueci_senha,/resetar  -> EmailService (SMTP) -> DB
+  /cadastro_alunos         -> UserService -> DB
+  /cadastro_curso          -> CourseService -> DB
+  /publicacao              -> PublicationService -> DB + Uploads/Previews
+  /avaliacao               -> EvaluationService -> DB
+  /relatorio, /api/publicacoes -> ReportService -> DB
+
+Storage:
+  - static/uploads: arquivos enviados
+  - static/previews: PDFs cacheados para preview
+```
+
+Notas:
+- `get_db_connection()` gerencia conexão PostgreSQL, schema (`DB_SCHEMA`) e auto-criação do banco quando necessário.
+- Previews de documentos utilizam conversão Office→PDF (opcional via LibreOffice) e fallback com ReportLab.
+- Todas as queries são parametrizadas via psycopg e utilizam índices estratégicos para performance.
+
+### Versão SVG
+
+Para uso em apresentações e leitura rápida, o diagrama está disponível em SVG:
+
+![Arquitetura Backend — INPROLIB](static/img/backend-architecture.svg)
+
+### Versão PNG (fallback)
+
+Se houver qualquer problema de visualização com o SVG no seu ambiente, utilize a versão em PNG (compatibilidade ampla):
+
+![Arquitetura Backend — INPROLIB (PNG)](static/img/backend-architecture.png)
