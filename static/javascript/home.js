@@ -1048,7 +1048,11 @@ if (typeof window !== 'undefined' && !window.applyTheme) {
 }
 
 // Seletor de tema no menu lateral (único, discreto, sem alterar templates)
+
 (function(){
+  // não exibir seletor na tela de Administrador
+  if (typeof USER_ROLE !== 'undefined' && USER_ROLE === 'Administrador') return;
+
   const sideMenu = document.getElementById('sideMenu');
   if(!sideMenu) return;
   // evita inserir duplicado
