@@ -347,13 +347,14 @@ aside.sidemenu.open{ transform:translateX(0) }
   -webkit-overflow-scrolling: touch;
 }
 .modal-close{
-  position:absolute;
-  right:10px;
-  top:10px;
+  position: absolute;
+  right: 12px;
+  top: 12px;
   border:0;
   background:transparent;
   font-size:18px;
   cursor:pointer;
+  z-index: 6;
 }
 
 /* Modal refinements for Report modal */

@@ -419,25 +419,17 @@ renderRoutes();
   /* Clique em qualquer lugar da página fecha dropdowns/modais (se clicar fora) */
   document.addEventListener('click', (ev) => {
     const target = ev.target;
-    // se clicou fora dos menus e modal-content, fecha tudo
-    if (!target.closest || (!target.closest('#profileDropdown') && !target.closest('#btnProfile') && !target.closest('#notificationsDropdown') && !target.closest('#btnNotifications') && !target.closest('.modal-content'))) {
+    // se clicou fora dos menus, fecha menus (modais permanecem abertos)
+    if (!target.closest || (!target.closest('#profileDropdown') && !target.closest('#btnProfile') && !target.closest('#notificationsDropdown') && !target.closest('#btnNotifications'))) {
       closeAllMenus();
     }
-    // fechar modal se clicou fora do conteúdo
-    if (avatarModal && avatarModal.getAttribute('aria-hidden') === 'false' && !target.closest('.modal-content')) {
-      avatarModal.setAttribute('aria-hidden','true');
-      avatarModal.classList.remove('open');
-    }
+    // Não fechar modais por clique fora: apenas via botão X
   });
 
-  /* Teclado global: Esc fecha menus e modal */
+  /* Teclado global: Esc fecha apenas menus; modais só pelo botão X */
   document.addEventListener('keydown', (e) => {
     if(e.key === 'Escape'){
       closeAllMenus();
-      if(avatarModal && avatarModal.getAttribute('aria-hidden') === 'false'){
-        avatarModal.setAttribute('aria-hidden','true');
-        avatarModal.classList.remove('open');
-      }
     }
   });
 

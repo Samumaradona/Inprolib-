@@ -13,6 +13,31 @@
   const evalWrap = document.getElementById('pubEvalHistory');
   const evalStatus = document.getElementById('pubEvalStatus');
   const evalList = document.getElementById('pubEvalList');
+  const evalPanel = document.getElementById('pubEvalPanel');
+  const toggleEvalBtn = document.getElementById('btnToggleEvalHistory');
+
+  // Toggle do histórico de avaliações (menu cascata)
+  (function initEvalHistoryToggle(){
+    if(!toggleEvalBtn || !evalPanel) return;
+    let expanded = false;
+    function render(){
+      toggleEvalBtn.setAttribute('aria-expanded', String(expanded));
+      const icon = toggleEvalBtn.querySelector('.material-symbols-outlined');
+      if(icon) icon.textContent = expanded ? 'expand_less' : 'expand_more';
+      // Atualiza rótulo mantendo ícone
+      const label = expanded ? 'Ocultar' : 'Mostrar';
+      toggleEvalBtn.lastChild && toggleEvalBtn.removeChild(toggleEvalBtn.lastChild);
+      toggleEvalBtn.appendChild(document.createTextNode(label));
+      evalPanel.style.display = expanded ? '' : 'none';
+      toggleEvalBtn.title = expanded ? 'Ocultar histórico' : 'Mostrar histórico';
+      // Se expandiu, garante que o bloco fique visível abaixo do cabeçalho sticky
+      if(expanded){
+        try{ (evalWrap || evalPanel).scrollIntoView({ block: 'start', behavior: 'smooth' }); }catch(e){}
+      }
+    }
+    render();
+    toggleEvalBtn.addEventListener('click', (e)=>{ e.preventDefault(); expanded = !expanded; render(); });
+  })();
 
   function openModal(data){
     const {id, titulo, tipo, curso, data: dataPublicacao, url, status} = data;
@@ -159,16 +184,8 @@
   }
 
   if(btnClose){ btnClose.addEventListener('click', closeModal); }
-  if(modal){
-    modal.addEventListener('click', (ev)=>{
-      if(ev.target === modal){ closeModal(); }
-    });
-  }
-  document.addEventListener('keydown', (ev)=>{
-    if(ev.key === 'Escape' && modal && modal.style.display !== 'none'){
-      closeModal();
-    }
-  });
+  // Fechamento apenas pelo botão X: sem clique no backdrop e sem tecla Esc
+  // Removidos listeners que fechavam ao clicar fora ou via Escape
 
   // Barra de progresso no download
   if(link){
@@ -344,16 +361,7 @@
   if(createModalClose){
     createModalClose.addEventListener('click', closeCreateModal);
   }
-  if(createModal){
-    createModal.addEventListener('click', (ev)=>{
-      if(ev.target === createModal){ closeCreateModal(); }
-    });
-  }
-  document.addEventListener('keydown', (ev)=>{
-    if(ev.key === 'Escape' && createModal && createModal.style.display !== 'none'){
-      closeCreateModal();
-    }
-  });
+  // Modal de criação também só fecha pelo botão X
 
   function bindRowActions(){
     document.querySelectorAll('.pub-row').forEach(row=>{

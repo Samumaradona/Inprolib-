@@ -17,9 +17,10 @@
     .button.is-sm{padding:6px 10px;font-size:13px}
     .input{padding:8px;border:1px solid #e5e7eb;border-radius:6px}
     .modal{position:fixed;inset:0;background:rgba(2,6,23,.6);display:none;align-items:center;justify-content:center;padding:16px}
-    .modal .panel{background:#fff;border-radius:10px;box-shadow:0 8px 24px rgba(2,6,23,.25);max-width:520px;width:100%}
-    .modal .panel header{padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
-    .modal .panel .body{padding:12px 16px}
+    .modal .panel{background:#fff;border-radius:10px;box-shadow:0 8px 24px rgba(2,6,23,.25);max-width:520px;width:100%;display:flex;flex-direction:column;max-height:92dvh;overflow:hidden}
+    .modal .panel header{padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:5}
+    .modal .panel .body{padding:12px 16px;flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+    @media (max-width:640px){.modal{align-items:flex-start;padding:12px}.modal .panel{max-width:100%;width:100%;border-radius:12px}}
     .modal .panel footer{padding:12px 16px;border-top:1px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
     .badge{display:inline-block;padding:3px 8px;border-radius:999px;background:#f1f5f9;color:#0f172a;font-size:12px}
   </style>
@@ -188,7 +189,7 @@
     }
     function closeModal(){ modal.style.display = 'none'; modal.setAttribute('aria-hidden','true'); if(frame){ frame.src = 'about:blank'; } }
     btnClose && btnClose.addEventListener('click', closeModal);
-    modal && modal.addEventListener('click', (ev)=>{ if(ev.target === modal) closeModal(); });
+    // Não fechar ao clicar fora: apenas pelo botão "Fechar"/X
 
     document.querySelectorAll('button[data-action]').forEach(btn=>{
       btn.addEventListener('click', ()=>{

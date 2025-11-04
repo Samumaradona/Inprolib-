@@ -328,13 +328,14 @@ main{
   -webkit-overflow-scrolling: touch; /* rolagem suave no iOS */
 }
 .modal-close{
-  position:absolute;
-  right:10px;
-  top:10px;
+  position: sticky;
+  top: 0;
+  float: right;
   border:0;
   background:transparent;
   font-size:18px;
   cursor:pointer;
+  z-index: 5;
 }
 /* ===== Ajustes de responsividade globais ===== */
 body { overflow-x: hidden; }

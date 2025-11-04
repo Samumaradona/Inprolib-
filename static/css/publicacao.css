@@ -335,21 +335,41 @@ aside.sidemenu.open{ transform:translateX(0) }
 .modal[aria-hidden="false"], .modal.open{ display:flex; }
 .modal-content{
   background:var(--bs-body-bg);
-  padding:18px;
+  /* remove padding-top para não sobrar espaço acima do cabeçalho sticky */
+  padding: 0 18px 18px;
   border-radius:10px;
   max-width:720px;
   width:100%;
   box-shadow:0 14px 40px rgba(2,6,23,0.14);
   position:relative;
+  /* Mobile-friendly scrolling inside modal content */
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .modal-close{
-  position:absolute;
-  right:10px;
-  top:10px;
+  position: absolute;
+  right: 12px;
+  top: 12px;
   border:0;
   background:transparent;
   font-size:18px;
   cursor:pointer;
+  z-index: 6;
+}
+
+@media (max-width: 640px) {
+  .modal{ align-items: flex-start; padding: 12px; }
+  .modal-content{
+    max-width: 100%;
+    width: 100%;
+    max-height: 92dvh;
+    margin: 0;
+    border-radius: 12px;
+    /* consistente com desktop: sem padding-top para colar o cabeçalho no topo */
+    padding: 0 12px 12px;
+  }
 }
 
 /* Main + formulário */

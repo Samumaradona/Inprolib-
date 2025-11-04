@@ -29,16 +29,7 @@
   }
 
   if(btnClose){ btnClose.addEventListener('click', closeModal); }
-  if(modal){
-    modal.addEventListener('click', (ev)=>{
-      if(ev.target === modal){ closeModal(); }
-    });
-  }
-  document.addEventListener('keydown', (ev)=>{
-    if(ev.key === 'Escape' && modal && modal.style.display !== 'none'){
-      closeModal();
-    }
-  });
+  // Fecha apenas pelo botão X. Sem fechamento por clique fora ou tecla Esc.
 })();
 
 // IIFE 2: extensões de UI (toolbar, filtros, ações)
