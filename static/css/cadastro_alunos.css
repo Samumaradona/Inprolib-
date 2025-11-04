@@ -231,8 +231,7 @@ main{
 }
 
 /* Ações e variações de botões para lista */
-- .action-buttons { display: flex; gap: 8px; align-items: center; }
-+ .action-buttons { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.action-buttons { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
 .button.is-sm { padding: 6px 12px; font-size: 13px; }
 .button.with-icon .material-symbols-outlined { font-size: 18px; margin-right: 6px; }
 .button.is-danger { background: #dc2626; }
@@ -240,25 +239,7 @@ main{
 .button.is-success { background: #22c55e; }
 .button.is-success:hover { background: #16a34a; }
 /* Botão de ícone-only compacto (para ações na tabela) */
--.icon-btn {
--  display: inline-flex;
--  align-items: center;
--  justify-content: center;
--  width: 36px;
--  height: 36px;
--  padding: 0;
--  border-radius: 8px;
--  border: 0;
--  cursor: pointer;
--  color: #fff;
--  background: var(--bs-new-casual);
--}
--.icon-btn:hover{ filter: brightness(0.95); }
--.icon-btn .material-symbols-outlined{ margin: 0; font-size: 20px; }
--.icon-btn.is-danger{ background:#dc2626; }
--.icon-btn.is-danger:hover{ background:#b91c1c; }
--.icon-btn.is-success{ background:#22c55e; }
--.icon-btn.is-success:hover{ background:#16a34a; }
+/* removidos estilos antigos comentados/inválidos */
 /* Botão de ícone-only compacto (moderno e neutro) */
 .icon-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:6px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color:#334155; cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
 .icon-btn:hover { background:#f8fafc; border-color:#cbd5e1; }

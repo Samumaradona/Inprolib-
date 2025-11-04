@@ -1790,6 +1790,7 @@ def cadastro_alunos():
             cur2 = conn2.cursor(row_factory=dict_row)
             cur2.execute("""
                 SELECT id_usuario, nome, email, cpf, tipo, curso_usuario, foto_perfil,
+                       cep, logradouro, complemento, bairro, cidade, estado,
                        COALESCE(ativo, TRUE) AS ativo
                 FROM usuario
                 ORDER BY id_usuario DESC
@@ -1916,7 +1917,7 @@ def cadastro_curso():
             ensure_curso_ativo_column()
             cur.execute(
                 """
-                SELECT c.id_curso, c.nome_curso, c.codigo_curso, c.autorizacao, c.ativo, c.id_coordenador, u.nome as coordenador
+                SELECT c.id_curso, c.nome_curso, c.descricao_curso, c.codigo_curso, c.autorizacao, c.ativo, c.id_coordenador, u.nome as coordenador
                 FROM curso c
                 LEFT JOIN usuario u ON c.id_coordenador = u.id_usuario
                 ORDER BY c.id_curso DESC

@@ -131,7 +131,7 @@
               </thead>
               <tbody>
                 {% for c in cursos %}
-                <tr data-nome="{{ c.nome_curso }}" data-codigo="{{ c.codigo_curso or '' }}" data-autorizacao="{{ c.autorizacao or '' }}" data-coordenador="{{ c.coordenador or '' }}" data-ativo="{{ '1' if c.ativo else '0' }}">
+                <tr data-nome="{{ c.nome_curso }}" data-codigo="{{ c.codigo_curso or '' }}" data-autorizacao="{{ c.autorizacao or '' }}" data-coordenador="{{ c.coordenador or '' }}" data-descricao="{{ (c.descricao_curso or '') | e }}" data-ativo="{{ '1' if c.ativo else '0' }}">
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.nome_curso }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.codigo_curso or '-' }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.autorizacao or '-' }}</td>
@@ -142,7 +142,7 @@
                               data-action="edit"
                               data-id="{{ c.id_curso }}"
                               data-nome="{{ c.nome_curso }}"
-                              data-descricao="{{ c.descricao_curso or '' }}"
+                              data-descricao="{{ (c.descricao_curso or '') | e }}"
                               data-codigo="{{ c.codigo_curso or '' }}"
                               data-autorizacao="{{ c.autorizacao or '' }}"
                               data-coordenador-id="{{ c.id_coordenador or '' }}">
@@ -206,7 +206,6 @@
                 <!-- Botão centralizado -->
                 <div class="full-width">
                   <button class="button" type="submit">Salvar Curso</button>
-                  <button type="button" id="btnCloseForm" class="button" style="background:#6b7280">Fechar</button>
                 </div>
               </div>
             </form>
@@ -231,27 +230,27 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
         const modal = document.getElementById('cursoModal');
         const modalTitle = document.getElementById('cursoModalTitle');
         const btnCloseModal = document.getElementById('closeCursoModal');
-        const btnCloseForm = document.getElementById('btnCloseForm');
+        // Removido botão "Fechar" do rodapé; fechamento apenas pelo ícone X
 
         function openCursoModal(title){
           if(title) modalTitle.textContent = title;
           modal.setAttribute('aria-hidden', 'false');
           modal.classList.add('open');
+          if(document && document.body){ document.body.style.overflow = 'hidden'; }
           const firstInput = form && form.querySelector('#nome');
           if(firstInput){ firstInput.focus(); }
         }
         function closeCursoModal(){
           modal.setAttribute('aria-hidden', 'true');
           modal.classList.remove('open');
+          if(document && document.body){ document.body.style.overflow = ''; }
         }
 
         // Interação com fechar
         if(btnCloseModal){ btnCloseModal.addEventListener('click', closeCursoModal); }
-        if(btnCloseForm){ btnCloseForm.addEventListener('click', closeCursoModal); }
-        if(modal){
-          modal.addEventListener('click', function(e){ if(e.target === modal) closeCursoModal(); });
-        }
-        document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCursoModal(); });
+        // Não fechar por clique fora nem por Esc — apenas pelo botão "Fechar"
+        // Removido fechamento ao clicar no backdrop e via tecla Escape.
+        // Mantemos foco dentro e controle explícito de fechamento.
 
         // Abrir para criar
         if(btnToggle && form){
@@ -274,7 +273,14 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
               document.getElementById('action').value = 'update';
               document.getElementById('id_curso').value = this.getAttribute('data-id');
               form.querySelector('#nome').value = this.getAttribute('data-nome') || '';
-              form.querySelector('#descricao').value = this.getAttribute('data-descricao') || '';
+              // Preencher descrição com máxima robustez: dataset, atributo e fallback da linha
+              const row = this.closest('tr');
+              const descFromRowDataset = row && row.dataset ? row.dataset.descricao : null;
+              const descFromDataset = this.dataset ? this.dataset.descricao : null;
+              const descFromAttr = this.getAttribute('data-descricao');
+              const descFromRowAttr = row ? row.getAttribute('data-descricao') : null;
+              const descricaoVal = (descFromRowDataset ?? descFromRowAttr ?? descFromDataset ?? descFromAttr ?? '').toString();
+              form.querySelector('#descricao').value = descricaoVal;
               form.querySelector('#codigo').value = this.getAttribute('data-codigo') || '';
               form.querySelector('#portaria').value = this.getAttribute('data-autorizacao') || '';
               const coordId = this.getAttribute('data-coordenador-id') || '';

@@ -71,7 +71,7 @@
               </thead>
               <tbody>
                 {% for u in usuarios %}
-                <tr data-nome="{{ u.nome }}" data-email="{{ u.email or '' }}" data-cpf="{{ u.cpf or '' }}" data-tipo="{{ u.tipo or '' }}" data-curso="{{ u.curso_usuario or '' }}" data-ativo="{{ '1' if u.ativo else '0' }}">
+                <tr data-nome="{{ u.nome }}" data-email="{{ u.email or '' }}" data-cpf="{{ u.cpf or '' }}" data-tipo="{{ u.tipo or '' }}" data-curso="{{ u.curso_usuario or '' }}" data-ativo="{{ '1' if u.ativo else '0' }}" data-cep="{{ u.cep or '' }}" data-logradouro="{{ u.logradouro or '' }}" data-complemento="{{ u.complemento or '' }}" data-bairro="{{ u.bairro or '' }}" data-cidade="{{ u.cidade or '' }}" data-estado="{{ u.estado or '' }}">
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.nome }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.email or '-' }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.cpf or '-' }}</td>
@@ -469,6 +469,8 @@ data-id="{{ u.id_usuario }}">
 
       function normalizeDigits(v){ return String(v||'').replace(/\D+/g,''); }
       function formatCPF(d){ const s = normalizeDigits(d); if(s.length !== 11) return d || ''; return `${s.slice(0,3)}.${s.slice(3,6)}.${s.slice(6,9)}-${s.slice(9)}`; }
+      function onlyDigits(s){ return (s||'').replace(/[^0-9]/g,''); }
+      function formatCEP(v){ const d = onlyDigits(v).slice(0,8); return d.length>5 ? d.slice(0,5)+'-'+d.slice(5) : d; }
 
       function prepareCreate(){
         actionInput.value = 'create';
@@ -502,6 +504,21 @@ data-id="{{ u.id_usuario }}">
         emailInput.value = tr?.dataset.email || '';
         const tipoNorm = tipo.toLowerCase();
         tipoSelect.value = ((tipoNorm === 'professor' || tipoNorm === 'docente') ? 'Docente' : 'Aluno');
+        // Preenche endereço do usuário selecionado (variáveis locais nesta IIFE)
+        const cepInput = document.getElementById('cep_user');
+        const logradouroInput = document.getElementById('logradouro');
+        const complementoInput = document.getElementById('complemento');
+        const bairroInput = document.getElementById('bairro');
+        const cidadeInput = document.getElementById('cidade');
+        const estadoInput = document.getElementById('estado');
+        const cepFeedback = document.getElementById('cepFeedback');
+        if(cepInput) cepInput.value = formatCEP(tr?.dataset.cep || '');
+        if(logradouroInput) logradouroInput.value = tr?.dataset.logradouro || '';
+        if(complementoInput) complementoInput.value = tr?.dataset.complemento || '';
+        if(bairroInput) bairroInput.value = tr?.dataset.bairro || '';
+        if(cidadeInput) cidadeInput.value = tr?.dataset.cidade || '';
+        if(estadoInput) estadoInput.value = (tr?.dataset.estado || '').toUpperCase();
+        if(cepFeedback){ cepFeedback.textContent = ''; cepFeedback.style.color = '#64748b'; }
         // Oculta campos de senha/captcha na edição
         senhaInput.required = false; confirmarInput.required = false; captchaInput.required = false;
         senhaGroup.style.display = 'none'; confirmarGroup.style.display = 'none'; captchaGroup.style.display = 'none';

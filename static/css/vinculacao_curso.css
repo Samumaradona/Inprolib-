@@ -532,10 +532,22 @@ table thead th { color: var(--bs-new-casual); }
 
 /* Azul nos títulos de seção desta página */
 .form-container h3,
-section > h3 { color: var(--bs-new-casual); }
-
-@media (max-width: 640px) {
-  .form-container h3,
   section > h3 { color: var(--bs-new-casual); }
-}
+
+  @media (max-width: 640px) {
+    .form-container h3,
+    section > h3 { color: var(--bs-new-casual); }
+  }
+  
+  /* Botões de ação em tabelas (padronização com Cursos/Alunos) */
+  .action-buttons { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+  .icon-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:6px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color:#334155; cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
+  .icon-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
+  .icon-btn .material-symbols-outlined { font-size:20px; line-height:1; margin:0; }
+  .icon-btn.is-blue { color: var(--bs-new-casual); border-color: var(--bs-new-light); background:#eff6ff; }
+  .icon-btn.is-blue:hover { background:#dbeafe; }
+  .icon-btn.is-blue .material-symbols-outlined { color: var(--bs-new-casual); }
+  .icon-btn.is-danger { color:#dc2626; border-color:#fecaca; background:#fff5f5; }
+  .icon-btn.is-danger:hover { background:#fee2e2; }
+  .icon-btn.is-danger .material-symbols-outlined { color:#b91c1c; }
   
