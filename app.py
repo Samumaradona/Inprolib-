@@ -3964,19 +3964,24 @@ def publicacao_denuncia():
 def configuracao():
     uid = session.get('user_id')
     user = None
+    usuarios = []
     try:
         conn = get_db_connection()
         if conn and uid:
             cur = conn.cursor(row_factory=dict_row)
+            # Usuário inicialmente selecionado (admin começa com ele mesmo)
             cur.execute('SELECT id_usuario, nome, cpf, email, telefone, tema_preferido FROM usuario WHERE id_usuario = %s', (uid,))
             user = cur.fetchone()
+            # Lista de usuários para seleção/edição
+            cur.execute('SELECT id_usuario, nome FROM usuario ORDER BY nome ASC')
+            usuarios = cur.fetchall()
             cur.close(); conn.close()
     except Exception:
         try:
             conn and conn.close()
         except Exception:
             pass
-    return render_template('configuracao.html', user=user)
+    return render_template('configuracao.html', user=user, usuarios=usuarios)
 
 # Atualização de perfil
 @app.route('/configuracao/perfil', methods=['POST'])
@@ -3984,9 +3989,21 @@ def configuracao():
 @roles_required(['Administrador','Docente','Aluno'])
 def configuracao_perfil():
     uid = session.get('user_id')
+    role = (session.get('role') or session.get('user_tipo') or '')
     nome = (request.form.get('nome') or '').strip()
     email = (request.form.get('email') or '').strip().lower()
-    telefone = (request.form.get('telefone') or '').strip()
+    # telefone tornou-se opcional no formulário; não atualiza se não vier
+    telefone_present = ('telefone' in request.form)
+    telefone = ((request.form.get('telefone') or '').strip() if telefone_present else None)
+    # Permite que Administrador edite outro usuário selecionado
+    target_uid = uid
+    if role == 'Administrador':
+        id_usuario_raw = request.form.get('id_usuario')
+        try:
+            if id_usuario_raw:
+                target_uid = int(id_usuario_raw)
+        except Exception:
+            pass
     if not nome or not email:
         msg = 'Nome e e-mail são obrigatórios.'
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -4002,7 +4019,7 @@ def configuracao_perfil():
         if not conn:
             raise Exception('Falha de conexão')
         cur = conn.cursor()
-        cur.execute("SELECT id_usuario FROM usuario WHERE LOWER(email) = %s AND id_usuario <> %s", (email, uid))
+        cur.execute("SELECT id_usuario FROM usuario WHERE LOWER(email) = %s AND id_usuario <> %s", (email, target_uid))
         dup = cur.fetchone()
         if dup:
             cur.close(); conn.close()
@@ -4010,9 +4027,14 @@ def configuracao_perfil():
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'ok': False, 'error': msg}), 409
             flash(msg, 'error'); return redirect(url_for('configuracao'))
-        cur.execute("UPDATE usuario SET nome = %s, email = %s, telefone = %s WHERE id_usuario = %s", (nome, email, telefone, uid))
+        if telefone_present:
+            cur.execute("UPDATE usuario SET nome = %s, email = %s, telefone = %s WHERE id_usuario = %s", (nome, email, telefone, target_uid))
+        else:
+            cur.execute("UPDATE usuario SET nome = %s, email = %s WHERE id_usuario = %s", (nome, email, target_uid))
         conn.commit(); cur.close(); conn.close()
-        session['user_name'] = nome
+        # Só atualiza nome na sessão se o usuário editado for o próprio
+        if target_uid == uid:
+            session['user_name'] = nome
         msg = 'Perfil atualizado com sucesso.'
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'ok': True, 'message': msg})
@@ -4026,6 +4048,29 @@ def configuracao_perfil():
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'ok': False, 'error': msg}), 500
         flash(msg, 'error'); return redirect(url_for('configuracao'))
+
+# Detalhes de um usuário (para preencher formulário de edição)
+@app.route('/api/usuario/<int:user_id>', methods=['GET'])
+@login_required
+@roles_required(['Administrador'])
+def api_usuario(user_id: int):
+    try:
+        conn = get_db_connection()
+        if not conn:
+            raise Exception('Falha de conexão')
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute('SELECT id_usuario, nome, email, telefone FROM usuario WHERE id_usuario = %s', (user_id,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        if not row:
+            return jsonify({'ok': False, 'error': 'Usuário não encontrado.'}), 404
+        return jsonify({'ok': True, 'user': row})
+    except Exception as e:
+        try:
+            conn and conn.close()
+        except Exception:
+            pass
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 # Alteração de senha
 @app.route('/configuracao/senha', methods=['POST'])
