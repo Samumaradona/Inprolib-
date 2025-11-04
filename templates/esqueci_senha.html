@@ -430,7 +430,7 @@
             id="novaSenha" 
             class="password-input"
             placeholder="Digite sua nova senha"
-            required
+            required minlength="8" maxlength="8" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8}$" title="Use exatamente 8 caracteres com maiúscula, minúscula, número e símbolo"
           />
           <button type="button" class="password-toggle" data-target="novaSenha" aria-label="Mostrar senha" title="Mostrar senha">
             <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye"></use></svg>
@@ -446,7 +446,7 @@
             id="confirmarSenha" 
             class="password-input"
             placeholder="Confirme sua nova senha"
-            required
+            required minlength="8" maxlength="8" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8}$" title="Use exatamente 8 caracteres com maiúscula, minúscula, número e símbolo"
           />
           <button type="button" class="password-toggle" data-target="confirmarSenha" aria-label="Mostrar senha" title="Mostrar senha">
             <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye"></use></svg>

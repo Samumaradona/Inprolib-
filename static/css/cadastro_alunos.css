@@ -163,6 +163,13 @@ main{
   font-size: 14px;
   color: var(--bs-body-color);
 }
+/* Indicação visual quando um campo obrigatório está faltando */
+.required-missing { color: #dc2626; }
+.form-container input.field-error,
+.form-container select.field-error {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220,38,38,0.15);
+}
 .form-container input,
 .form-container select {
   width: 100%;

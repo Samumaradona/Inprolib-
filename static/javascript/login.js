@@ -72,6 +72,31 @@ document.addEventListener('DOMContentLoaded', () => {
   const confirmarSenha = document.getElementById('confirmar_senha');
   const captchaInput = document.getElementById('captcha');
 
+  // Utilitários para marcar/limpar asterisco dinâmico nos labels
+  function labelFor(id){ return document.querySelector(`label[for="${id}"]`); }
+  function flagRequired(id){
+    const lbl = labelFor(id); if(!lbl) return;
+    const base = (lbl.dataset.baseLabel || lbl.textContent.replace(/\s*\*$/, ''));
+    lbl.dataset.baseLabel = base;
+    if(!/ \*$/.test(lbl.textContent)) lbl.textContent = `${base} *`;
+    lbl.classList.add('required-missing');
+    const el = document.getElementById(id); if(el) el.classList.add('field-error');
+  }
+  function clearRequired(id){
+    const lbl = labelFor(id); if(!lbl) return;
+    const base = (lbl.dataset.baseLabel || lbl.textContent.replace(/\s*\*$/, ''));
+    lbl.textContent = base;
+    lbl.classList.remove('required-missing');
+    const el = document.getElementById(id); if(el) el.classList.remove('field-error');
+  }
+
+  // Limpa destaque ao preencher
+  [nomeUser, cpfUser, emailUser, senhaReg, confirmarSenha, captchaInput].forEach((el)=>{
+    if(!el) return;
+    el.addEventListener('input', ()=>{ if((el.value||'').trim()) clearRequired(el.id); });
+    el.addEventListener('blur', ()=>{ if((el.value||'').trim()) clearRequired(el.id); });
+  });
+
   // Endereço
   const cepInput = document.getElementById('cep_user');
   const logradouro = document.getElementById('logradouro');
@@ -92,7 +117,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if(registerModal){
       registerModal.classList.remove('open');
       registerModal.setAttribute('aria-hidden', 'true');
+      // Ao fechar sem concluir, limpar campos para novo cadastro
+      resetRegisterForm();
     }
+  }
+
+  // Limpa todo o formulário de cadastro
+  function resetRegisterForm(){
+    try{
+      if(registerForm){
+        registerForm.reset();
+      }
+      // Campos que podem reter valores por scripts auxiliares
+      if(nomeUser) nomeUser.value = '';
+      if(cpfUser) cpfUser.value = '';
+      if(emailUser) emailUser.value = '';
+      if(tipoUsuario){ tipoUsuario.value = 'Aluno'; }
+      if(cepInput) cepInput.value = '';
+      if(logradouro) logradouro.value = '';
+      if(complemento) complemento.value = '';
+      if(bairro) bairro.value = '';
+      if(cidade) cidade.value = '';
+      if(estado) estado.value = '';
+      if(senhaReg) senhaReg.value = '';
+      if(confirmarSenha) confirmarSenha.value = '';
+      if(captchaInput) captchaInput.value = '';
+      // Limpa destaques de campos obrigatórios
+      ['nome_user','cpf_user','email_user','senha_reg','confirmar_senha','captcha'].forEach(clearRequired);
+      // Remover toasts existentes
+      window.clearToasts && window.clearToasts();
+    }catch(e){ /* noop */ }
   }
 
   if(openRegister){
@@ -153,56 +207,52 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function emailValido(e){ return /.+@.+\..+/.test(e); }
 
-  registerForm && registerForm.addEventListener('submit', (e)=>{
-    const nomeOk = !!(nomeUser && (nomeUser.value||'').trim());
-    const cpfOk = !!(cpfUser && validarCPF(cpfUser.value));
-    const emailOk = !!(emailUser && emailValido(emailUser.value));
-    const senhaOk = !!(senhaReg && (senhaReg.value||'').length >= 8);
-    const confirmarOk = !!(confirmarSenha && confirmarSenha.value === (senhaReg? senhaReg.value : ''));
-    const captchaOk = !!(captchaInput && (captchaInput.value||'').trim());
-    const cepDigits = cepInput ? onlyDigits(cepInput.value) : '';
-    const cepOk = !cepInput || cepDigits.length === 0 || cepDigits.length === 8; // se preencher, exige 8 dígitos
+  // Política de senha: exatamente 8, com maiúscula, minúscula, número e símbolo
+  function senhaForte8(s){
+    const v = (s||'').trim();
+    if(v.length !== 8) return false;
+    return (
+      /[A-Z]/.test(v) &&
+      /[a-z]/.test(v) &&
+      /\d/.test(v) &&
+      /[^A-Za-z0-9]/.test(v)
+    );
+  }
 
-    if(!nomeOk || !cpfOk || !emailOk || !senhaOk || !confirmarOk || !captchaOk || !cepOk){
+  registerForm && registerForm.addEventListener('submit', (e)=>{
+    const nomeVal = (nomeUser && nomeUser.value || '').trim();
+    const cpfVal = cpfUser && cpfUser.value || '';
+    const emailVal = (emailUser && emailUser.value || '').trim();
+    const senhaVal = senhaReg && senhaReg.value || '';
+    const confirmVal = confirmarSenha && confirmarSenha.value || '';
+    const captchaVal = (captchaInput && captchaInput.value || '').trim();
+    const cepDigits = cepInput ? onlyDigits(cepInput.value) : '';
+
+    // Primeira regra: nenhum campo obrigatório pode ficar em branco
+    const missing = [];
+    if(!nomeVal) missing.push('nome_user');
+    if(!cpfVal) missing.push('cpf_user');
+    if(!emailVal) missing.push('email_user');
+    if(!senhaVal) missing.push('senha_reg');
+    if(!confirmVal) missing.push('confirmar_senha');
+    if(!captchaVal) missing.push('captcha');
+    if(missing.length){
       e.preventDefault();
-      if(window.showToast){ window.showToast('Verifique os campos do cadastro.', 'error'); }
-      else { alert('Verifique os campos do cadastro.'); }
+      missing.forEach(flagRequired);
+      if(window.showToast) window.showToast('Não pode faltar nenhum campo sem preenchimento.', 'error');
+      (document.getElementById(missing[0])||nomeUser)?.focus();
       return;
     }
-    // Sem AJAX: deixa o submit seguir para backend que já envia flash/redirect.
-  });
 
-  // Password toggle functionality
-  function initPasswordToggle() {
-    const toggles = document.querySelectorAll('.password-toggle');
-    
-    toggles.forEach(toggle => {
-      const targetId = toggle.getAttribute('data-target') || toggle.closest('.password-wrapper')?.querySelector('input[type="password"], input[type="text"]')?.id;
-      const input = targetId ? document.getElementById(targetId) : toggle.closest('.password-wrapper')?.querySelector('input[type="password"], input[type="text"]');
-      
-      if (!input) return;
-      
-      const icon = toggle.querySelector('.material-symbols-outlined');
-      
-      function togglePassword() {
-        const isPassword = input.type === 'password';
-        input.type = isPassword ? 'text' : 'password';
-        if (icon) {
-          icon.textContent = isPassword ? 'visibility_off' : 'visibility';
-        }
-        toggle.setAttribute('aria-label', isPassword ? 'Ocultar senha' : 'Mostrar senha');
-      }
-      
-      toggle.addEventListener('click', togglePassword);
-      toggle.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          togglePassword();
-        }
-      });
-    });
-  }
-  
-  // Initialize password toggles
-  initPasswordToggle();
+    // Campo por campo, mostra erro específico e foca o campo
+    if(!nomeVal){ e.preventDefault(); window.showToast && window.showToast('error','Informe seu nome completo.'); nomeUser && nomeUser.focus(); return; }
+    if(!validarCPF(cpfVal)){ e.preventDefault(); window.showToast && window.showToast('error','CPF inválido.'); cpfUser && cpfUser.focus(); return; }
+    if(!emailValido(emailVal)){ e.preventDefault(); window.showToast && window.showToast('error','E-mail inválido. Ex.: usuario@dominio.com'); emailUser && emailUser.focus(); return; }
+    if(!senhaForte8(senhaVal)){ e.preventDefault(); window.showToast && window.showToast('error','A senha deve ter exatamente 8 caracteres com maiúscula, minúscula, número e símbolo.'); senhaReg && senhaReg.focus(); return; }
+    if(confirmVal !== senhaVal){ e.preventDefault(); window.showToast && window.showToast('error','A confirmação de senha não coincide.'); confirmarSenha && confirmarSenha.focus(); return; }
+    if(!captchaVal){ e.preventDefault(); window.showToast && window.showToast('error','Resolva o captcha para continuar.'); captchaInput && captchaInput.focus(); return; }
+    if(cepDigits && cepDigits.length !== 8){ e.preventDefault(); window.showToast && window.showToast('error','CEP deve ter 8 dígitos (00000-000).'); cepInput && cepInput.focus(); return; }
+    // Se tudo ok: submit segue para backend
+  });
+  // Password toggle: deixamos para o módulo global password-toggle.js
 });

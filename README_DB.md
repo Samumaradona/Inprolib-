@@ -222,6 +222,15 @@ DB_CONNECT_TIMEOUT=5
 DB_POOL_SIZE=10
 ```
 
+### Política de Esquema (NÃO alterar)
+- O esquema do banco é fixo em `public`.
+- `banco.sql` referencia explicitamente `"public"` nas tabelas e tipos (ENUMs).
+- A aplicação seta `search_path` para `DB_SCHEMA` e `public`; manter `DB_SCHEMA=public`.
+- Não alterar `DB_SCHEMA` em `.env`, nem mover objetos para outro schema.
+- Qualquer mudança de schema exigiria migração completa e não é suportada oficialmente.
+
+Observação: se houver necessidade futura de múltiplos schemas, isso deve ser tratado como projeto de migração separado, com revisão de `banco.sql`, queries, constraints e políticas de acesso.
+
 ### Scripts de Automação
 
 #### Criação do Banco

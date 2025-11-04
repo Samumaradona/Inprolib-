@@ -6,34 +6,25 @@ document.addEventListener('DOMContentLoaded', () => {
       const input = targetId ? root.getElementById(targetId) : toggle.closest('.password-wrapper')?.querySelector('input[type="password"], input[type="text"]');
       if(!input) return;
 
-      function setVisible(visible){
+      let visible = false;
+      function render(){
         input.type = visible ? 'text' : 'password';
         const svgUse = toggle.querySelector('use');
         if(svgUse){ svgUse.setAttribute('href', visible ? '#icon-eye-off' : '#icon-eye'); }
-        const label = visible ? 'Ocultar senha (solte para ocultar)' : 'Pressione para ver senha';
+        const label = visible ? 'Ocultar senha' : 'Mostrar senha';
         toggle.setAttribute('aria-label', label);
+        toggle.setAttribute('aria-pressed', String(visible));
         toggle.title = label;
       }
+      function doToggle(){ visible = !visible; render(); }
 
-      // Press-and-hold behavior
-      const onMouseDown = (e)=>{ e.preventDefault(); setVisible(true); };
-      const onMouseUp = ()=> setVisible(false);
-      const onMouseLeave = ()=> setVisible(false);
-      const onTouchStart = (e)=>{ setVisible(true); };
-      const onTouchEnd = ()=> setVisible(false);
-      const onKeyDown = (e)=>{ if(e.key === ' ' || e.key === 'Enter'){ e.preventDefault(); setVisible(true); } };
-      const onKeyUp = (e)=>{ if(e.key === ' ' || e.key === 'Enter'){ setVisible(false); } };
+      // Clique para alternar visibilidade
+      toggle.addEventListener('click', (e)=>{ e.preventDefault(); doToggle(); });
+      // Acessível pelo teclado
+      toggle.addEventListener('keydown', (e)=>{ if(e.key === ' ' || e.key === 'Enter'){ e.preventDefault(); doToggle(); } });
 
-      toggle.addEventListener('mousedown', onMouseDown);
-      toggle.addEventListener('mouseup', onMouseUp);
-      toggle.addEventListener('mouseleave', onMouseLeave);
-      toggle.addEventListener('touchstart', onTouchStart, { passive: true });
-      toggle.addEventListener('touchend', onTouchEnd);
-      toggle.addEventListener('keydown', onKeyDown);
-      toggle.addEventListener('keyup', onKeyUp);
-
-      // initial state
-      setVisible(false);
+      // Estado inicial: oculto
+      visible = false; render();
     });
   }
 

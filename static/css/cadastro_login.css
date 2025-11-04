@@ -221,6 +221,14 @@ header.topbar{
   display:flex; gap:10px; justify-content:flex-end; padding: 12px 18px 18px 18px;
 }
 
+/* Indicação visual quando um campo obrigatório está faltando */
+.required-missing { color: var(--bs-danger); }
+.modal-body input.field-error,
+.modal-body select.field-error {
+  border-color: var(--bs-danger);
+  box-shadow: 0 0 0 2px rgba(220,53,69,0.15);
+}
+
 /* Responsivo */
 @media (max-width: 640px){
   body { overflow-x: hidden; }

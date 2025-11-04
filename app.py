@@ -345,6 +345,22 @@ def serve_img(filename):
     resp.headers['Cache-Control'] = 'public, max-age=604800'
     return resp
 
+# Política de Senha: exatamente 8 caracteres com maiúscula, minúscula, número e símbolo
+def password_policy_ok(pwd: str) -> bool:
+    try:
+        if not isinstance(pwd, str):
+            return False
+        if len(pwd) != 8:
+            return False
+        return (
+            re.search(r'[A-Z]', pwd) and
+            re.search(r'[a-z]', pwd) and
+            re.search(r'\d', pwd) and
+            re.search(r'[^A-Za-z0-9]', pwd)
+        ) is not None
+    except Exception:
+        return False
+
 # Função para conectar ao banco de dados
 # Usa psycopg (v3) e cria o banco automaticamente se ele não existir
 SCHEMA_READY = False
@@ -1343,6 +1359,9 @@ def resetar_senha():
         if not nova or not confirmar or nova != confirmar:
             flash('As senhas devem coincidir e não podem ser vazias.', 'error')
             return redirect(url_for('resetar_senha', token=token, email=email))
+        if not password_policy_ok(nova):
+            flash('A nova senha deve ter exatamente 8 caracteres, com maiúscula, minúscula, número e símbolo.', 'error')
+            return redirect(url_for('resetar_senha', token=token, email=email))
         conn = get_db_connection()
         if not conn:
             flash('Falha ao conectar ao banco.', 'error')
@@ -1477,6 +1496,8 @@ def api_reset_change():
         return jsonify({'ok': False, 'error': 'Informe a nova senha.'}), 400
     if confirm and new_password != confirm:
         return jsonify({'ok': False, 'error': 'As senhas devem coincidir.'}), 400
+    if not password_policy_ok(new_password):
+        return jsonify({'ok': False, 'error': 'A nova senha deve ter exatamente 8 caracteres, com maiúscula, minúscula, número e símbolo.'}), 400
     conn = get_db_connection()
     if not conn:
         return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco.'}), 500
@@ -1612,6 +1633,20 @@ def cadastro_alunos():
             if not validar_cpf(cpf):
                 flash('CPF inválido.', 'error')
                 return redirect(url_for('cadastro_alunos'))
+            # Tratamento adicional: CPF com formato válido, mas já associado a outro cadastro
+            try:
+                conn_chk = get_db_connection()
+                if conn_chk:
+                    cur_chk = conn_chk.cursor()
+                    cpf_digits = re.sub(r'[^0-9]', '', cpf)
+                    cur_chk.execute("SELECT 1 FROM usuario WHERE regexp_replace(cpf, '[^0-9]', '', 'g') = %s AND id_usuario <> %s", (cpf_digits, id_usuario))
+                    if cur_chk.fetchone():
+                        cur_chk.close(); conn_chk.close()
+                        flash('CPF informado já está cadastrado para outro usuário. Verifique se é o seu CPF.', 'error')
+                        return redirect(url_for('cadastro_alunos'))
+                    cur_chk.close(); conn_chk.close()
+            except Exception:
+                pass
             ensure_usuario_endereco_columns()
             conn = get_db_connection()
             if conn:
@@ -1676,8 +1711,27 @@ def cadastro_alunos():
         if str(session.get('captcha_answer')) != captcha:
             flash('Captcha incorreto.', 'error')
             return redirect(url_for('cadastro_alunos'))
+        # Política de senha (exatamente 8 c/ maiúscula, minúscula, número e símbolo)
+        if not password_policy_ok(senha):
+            flash('A senha deve ter exatamente 8 caracteres, com maiúscula, minúscula, número e símbolo.', 'error')
+            return redirect(url_for('cadastro_alunos'))
 
         ensure_usuario_endereco_columns()
+        # Tratamento adicional: CPF com formato válido, mas já associado a outro cadastro
+        try:
+            conn_chk = get_db_connection()
+            if conn_chk:
+                cur_chk = conn_chk.cursor()
+                cpf_digits = re.sub(r'[^0-9]', '', cpf)
+                cur_chk.execute("SELECT 1 FROM usuario WHERE regexp_replace(cpf, '[^0-9]', '', 'g') = %s", (cpf_digits,))
+                if cur_chk.fetchone():
+                    cur_chk.close(); conn_chk.close()
+                    flash('CPF informado já está cadastrado para outro usuário. Verifique se é o seu CPF.', 'error')
+                    audit_log('cadastro_aluno_fail', {'motivo': 'cpf_duplicado', 'cpf': cpf_digits})
+                    return redirect(url_for('cadastro_alunos'))
+                cur_chk.close(); conn_chk.close()
+        except Exception:
+            pass
         conn = get_db_connection()
         if conn:
             try:
@@ -1690,10 +1744,8 @@ def cadastro_alunos():
                     conn.close()
                     audit_log('cadastro_aluno_fail', {'motivo': 'email_duplicado', 'email': email})
                     return redirect(url_for('cadastro_alunos'))
-                # Determinar tipo do usuário no banco
+                # Determinar tipo do usuário no banco: cadastro sempre como 'Aluno'
                 tipo_db = 'Aluno'
-                if tipo_form.lower() == 'docente':
-                    tipo_db = 'Professor'
                 # Inserir novo usuário
                 senha_hash = generate_password_hash(senha)
                 cur.execute(
@@ -3993,9 +4045,8 @@ def configuracao_senha():
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'ok': False, 'error': msg}), 400
         flash(msg, 'error'); return redirect(url_for('configuracao'))
-    import re as _re
-    if not (_re.search(r'[A-Z]', nova) and _re.search(r'[a-z]', nova) and _re.search(r'\d', nova) and _re.search(r'[^A-Za-z0-9]', nova) and len(nova) >= 8):
-        msg = 'A nova senha deve ter 8+ caracteres, maiúscula, minúscula, número e símbolo.'
+    if not password_policy_ok(nova):
+        msg = 'A nova senha deve ter exatamente 8 caracteres, com maiúscula, minúscula, número e símbolo.'
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'ok': False, 'error': msg}), 400
         flash(msg, 'error'); return redirect(url_for('configuracao'))
