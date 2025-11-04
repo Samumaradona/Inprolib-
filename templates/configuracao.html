@@ -114,38 +114,7 @@
             </form>
           </div>
 
-          <div>
-            <h3>Alteração de Senha</h3>
-            <form id="formSenha" action="/configuracao/senha" method="post" class="form-container" autocomplete="off">
-              <label for="senha_atual">Senha atual</label>
-              <div class="password-wrapper">
-  <input type="password" id="senha_atual" name="senha_atual" placeholder="Digite sua senha atual" required minlength="8" maxlength="8">
-                <button type="button" class="password-toggle" data-target="senha_atual" aria-label="Mostrar senha" title="Mostrar senha">
-                  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye"></use></svg>
-                </button>
-              </div>
-
-              <label for="nova_senha">Nova senha</label>
-              <div class="password-wrapper">
-  <input type="password" id="nova_senha" name="nova_senha" placeholder="Exatamente 8 com maiúscula, minúscula, número e símbolo" required minlength="8" maxlength="8" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8}$" title="Use exatamente 8 caracteres com maiúscula, minúscula, número e símbolo">
-                <button type="button" class="password-toggle" data-target="nova_senha" aria-label="Mostrar senha" title="Mostrar senha">
-                  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye"></use></svg>
-                </button>
-              </div>
-
-              <label for="confirmar_senha">Confirmar nova senha</label>
-              <div class="password-wrapper">
-  <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Repita a nova senha" required minlength="8" maxlength="8" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8}$" title="Use exatamente 8 caracteres com maiúscula, minúscula, número e símbolo">
-                <button type="button" class="password-toggle" data-target="confirmar_senha" aria-label="Mostrar senha" title="Mostrar senha">
-                  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye"></use></svg>
-                </button>
-              </div>
-
-              <div style="display:flex;gap:8px;margin-top:8px">
-                <button type="submit" class="button">Salvar Nova Senha</button>
-              </div>
-            </form>
-          </div>
+          <!-- Bloco de Alteração de Senha removido (usar recuperar senha na tela de login) -->
 
           <div class="full-width">
             <h3>Tema Visual</h3>
@@ -172,12 +141,11 @@ window.USER_THEME = "{{ (session.get('user_theme') or 'claro') }}";
   </script>
   <script src="notifications.js?v=1"></script>
   <script src="home.js?v=aval-fix-1"></script>
-  <script src="password-toggle.js"></script>
+  <!-- password-toggle removido por não haver mais campos de senha -->
   <script>
     window.initFlashToasts && window.initFlashToasts();
     (function(){
       const formPerfil = document.getElementById('formPerfil');
-      const formSenha = document.getElementById('formSenha');
       const toggleTema = document.getElementById('toggleTema');
       const temaAtual = document.getElementById('temaAtual');
       const btnChangePhotoInline = document.getElementById('btnChangePhotoInline');
@@ -188,19 +156,40 @@ window.USER_THEME = "{{ (session.get('user_theme') or 'claro') }}";
       const nomeInput = document.getElementById('nome');
       const emailInput = document.getElementById('email');
 
-      function toastOk(msg){ window.showToast && window.showToast({ type:'success', message: msg }); }
-      function toastErr(msg){ window.showToast && window.showToast({ type:'error', message: msg }); }
+      function toastOk(msg){ window.showToast ? window.showToast('success', msg) : alert(msg); }
+      function toastErr(msg){ window.showToast ? window.showToast('error', msg) : alert(msg); }
 
       if(formPerfil){
+        const submitBtn = formPerfil.querySelector('button[type="submit"]');
         formPerfil.addEventListener('submit', async (e)=>{
           e.preventDefault();
           const fd = new FormData(formPerfil);
           try{
-            const res = await fetch(formPerfil.action, { method:'POST', body: fd, headers: { 'X-Requested-With':'XMLHttpRequest' } });
-            const data = await res.json();
-            if(data && data.ok){ toastOk(data.message || 'Perfil atualizado com sucesso.'); }
-            else { toastErr((data && data.error) || 'Falha ao atualizar perfil.'); }
-          }catch(err){ toastErr('Erro de conexão ao salvar perfil.'); }
+            submitBtn && (submitBtn.disabled = true, submitBtn.textContent = 'Salvando...');
+            const res = await fetch(formPerfil.action, {
+              method: 'POST',
+              body: fd,
+              headers: { 'X-Requested-With':'XMLHttpRequest', 'Accept':'application/json' },
+              credentials: 'same-origin'
+            });
+            const data = await res.json().catch(()=>null);
+            if(data && data.ok){
+              if(window.clearToasts) window.clearToasts();
+              toastOk(data.message || 'Perfil atualizado com sucesso.');
+              // Após sucesso, redireciona para Home com pequeno delay
+              setTimeout(()=>{ window.location.href = '/home'; }, 1200);
+            } else {
+              const msg = (data && data.error) || 'Falha ao atualizar perfil.';
+              toastErr(msg);
+              if(!window.showToast) alert(msg);
+            }
+          }catch(err){
+            const msg = 'Erro de conexão ao salvar perfil.';
+            toastErr(msg);
+            if(!window.showToast) alert(msg);
+          } finally {
+            submitBtn && (submitBtn.disabled = false, submitBtn.textContent = 'Salvar Alterações');
+          }
         });
       }
 
@@ -222,20 +211,7 @@ window.USER_THEME = "{{ (session.get('user_theme') or 'claro') }}";
         });
       }
 
-      if(formSenha){
-        formSenha.addEventListener('submit', async (e)=>{
-          e.preventDefault();
-          const fd = new FormData(formSenha);
-          try{
-            const res = await fetch(formSenha.action, { method:'POST', body: fd, headers: { 'X-Requested-With':'XMLHttpRequest' } });
-            const data = await res.json();
-            // Limpa notificações antes de exibir novo feedback
-            window.clearToasts && window.clearToasts();
-            if(data && data.ok){ toastOk(data.message || 'Senha atualizada com sucesso.'); formSenha.reset(); }
-            else { toastErr((data && data.error) || 'Falha ao atualizar senha.'); }
-          }catch(err){ toastErr('Erro de conexão ao salvar senha.'); }
-        });
-      }
+      // Removido comportamento relacionado a alteração de senha
 
       if(toggleTema){
         toggleTema.addEventListener('change', async ()=>{
