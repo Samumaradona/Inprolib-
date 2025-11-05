@@ -75,18 +75,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Utilitários para marcar/limpar asterisco dinâmico nos labels
   function labelFor(id){ return document.querySelector(`label[for="${id}"]`); }
   function flagRequired(id){
-    const lbl = labelFor(id); if(!lbl) return;
-    const base = (lbl.dataset.baseLabel || lbl.textContent.replace(/\s*\*$/, ''));
-    lbl.dataset.baseLabel = base;
-    if(!/ \*$/.test(lbl.textContent)) lbl.textContent = `${base} *`;
-    lbl.classList.add('required-missing');
+    const lbl = labelFor(id); if(lbl) lbl.classList.add('required-missing');
     const el = document.getElementById(id); if(el) el.classList.add('field-error');
   }
   function clearRequired(id){
-    const lbl = labelFor(id); if(!lbl) return;
-    const base = (lbl.dataset.baseLabel || lbl.textContent.replace(/\s*\*$/, ''));
-    lbl.textContent = base;
-    lbl.classList.remove('required-missing');
+    const lbl = labelFor(id); if(lbl) lbl.classList.remove('required-missing');
     const el = document.getElementById(id); if(el) el.classList.remove('field-error');
   }
 
@@ -159,6 +152,38 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCloseRegister.addEventListener('click', (e)=>{ e.preventDefault(); closeModal(); });
   }
 
+  // Abrir modal automaticamente quando vier de redirecionamento de erro de cadastro
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const shouldOpen = params.get('register');
+    const errField = (params.get('err')||'').trim();
+    if (shouldOpen) {
+      openModal();
+      // Mapear campo de erro para destacar borda em vermelho
+      const fieldMap = {
+        'captcha': 'captcha',
+        'email': 'email_user',
+        'email_len': 'email_user',
+        'email_dup': 'email_user',
+        'cpf': 'cpf_user',
+        'cpf_dup': 'cpf_user',
+        'pwd': 'senha_reg',
+        'senha_match': 'confirmar_senha',
+        'required': 'nome_user',
+        'error': 'captcha'
+      };
+      const targetId = fieldMap[errField] || 'captcha';
+      flagRequired(targetId);
+      const targetEl = document.getElementById(targetId);
+      targetEl && targetEl.focus();
+      // Limpar parâmetros da URL para evitar reabertura ao recarregar
+      const url = new URL(window.location);
+      url.searchParams.delete('register');
+      url.searchParams.delete('err');
+      window.history.replaceState({}, '', url);
+    }
+  } catch (_) { /* noop */ }
+
   // Máscara de CPF no modal
   if(cpfUser){
     cpfUser.setAttribute('inputmode','numeric');
@@ -207,10 +232,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function emailValido(e){ return /.+@.+\..+/.test(e); }
 
-  // Política de senha: exatamente 8, com maiúscula, minúscula, número e símbolo
-  function senhaForte8(s){
+  // Política de senha: 8–16 com maiúscula, minúscula, número e símbolo
+  function senhaForte(s){
     const v = (s||'').trim();
-    if(v.length !== 8) return false;
+    if(v.length < 8 || v.length > 16) return false;
     return (
       /[A-Z]/.test(v) &&
       /[a-z]/.test(v) &&
@@ -219,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   }
 
-  registerForm && registerForm.addEventListener('submit', (e)=>{
+  registerForm && registerForm.addEventListener('submit', async (e)=>{
     const nomeVal = (nomeUser && nomeUser.value || '').trim();
     const cpfVal = cpfUser && cpfUser.value || '';
     const emailVal = (emailUser && emailUser.value || '').trim();
@@ -248,11 +273,64 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!nomeVal){ e.preventDefault(); window.showToast && window.showToast('error','Informe seu nome completo.'); nomeUser && nomeUser.focus(); return; }
     if(!validarCPF(cpfVal)){ e.preventDefault(); window.showToast && window.showToast('error','CPF inválido.'); cpfUser && cpfUser.focus(); return; }
     if(!emailValido(emailVal)){ e.preventDefault(); window.showToast && window.showToast('error','E-mail inválido. Ex.: usuario@dominio.com'); emailUser && emailUser.focus(); return; }
-    if(!senhaForte8(senhaVal)){ e.preventDefault(); window.showToast && window.showToast('error','A senha deve ter exatamente 8 caracteres com maiúscula, minúscula, número e símbolo.'); senhaReg && senhaReg.focus(); return; }
+    if(emailVal.length > 40){ e.preventDefault(); window.showToast && window.showToast('error','E-mail deve ter no máximo 40 caracteres.'); emailUser && emailUser.focus(); return; }
+    if(!senhaForte(senhaVal)){ e.preventDefault(); window.showToast && window.showToast('error','A senha deve ter entre 8 e 16 caracteres, com maiúscula, minúscula, número e símbolo.'); senhaReg && senhaReg.focus(); return; }
     if(confirmVal !== senhaVal){ e.preventDefault(); window.showToast && window.showToast('error','A confirmação de senha não coincide.'); confirmarSenha && confirmarSenha.focus(); return; }
     if(!captchaVal){ e.preventDefault(); window.showToast && window.showToast('error','Resolva o captcha para continuar.'); captchaInput && captchaInput.focus(); return; }
     if(cepDigits && cepDigits.length !== 8){ e.preventDefault(); window.showToast && window.showToast('error','CEP deve ter 8 dígitos (00000-000).'); cepInput && cepInput.focus(); return; }
-    // Se tudo ok: submit segue para backend
+
+    // Se tudo ok: enviar via AJAX para não perder valores em caso de erro
+    e.preventDefault();
+    try{
+      const formData = new URLSearchParams(new FormData(registerForm));
+      // garante action=create
+      formData.set('action','create');
+      const resp = await fetch('/cadastro_alunos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData.toString()
+      });
+      const data = await resp.json().catch(()=>({ ok:false, message:'Erro inesperado.' }));
+      if (resp.ok && data && data.ok){
+        window.showToast && window.showToast('Usuário cadastrado com sucesso!', 'success');
+        // pequeno delay para o usuário perceber o sucesso
+        setTimeout(()=>{ window.location.href = (data.redirect || '/login'); }, 600);
+        return;
+      }
+      // Erro: manter valores e destacar campo
+      const msg = (data && data.message) || 'Verifique os campos informados.';
+      const field = (data && data.field) || 'captcha';
+      window.showToast && window.showToast(msg, 'error');
+      // Zera apenas o campo com erro para o usuário preencher corretamente
+      try{
+        const el = document.getElementById(field);
+        if(el){ el.value = ''; }
+      }catch(_){ /* noop */ }
+      flagRequired(field);
+      (document.getElementById(field)||captchaInput||nomeUser)?.focus();
+    }catch(_e){
+      window.showToast && window.showToast('Falha ao enviar cadastro. Tente novamente.', 'error');
+    }
   });
+  // Validação em tempo real ao sair do campo (blur)
+  [['nome_user', v=>!!(v||'').trim()],
+   ['cpf_user', validarCPF],
+   ['email_user', v=>emailValido(v) && (v||'').trim().length <= 40],
+   ['senha_reg', senhaForte],
+   ['confirmar_senha', v=>v === (senhaReg && senhaReg.value || '') && senhaForte(v)],
+   ['captcha', v=>!!(v||'').trim()]
+  ].forEach(([id,fn])=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('blur', ()=>{
+      const ok = fn(el.value||'');
+      if(!ok){ flagRequired(id); } else { clearRequired(id); }
+    });
+    el.addEventListener('input', ()=>{ clearRequired(id); });
+  });
+
   // Password toggle: deixamos para o módulo global password-toggle.js
 });

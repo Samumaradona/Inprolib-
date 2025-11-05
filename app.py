@@ -345,12 +345,12 @@ def serve_img(filename):
     resp.headers['Cache-Control'] = 'public, max-age=604800'
     return resp
 
-# Política de Senha: exatamente 8 caracteres com maiúscula, minúscula, número e símbolo
+# Política de Senha: entre 8 e 16 caracteres com maiúscula, minúscula, número e símbolo
 def password_policy_ok(pwd: str) -> bool:
     try:
         if not isinstance(pwd, str):
             return False
-        if len(pwd) != 8:
+        if len(pwd) < 8 or len(pwd) > 16:
             return False
         return (
             re.search(r'[A-Z]', pwd) and
@@ -1686,6 +1686,7 @@ def cadastro_alunos():
         curso = request.form.get('curso')
         tipo_form = (request.form.get('tipo_usuario') or '').strip()
         captcha = (request.form.get('captcha') or '').strip()
+        is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest')
         # Endereço (opcionais)
         cep = (request.form.get('cep') or request.form.get('cep_user') or '').strip()
         logradouro = (request.form.get('logradouro') or '').strip()
@@ -1696,25 +1697,50 @@ def cadastro_alunos():
 
         # Validações básicas (criação)
         if not nome or not email or not cpf or not senha:
-            flash('Por favor, preencha todos os campos obrigatórios.', 'error')
-            return redirect(url_for('cadastro_alunos'))
+            msg = 'Por favor, preencha todos os campos obrigatórios.'
+            if is_ajax:
+                return jsonify({'ok': False, 'field': 'nome_user', 'message': msg}), 400
+            flash(msg, 'error')
+            return redirect(url_for('login', register='1', err='required'))
         if senha != confirmar_senha:
-            flash('As senhas não coincidem.', 'error')
-            return redirect(url_for('cadastro_alunos'))
+            msg = 'As senhas não coincidem.'
+            if is_ajax:
+                return jsonify({'ok': False, 'field': 'confirmar_senha', 'message': msg}), 400
+            flash(msg, 'error')
+            return redirect(url_for('login', register='1', err='senha_match'))
         if '@' not in email or '.' not in email:
-            flash('E-mail inválido.', 'error')
-            return redirect(url_for('cadastro_alunos'))
+            msg = 'E-mail inválido.'
+            if is_ajax:
+                return jsonify({'ok': False, 'field': 'email_user', 'message': msg}), 400
+            flash(msg, 'error')
+            return redirect(url_for('login', register='1', err='email'))
+        # Limite de tamanho do e-mail
+        if len(email) > 40:
+            msg = 'E-mail deve ter no máximo 40 caracteres.'
+            if is_ajax:
+                return jsonify({'ok': False, 'field': 'email_user', 'message': msg}), 400
+            flash(msg, 'error')
+            return redirect(url_for('login', register='1', err='email_len'))
         if not validar_cpf(cpf):
-            flash('CPF inválido.', 'error')
-            return redirect(url_for('cadastro_alunos'))
+            msg = 'CPF inválido.'
+            if is_ajax:
+                return jsonify({'ok': False, 'field': 'cpf_user', 'message': msg}), 400
+            flash(msg, 'error')
+            return redirect(url_for('login', register='1', err='cpf'))
         # Captcha simples
         if str(session.get('captcha_answer')) != captcha:
-            flash('Captcha incorreto.', 'error')
-            return redirect(url_for('cadastro_alunos'))
-        # Política de senha (exatamente 8 c/ maiúscula, minúscula, número e símbolo)
+            msg = 'Captcha incorreto.'
+            if is_ajax:
+                return jsonify({'ok': False, 'field': 'captcha', 'message': msg}), 400
+            flash(msg, 'error')
+            return redirect(url_for('login', register='1', err='captcha'))
+        # Política de senha (entre 8 e 16 c/ maiúscula, minúscula, número e símbolo)
         if not password_policy_ok(senha):
-            flash('A senha deve ter exatamente 8 caracteres, com maiúscula, minúscula, número e símbolo.', 'error')
-            return redirect(url_for('cadastro_alunos'))
+            msg = 'A senha deve ter entre 8 e 16 caracteres, com maiúscula, minúscula, número e símbolo.'
+            if is_ajax:
+                return jsonify({'ok': False, 'field': 'senha_reg', 'message': msg}), 400
+            flash(msg, 'error')
+            return redirect(url_for('login', register='1', err='pwd'))
 
         ensure_usuario_endereco_columns()
         # Tratamento adicional: CPF com formato válido, mas já associado a outro cadastro
@@ -1726,9 +1752,12 @@ def cadastro_alunos():
                 cur_chk.execute("SELECT 1 FROM usuario WHERE regexp_replace(cpf, '[^0-9]', '', 'g') = %s", (cpf_digits,))
                 if cur_chk.fetchone():
                     cur_chk.close(); conn_chk.close()
-                    flash('CPF informado já está cadastrado para outro usuário. Verifique se é o seu CPF.', 'error')
+                    msg = 'CPF informado já está cadastrado para outro usuário. Verifique se é o seu CPF.'
                     audit_log('cadastro_aluno_fail', {'motivo': 'cpf_duplicado', 'cpf': cpf_digits})
-                    return redirect(url_for('cadastro_alunos'))
+                    if is_ajax:
+                        return jsonify({'ok': False, 'field': 'cpf_user', 'message': msg}), 400
+                    flash(msg, 'error')
+                    return redirect(url_for('login', register='1', err='cpf_dup'))
                 cur_chk.close(); conn_chk.close()
         except Exception:
             pass
@@ -1739,11 +1768,14 @@ def cadastro_alunos():
                 # Verificar se o email já existe
                 cur.execute("SELECT 1 FROM usuario WHERE email = %s", (email,))
                 if cur.fetchone():
-                    flash('Email já cadastrado', 'error')
-                    cur.close()
-                    conn.close()
+                    msg = 'Email já cadastrado'
                     audit_log('cadastro_aluno_fail', {'motivo': 'email_duplicado', 'email': email})
-                    return redirect(url_for('cadastro_alunos'))
+                    if is_ajax:
+                        cur.close(); conn.close()
+                        return jsonify({'ok': False, 'field': 'email_user', 'message': msg}), 400
+                    flash(msg, 'error')
+                    cur.close(); conn.close()
+                    return redirect(url_for('login', register='1', err='email_dup'))
                 # Determinar tipo do usuário no banco: cadastro sempre como 'Aluno'
                 tipo_db = 'Aluno'
                 # Inserir novo usuário
@@ -1757,8 +1789,10 @@ def cadastro_alunos():
                 cur.close()
                 conn.close()
                 audit_log('cadastro_aluno_ok', {'email': email})
-                # Após cadastro bem-sucedido, redireciona para a Home
-                return redirect(url_for('home'))
+                if is_ajax:
+                    return jsonify({'ok': True, 'redirect': url_for('login')})
+                # Após cadastro bem-sucedido, voltar para a tela de login
+                return redirect(url_for('login'))
             except Exception as e:
                 flash(f'Erro ao cadastrar aluno: {e}', 'error')
                 try:
@@ -1766,7 +1800,9 @@ def cadastro_alunos():
                 except Exception:
                     pass
                 audit_log('cadastro_aluno_error', {'error': str(e)})
-            return redirect(url_for('cadastro_alunos'))
+            if is_ajax:
+                return jsonify({'ok': False, 'message': 'Erro ao cadastrar aluno.', 'field': None}), 500
+            return redirect(url_for('login', register='1', err='error'))
     
     # Buscar cursos para o formulário e alunos para listagem
     cursos = []

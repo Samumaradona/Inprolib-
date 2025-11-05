@@ -147,7 +147,7 @@ main{
 .container-grid{
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 10px; /* compacto: metade do espaçamento anterior */
 }
 
 /* títulos / labels / inputs */
@@ -158,10 +158,16 @@ main{
 }
 .form-container label {
   display: block;
-  margin-top: 12px;
+  margin-top: 8px; /* compacto */
   font-weight: 700;
   font-size: 14px;
   color: var(--bs-body-color);
+}
+/* Asterisco vermelho automático em campos obrigatórios */
+.form-container label.required::after {
+  content: " *";
+  color: var(--bs-danger);
+  margin-left: 2px;
 }
 /* Indicação visual quando um campo obrigatório está faltando */
 .required-missing { color: #dc2626; }
@@ -173,14 +179,16 @@ main{
 .form-container input,
 .form-container select {
   width: 100%;
-  padding: 10px 12px;
-  margin-top: 6px;
+  padding: 8px 10px; /* compacto */
+  margin-top: 4px; /* compacto */
   border: 1px solid #d1d5db;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 14px;
   background: #fff;
   outline: none;
 }
+/* Feedback inline pequeno */
+.field-feedback { font-size: 12px; margin-top: 4px; color: #dc2626; }
 .form-container input:focus,
 .form-container select:focus {
   box-shadow: 0 6px 18px rgba(2,6,23,0.06);
@@ -225,7 +233,7 @@ main{
 
 /* responsividade */
 @media (max-width: 720px){
-  .container-grid { grid-template-columns: 1fr; }
+  .container-grid { grid-template-columns: 1fr; gap: 8px; }
   .btn-group { width: 100%; }
   .btn-group .button { width: 100%; }
 }
@@ -240,6 +248,13 @@ main{
 .button.is-success:hover { background: #16a34a; }
 /* Botão de ícone-only compacto (para ações na tabela) */
 /* removidos estilos antigos comentados/inválidos */
+
+/* Modal (compacto para esta tela) */
+.modal { position: fixed; inset: 0; background: rgba(2,6,23,0.55); display: none; align-items: center; justify-content: center; padding: 12px; }
+.modal.show { display: flex; }
+.modal-content { background: var(--card-bg); border-radius: 10px; box-shadow: var(--card-shadow); width: 100%; max-width: 720px; padding: 16px 20px; }
+.modal-close { position: absolute; right: 12px; top: 12px; border: 0; background: transparent; font-size: 18px; cursor: pointer; color: #334155; }
+@media (max-width: 720px){ .modal-content { padding: 14px 16px; } }
 /* Botão de ícone-only compacto (moderno e neutro) */
 .icon-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:6px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color:#334155; cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
 .icon-btn:hover { background:#f8fafc; border-color:#cbd5e1; }

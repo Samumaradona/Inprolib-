@@ -112,12 +112,12 @@ data-id="{{ u.id_usuario }}">
           <div class="container-grid">
             <div>
               <h3>Informações do usuário</h3>
-              <label for="nome_user">Nome *</label>
+              <label for="nome_user" class="required">Nome</label>
               <input type="text" id="nome_user" name="nome_user" placeholder="Insira o seu nome completo" required maxlength="255">
-              <label for="cpf_user">CPF *</label>
+              <label for="cpf_user" class="required">CPF</label>
               <input type="text" id="cpf_user" name="cpf_user" placeholder="Insira o seu CPF" required inputmode="numeric" maxlength="14" pattern="\d{3}\.\d{3}\.\d{3}-\d{2}" title="Formato: 000.000.000-00">
-              <label for="email_user">Email *</label>
-              <input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email">
+              <label for="email_user" class="required">Email</label>
+              <input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email" maxlength="40">
               <label for="tipo_usuario">Tipo de Usuário</label>
               <select id="tipo_usuario" name="tipo_usuario" required>
                 <option value="Aluno" selected>Aluno</option>
@@ -138,16 +138,16 @@ data-id="{{ u.id_usuario }}">
                <label for="estado">Estado</label>
                <input type="text" id="estado" name="estado" placeholder="UF" maxlength="2" style="text-transform:uppercase" autocomplete="address-level1">
                <div id="senhaGroup">
-                 <label for="senha">Senha</label>
-  <input type="password" id="senha" name="senha" placeholder="Insira a sua senha" required minlength="8" maxlength="8" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8}$" autocomplete="new-password" title="Use exatamente 8 caracteres com maiúscula, minúscula, número e símbolo">
+                 <label for="senha" class="required">Senha</label>
+  <input type="password" id="senha" name="senha" placeholder="Insira a sua senha" required minlength="8" maxlength="16" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,16}$" autocomplete="new-password" title="Use entre 8 e 16 caracteres com maiúscula, minúscula, número e símbolo">
                  <div id="pwdStrength" style="font-size:12px;color:#64748b;margin:4px 0">Força da senha: fraca</div>
                </div>
                <div id="confirmarGroup">
-                 <label for="confirmar_senha">Confirmar senha</label>
-  <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme a sua senha" required minlength="8" maxlength="8" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8}$" autocomplete="new-password" title="Use exatamente 8 caracteres com maiúscula, minúscula, número e símbolo">
+                 <label for="confirmar_senha" class="required">Confirmar senha</label>
+  <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme a sua senha" required minlength="8" maxlength="16" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,16}$" autocomplete="new-password" title="Use entre 8 e 16 caracteres com maiúscula, minúscula, número e símbolo">
                </div>
                <div id="captchaGroup">
-                 <label for="captcha">Captcha: {{ captcha_question }} *</label>
+                 <label for="captcha" class="required">Captcha: {{ captcha_question }}</label>
                  <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required inputmode="numeric" pattern="\d+" title="Digite apenas números">
                </div>
              </div>
@@ -170,12 +170,12 @@ data-id="{{ u.id_usuario }}">
 <div class="container-grid">
 <div>
 <h3>Informações do usuário</h3>
-<label for="nome_user">Nome</label>
+<label for="nome_user" class="required">Nome</label>
 <input type="text" id="nome_user" name="nome_user" placeholder="Insira o seu nome completo" required maxlength="255">
-<label for="cpf_user">CPF</label>
+<label for="cpf_user" class="required">CPF</label>
 <input type="text" id="cpf_user" name="cpf_user" placeholder="Insira o seu CPF" required inputmode="numeric" maxlength="14" pattern="\d{3}\.\d{3}\.\d{3}-\d{2}" title="Formato: 000.000.000-00">
-<label for="email_user">Email</label>
-<input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email">
+<label for="email_user" class="required">Email</label>
+<input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email" maxlength="40">
               <label for="tipo_usuario">Tipo de Usuário</label>
               <select id="tipo_usuario" name="tipo_usuario" required>
                 <option value="Aluno" selected>Aluno</option>
@@ -196,16 +196,16 @@ data-id="{{ u.id_usuario }}">
 <label for="estado">Estado</label>
 <input type="text" id="estado" name="estado" placeholder="UF" maxlength="2" style="text-transform:uppercase" autocomplete="address-level1">
 <div id="senhaGroup">
-<label for="senha">Senha</label>
-  <input type="password" id="senha" name="senha" placeholder="Insira a sua senha" required minlength="8" maxlength="8" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8}$" autocomplete="new-password" title="Use exatamente 8 caracteres com maiúscula, minúscula, número e símbolo">
+<label for="senha" class="required">Senha</label>
+  <input type="password" id="senha" name="senha" placeholder="Insira a sua senha" required minlength="8" maxlength="16" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,16}$" autocomplete="new-password" title="Use entre 8 e 16 caracteres com maiúscula, minúscula, número e símbolo">
 <div id="pwdStrength" style="font-size:12px;color:#64748b;margin:4px 0">Força da senha: fraca</div>
 </div>
 <div id="confirmarGroup">
-<label for="confirmar_senha">Confirmar senha</label>
-  <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme a sua senha" required minlength="8" maxlength="8" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8}$" autocomplete="new-password" title="Use exatamente 8 caracteres com maiúscula, minúscula, número e símbolo">
+<label for="confirmar_senha" class="required">Confirmar senha</label>
+  <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme a sua senha" required minlength="8" maxlength="16" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,16}$" autocomplete="new-password" title="Use entre 8 e 16 caracteres com maiúscula, minúscula, número e símbolo">
 </div>
 <div id="captchaGroup">
-<label for="captcha">Captcha: {{ captcha_question }}</label>
+<label for="captcha" class="required">Captcha: {{ captcha_question }}</label>
 <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required inputmode="numeric" pattern="\d+" title="Digite apenas números">
 </div>
 </div>
@@ -341,31 +341,26 @@ data-id="{{ u.id_usuario }}">
     })();
   </script>
   <script>
-    // Asterisco dinâmico: só aparece quando o usuário esquece campos obrigatórios
+    // Required: destaca em vermelho e borda quando o usuário deixa vazio
     (function(){
       const form = document.getElementById('usuarioForm');
       if(!form) return;
       const requiredIds = ['nome_user','cpf_user','email_user','senha','confirmar_senha','captcha'];
       function labelFor(id){ return document.querySelector(`label[for="${id}"]`); }
       function flagRequired(id){
-        const lbl = labelFor(id); if(!lbl) return;
-        const base = (lbl.dataset.baseLabel || lbl.textContent.replace(/\s*\*$/, ''));
-        lbl.dataset.baseLabel = base;
-        if(!/ \*$/.test(lbl.textContent)) lbl.textContent = `${base} *`;
-        lbl.classList.add('required-missing');
+        const lbl = labelFor(id); if(lbl) lbl.classList.add('required-missing');
+        const el = document.getElementById(id); if(el) el.classList.add('field-error');
       }
       function clearRequired(id){
-        const lbl = labelFor(id); if(!lbl) return;
-        const base = (lbl.dataset.baseLabel || lbl.textContent.replace(/\s*\*$/, ''));
-        lbl.textContent = base;
-        lbl.classList.remove('required-missing');
+        const lbl = labelFor(id); if(lbl) lbl.classList.remove('required-missing');
+        const el = document.getElementById(id); if(el) el.classList.remove('field-error');
       }
 
       requiredIds.forEach((id)=>{
         const el = document.getElementById(id);
         if(el){
           el.addEventListener('input', ()=>{ if((el.value||'').trim()) clearRequired(id); });
-          el.addEventListener('blur', ()=>{ if((el.value||'').trim()) clearRequired(id); });
+          el.addEventListener('blur', ()=>{ ((el.value||'').trim()) ? clearRequired(id) : flagRequired(id); });
         }
       });
 

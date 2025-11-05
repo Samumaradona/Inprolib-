@@ -423,14 +423,14 @@
       </p>
       
       <div class="input-group">
-        <label class="input-label" for="novaSenha">Nova senha</label>
+        <label class="input-label required" for="novaSenha">Nova senha</label>
         <div class="password-wrapper">
           <input 
             type="password" 
             id="novaSenha" 
             class="password-input"
             placeholder="Digite sua nova senha"
-            required minlength="8" maxlength="8" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8}$" title="Use exatamente 8 caracteres com maiúscula, minúscula, número e símbolo"
+            required minlength="8" maxlength="16" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,16}$" title="Use entre 8 e 16 caracteres com maiúscula, minúscula, número e símbolo"
           />
           <button type="button" class="password-toggle" data-target="novaSenha" aria-label="Mostrar senha" title="Mostrar senha">
             <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye"></use></svg>
@@ -439,14 +439,14 @@
       </div>
       
       <div class="input-group">
-        <label class="input-label" for="confirmarSenha">Confirmar senha</label>
+        <label class="input-label required" for="confirmarSenha">Confirmar senha</label>
         <div class="password-wrapper">
           <input 
             type="password" 
             id="confirmarSenha" 
             class="password-input"
             placeholder="Confirme sua nova senha"
-            required minlength="8" maxlength="8" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8}$" title="Use exatamente 8 caracteres com maiúscula, minúscula, número e símbolo"
+            required minlength="8" maxlength="16" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,16}$" title="Use entre 8 e 16 caracteres com maiúscula, minúscula, número e símbolo"
           />
           <button type="button" class="password-toggle" data-target="confirmarSenha" aria-label="Mostrar senha" title="Mostrar senha">
             <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye"></use></svg>
