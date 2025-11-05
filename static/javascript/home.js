@@ -33,6 +33,34 @@ const ALLOWED_BY_ROLE = {
 
 // Calcula rotas permitidas
 const allowedSet = ALLOWED_BY_ROLE[USER_ROLE] || new Set(['/home']);
+
+/*
+ * Desativa spellcheck/autocorreção em campos de texto para evitar sublinhado vermelho.
+ * Aplica-se globalmente a textareas, inputs de texto/Busca/Email/URL/Tel e contenteditable.
+ */
+(function disableGlobalSpellcheck(){
+  try {
+    const selectors = [
+      'textarea',
+      'input[type="text"]',
+      'input[type="search"]',
+      'input[type="email"]',
+      'input[type="url"]',
+      'input[type="tel"]'
+    ];
+    document.querySelectorAll(selectors.join(',')).forEach(el => {
+      el.setAttribute('spellcheck','false');
+      // iOS/Safari: atributos auxiliares
+      el.setAttribute('autocorrect','off');
+      el.setAttribute('autocapitalize','off');
+    });
+    document.querySelectorAll('[contenteditable="true"]').forEach(el => {
+      el.setAttribute('spellcheck','false');
+      el.setAttribute('autocorrect','off');
+      el.setAttribute('autocapitalize','off');
+    });
+  } catch(_) { /* noop */ }
+})();
 let ROUTES = ALL_ROUTES.filter(r => allowedSet.has(r.path));
 
 // Garantia: para Admin/Docente, força inclusão de Avaliação caso falte
@@ -54,12 +82,27 @@ const DEFAULT_ROUTE = (USER_ROLE === 'Administrador') ? '/cadastro_curso' : '/ho
 /* chave usada no localStorage para guardar qual rota está ativa */
 const ROUTE_STORAGE_KEY = 'meuapp_current_route';
 
-/* lê a rota atual do localStorage com fallback para DEFAULT_ROUTE */
+/* lê a rota atual preferindo a rota do navegador, com fallback para storage/default */
 let currentRoute = (function(){
+  // rota atual do navegador
+  let pathFromLocation = '';
+  try {
+    if (typeof window !== 'undefined' && window.location && window.location.pathname) {
+      pathFromLocation = String(window.location.pathname).trim();
+    }
+  } catch(e) { /* noop */ }
+
+  // se a rota atual existe na lista, usa ela para marcar ativo
+  const hasPathInRoutes = ROUTES && Array.isArray(ROUTES) && ROUTES.some(r => r && r.path === pathFromLocation);
+  if (pathFromLocation && hasPathInRoutes) {
+    try { localStorage.setItem(ROUTE_STORAGE_KEY, pathFromLocation); } catch(e) { /* noop */ }
+    return pathFromLocation;
+  }
+
+  // caso contrário, usa valor persistido ou rota padrão
   try {
     return localStorage.getItem(ROUTE_STORAGE_KEY) || DEFAULT_ROUTE || (ROUTES[0] && ROUTES[0].path) || '/';
   } catch(e) {
-    // se localStorage inacessível (ex: modo privado restrito), usa fallback
     return DEFAULT_ROUTE || (ROUTES[0] && ROUTES[0].path) || '/';
   }
 })();
@@ -200,8 +243,20 @@ function openMenu(){
 
   if (document && document.body) document.body.style.overflow = 'hidden';
 
-  const first = document.getElementById('firstRoute');
-  if(first) first.focus();
+  // Foca a rota atualmente ativa; se não houver, foca a primeira
+  let activeBtn = null;
+  try {
+    if (routesList) {
+      activeBtn = routesList.querySelector('.route.active,[aria-current="page"]');
+    }
+  } catch(e) { /* noop */ }
+
+  if (activeBtn) {
+    try { activeBtn.focus(); } catch(e){}
+  } else {
+    const first = document.getElementById('firstRoute');
+    if(first) { try { first.focus(); } catch(e){} }
+  }
 
   document.addEventListener('keydown', onKeyDown);
 }
@@ -574,8 +629,37 @@ function formatDate(v){
   const complaintText = document.getElementById('homeCardComplaintText');
   const complaintImage = document.getElementById('homeCardComplaintImage');
   const complaintSubmit = document.getElementById('homeCardComplaintSubmit');
+  const complaintSection = document.getElementById('homeCardComplaint');
+  const complaintImageLabel = (function(){
+    try { return document.querySelector('label[for="homeCardComplaintImage"]'); } catch(_) { return null; }
+  })();
   let currentDoc = null;
   // Botão de download removido na Home; o usuário baixa pela tela Publicação.
+
+  // Enforce max length on complaint textarea (robust against paste)
+  const MAX_DENUNCIA_LEN = 800;
+  if (complaintText) {
+    try { complaintText.setAttribute('maxlength', String(MAX_DENUNCIA_LEN)); } catch(_){}
+    complaintText.addEventListener('input', () => {
+      const v = complaintText.value || '';
+      if (v.length > MAX_DENUNCIA_LEN) {
+        complaintText.value = v.slice(0, MAX_DENUNCIA_LEN);
+      }
+      // limpa erro se usuário corrigir
+      try {
+        complaintText.classList.remove('field-error');
+        const msgEl = complaintText.parentElement && complaintText.parentElement.querySelector('.field-msg.error');
+        if (msgEl) msgEl.remove();
+      } catch(_){}
+    });
+  }
+
+  // Bloqueia denúncia para Docente (usa avaliação indeferir/deferir)
+  if (USER_ROLE === 'Docente' && complaintSection) {
+    try {
+      complaintSection.innerHTML = '<div style="color:#334155;font-size:13px">Docentes não podem registrar denúncia. Utilize a tela de Avaliação para indeferir antes da publicação.</div>';
+    } catch(_){ }
+  }
 
   function openCardModal(doc){
     currentDoc = doc || null;
@@ -598,7 +682,7 @@ function formatDate(v){
     // Ação de download removida: a Home não possui botão de download
     // O usuário deve usar a tela de Publicação para baixar o arquivo
 
-    // Pré-visualização similar à tela Publicação
+    // Pré-visualização similar à tela Publicação, com controles de zoom
     if(modalPreview){
       modalPreview.innerHTML = '';
       try {
@@ -609,8 +693,9 @@ function formatDate(v){
           const ext = getExt(url);
           if(['.doc','.docx','.xls','.xlsx'].includes(ext)){
             if(doc && doc.id){
+              // Apenas iframe com toolbar nativa do viewer
               const frame = document.createElement('iframe');
-              frame.src = `/preview_pdf_publicacao/${doc.id}`;
+              frame.src = `/preview_pdf_publicacao/${doc.id}#zoom=page-width`;
               frame.title = doc.title || 'Pré-visualização PDF';
               frame.style.width = '100%';
               frame.style.height = '520px';
@@ -630,8 +715,9 @@ function formatDate(v){
             img.style.borderRadius = '8px';
             modalPreview.appendChild(img);
           } else if(ext === '.pdf'){
+            // Apenas iframe com toolbar nativa do viewer
             const frame = document.createElement('iframe');
-            frame.src = url;
+            frame.src = url + '#zoom=page-width';
             frame.title = doc.title || 'Conteúdo da publicação';
             frame.style.width = '100%';
             frame.style.height = '520px';
@@ -651,6 +737,7 @@ function formatDate(v){
               pre.style.overflow = 'auto';
               pre.style.background = '#fff';
               pre.style.padding = '12px';
+              pre.style.fontSize = '16px';
               pre.style.borderRadius = '8px';
               modalPreview.appendChild(pre);
             }).catch(()=>{
@@ -695,14 +782,64 @@ function formatDate(v){
     complaintForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
+        // Bloqueio adicional no front para Docente
+        if (USER_ROLE === 'Docente') {
+          try { window.showToast && window.showToast('Denúncia indisponível para Docente. Utilize Avaliação.', 'error'); } catch(_) {}
+          return;
+        }
         if (!currentDoc) {
           try { window.showToast && window.showToast('Publicação não identificada.', 'error'); } catch(_) {}
           return;
         }
-        const desc = (complaintText && complaintText.value || '').trim();
+        const raw = (complaintText && complaintText.value || '');
+        const desc = raw.trim();
         if (!desc) {
           if (complaintText) complaintText.focus();
+          // destaque visual
+          try {
+            complaintText.classList.add('field-error');
+            const container = complaintText.parentElement || complaintForm;
+            let msgEl = container.querySelector('.field-msg.error');
+            if (!msgEl) {
+              msgEl = document.createElement('div');
+              msgEl.className = 'field-msg error';
+              msgEl.style.color = '#dc2626';
+              msgEl.style.fontSize = '12px';
+              msgEl.style.marginTop = '4px';
+              container.appendChild(msgEl);
+            }
+            msgEl.textContent = 'Descreva a denúncia.';
+          } catch(_){}
           try { window.showToast && window.showToast('Descreva a denúncia antes de enviar.', 'error'); } catch(_) {}
+          return;
+        }
+        if (desc.length > MAX_DENUNCIA_LEN) {
+          if (complaintText) {
+            complaintText.value = desc.slice(0, MAX_DENUNCIA_LEN);
+            complaintText.focus();
+          }
+          try { window.showToast && window.showToast(`Limite de ${MAX_DENUNCIA_LEN} caracteres excedido.`, 'error'); } catch(_) {}
+          return;
+        }
+        // exige imagem de erro
+        const hasImage = !!(complaintImage && complaintImage.files && complaintImage.files.length > 0);
+        if (!hasImage) {
+          try {
+            if (complaintImageLabel) {
+              complaintImageLabel.classList.add('field-error');
+              let msgEl = complaintImageLabel.nextElementSibling && complaintImageLabel.nextElementSibling.classList && complaintImageLabel.nextElementSibling.classList.contains('field-msg') ? complaintImageLabel.nextElementSibling : null;
+              if (!msgEl) {
+                msgEl = document.createElement('div');
+                msgEl.className = 'field-msg error';
+                msgEl.style.color = '#dc2626';
+                msgEl.style.fontSize = '12px';
+                msgEl.style.marginTop = '4px';
+                complaintImageLabel.parentElement && complaintImageLabel.parentElement.appendChild(msgEl);
+              }
+              msgEl.textContent = 'Anexe uma imagem do erro.';
+            }
+          } catch(_){}
+          try { window.showToast && window.showToast('Anexe uma imagem do erro para avaliação.', 'error'); } catch(_) {}
           return;
         }
         const compose = (v) => (v==null||v==='') ? '—' : String(v);
@@ -721,6 +858,7 @@ function formatDate(v){
 
         const fd = new FormData();
         fd.append('mensagem', msg);
+        fd.append('mensagem_plain', desc);
         if (currentDoc && currentDoc.id != null) {
           fd.append('id_publicacao', String(currentDoc.id));
         }
@@ -737,12 +875,26 @@ function formatDate(v){
 
         const resp = await fetch('/publicacao/denuncia', { method: 'POST', body: fd, redirect: 'follow' });
         const ok = resp && resp.ok;
+        let payload = null;
+        try { payload = await resp.json(); } catch(_) { payload = null; }
         if (ok) {
           if (complaintText) complaintText.value = '';
           if (complaintImage) complaintImage.value = '';
           try { window.showToast && window.showToast('Denúncia enviada com sucesso!', 'success'); } catch(_) {}
+          // redireciona para Últimas publicações com status denunciada
+          try { window.location.href = '/publicacao'; } catch(_){}
         } else {
-          try { window.showToast && window.showToast('Falha ao enviar a denúncia.', 'error'); } catch(_) {}
+          // exibe erros padronizados e destaca campo
+          const errMsg = (payload && payload.error) ? payload.error : 'Falha ao enviar a denúncia.';
+          try { window.showToast && window.showToast(errMsg, 'error'); } catch(_) {}
+          if (payload && /imagem/i.test(errMsg)) {
+            try {
+              complaintImageLabel && complaintImageLabel.classList.add('field-error');
+            } catch(_){}
+          }
+          if (payload && /800/i.test(errMsg)) {
+            try { complaintText && complaintText.classList.add('field-error'); } catch(_){}
+          }
         }
         if (complaintSubmit) {
           complaintSubmit.disabled = false;
@@ -763,6 +915,13 @@ function formatDate(v){
       const hasFile = e.target && e.target.files && e.target.files.length > 0;
       if (hasFile) {
         try { window.showToast && window.showToast('Imagem anexada à denúncia!', 'success'); } catch(_) {}
+        try {
+          if (complaintImageLabel) {
+            complaintImageLabel.classList.remove('field-error');
+            const n = complaintImageLabel.nextElementSibling;
+            if (n && n.classList && n.classList.contains('field-msg')) n.remove();
+          }
+        } catch(_){}
       }
     });
   }
@@ -1033,6 +1192,7 @@ function formatDate(v){
   })();
 
   if(publicacaoForm){
+    const autor = document.getElementById('autor');
     const titulo = document.getElementById('titulo_conteudo');
     const tipo = document.getElementById('tipo_publicacao');
     const curso = document.getElementById('curso');
@@ -1040,6 +1200,39 @@ function formatDate(v){
     const termo = document.getElementById('termo');
     const lblConteudo = document.querySelector('label[for="conteudo"]');
     const lblTermo = document.querySelector('label[for="termo"]');
+
+    // Asterisco vermelho nos campos obrigatórios e feedback de ausência
+    function labelFor(id){ return document.querySelector(`label[for="${id}"]`); }
+    const requiredIds = ['autor','titulo_conteudo','tipo_publicacao','curso','orientador','captcha'];
+    requiredIds.forEach((id)=>{
+      const lbl = labelFor(id);
+      if(lbl) lbl.classList.add('required');
+      const el = document.getElementById(id);
+      if(!el) return;
+      // Mensagem personalizada e contorno vermelho
+      el.addEventListener('blur', ()=>{
+        const val = (el.value||'').trim();
+        if(!val){
+          if(lbl) lbl.classList.add('required-missing');
+          el.classList.add('field-error');
+          showFieldError(el, 'Campo obrigatório.');
+        }
+      });
+      // Limpa o erro ao digitar/selecionar
+      const clear = ()=>{
+        const val = (el.value||'').trim();
+        if(val){
+          if(lbl) lbl.classList.remove('required-missing');
+          el.classList.remove('field-error');
+          clearFieldError(el);
+        }
+      };
+      el.addEventListener('input', clear);
+      el.addEventListener('change', clear);
+    });
+    // Arquivos obrigatórios: mostram asterisco nas labels
+    if(lblConteudo) lblConteudo.classList.add('required');
+    if(lblTermo) lblTermo.classList.add('required');
 
     const ALLOW_EXT = new Set(['.pdf','.doc','.docx','.xls','.xlsx','.csv','.txt','.png','.jpg','.jpeg','.webp']);
     function getExt(name){
@@ -1062,48 +1255,194 @@ function formatDate(v){
     if(conteudo && lblConteudo){ conteudo.addEventListener('change', ()=>updateLabel(conteudo,lblConteudo)); }
     if(termo && lblTermo){ termo.addEventListener('change', ()=>updateLabel(termo,lblTermo)); }
 
-    publicacaoForm.addEventListener('submit', function(ev){
-      // título e tipo obrigatórios
+    // helpers de erro visual (contorno vermelho + mensagem próxima ao campo)
+    function showFieldError(el, msg){
+      try{
+        if(!el) return;
+        el.classList.add('field-error');
+        const id = el.id || Math.random().toString(36).slice(2);
+        const container = el.parentElement || publicacaoForm;
+        let msgEl = container.querySelector(`.field-msg.error[data-for="${id}"]`);
+        if(!msgEl){
+          msgEl = document.createElement('div');
+          msgEl.className = 'field-msg error';
+          msgEl.setAttribute('data-for', id);
+          msgEl.style.color = '#dc2626';
+          msgEl.style.fontSize = '12px';
+          msgEl.style.marginTop = '4px';
+          container.appendChild(msgEl);
+        }
+        msgEl.textContent = msg || 'Verifique este campo.';
+      }catch(_){ /* noop */ }
+    }
+    function clearFieldError(el){
+      try{
+        if(!el) return;
+        el.classList.remove('field-error');
+        const id = el.id || '';
+        const container = el.parentElement || publicacaoForm;
+        const msgEl = id ? container.querySelector(`.field-msg.error[data-for="${id}"]`) : null;
+        if(msgEl && msgEl.remove) msgEl.remove();
+      }catch(_){ /* noop */ }
+    }
+    function showLabelError(lbl, msg){
+      try{
+        if(!lbl) return;
+        lbl.classList.add('field-error');
+        let msgEl = lbl.nextElementSibling && lbl.nextElementSibling.classList && lbl.nextElementSibling.classList.contains('field-msg') ? lbl.nextElementSibling : null;
+        if(!msgEl){
+          msgEl = document.createElement('div');
+          msgEl.className = 'field-msg error';
+          msgEl.style.color = '#dc2626';
+          msgEl.style.fontSize = '12px';
+          msgEl.style.marginTop = '4px';
+          lbl.parentElement && lbl.parentElement.appendChild(msgEl);
+        }
+        msgEl.textContent = msg || 'Campo obrigatório.';
+      }catch(_){ }
+    }
+    function clearLabelError(lbl){
+      try{
+        if(!lbl) return;
+        lbl.classList.remove('field-error');
+        const sib = lbl.nextElementSibling;
+        if(sib && sib.classList && sib.classList.contains('field-msg')) sib.remove();
+      }catch(_){ }
+    }
+
+    // limpar erro quando o usuário altera o valor
+    [titulo,tipo,document.getElementById('curso'),document.getElementById('orientador'),document.getElementById('captcha')]
+      .filter(Boolean).forEach(el=>{
+        el.addEventListener('input', ()=>clearFieldError(el));
+        el.addEventListener('change', ()=>clearFieldError(el));
+      });
+    if(conteudo && lblConteudo){ conteudo.addEventListener('change', ()=>{ clearLabelError(lblConteudo); updateLabel(conteudo,lblConteudo); }); }
+    if(termo && lblTermo){ termo.addEventListener('change', ()=>{ clearLabelError(lblTermo); updateLabel(termo,lblTermo); }); }
+
+    publicacaoForm.addEventListener('submit', async function(ev){
+      ev.preventDefault();
+      const curso = document.getElementById('curso');
+      const orientador = document.getElementById('orientador');
+      const captcha = document.getElementById('captcha');
+
+      // Validações personalizadas
+      if(autor && !autor.value.trim()){
+        showFieldError(autor, 'Informe o autor do conteúdo.');
+        autor.focus();
+        window.showToast && window.showToast('Informe o autor do conteúdo.', 'error');
+        return;
+      }
       if(titulo && !titulo.value.trim()){
-        ev.preventDefault();
+        showFieldError(titulo, 'Informe o título da publicação.');
         titulo.focus();
-        titulo.reportValidity && titulo.reportValidity();
-        if (window.showToast) { window.showToast('Informe o título da publicação.', 'error'); } else { alert('Informe o título da publicação.'); }
+        window.showToast && window.showToast('Informe o título da publicação.', 'error');
         return;
       }
       if(tipo && !tipo.value.trim()){
-        ev.preventDefault();
+        showFieldError(tipo, 'Selecione o tipo da publicação.');
         tipo.focus();
-        tipo.reportValidity && tipo.reportValidity();
-        if (window.showToast) { window.showToast('Informe o tipo da publicação.', 'error'); } else { alert('Informe o tipo da publicação.'); }
+        window.showToast && window.showToast('Informe o tipo da publicação.', 'error');
         return;
       }
-      // arquivo obrigatório
+      if(curso && !curso.value.trim()){
+        showFieldError(curso, 'Selecione o curso.');
+        curso.focus();
+        window.showToast && window.showToast('Informe o curso.', 'error');
+        return;
+      }
+      if(orientador && !orientador.value.trim()){
+        showFieldError(orientador, 'Selecione o orientador/professor.');
+        orientador.focus();
+        window.showToast && window.showToast('Selecione o orientador (perfil Professor).', 'error');
+        return;
+      }
+      if(captcha && !String(captcha.value||'').trim()){
+        showFieldError(captcha, 'Resolva o captcha para continuar.');
+        captcha.focus();
+        window.showToast && window.showToast('Resolva o captcha para continuar.', 'error');
+        return;
+      }
+      // arquivos obrigatórios: conteúdo e termo
       if(conteudo){
         const f = conteudo.files && conteudo.files[0];
         if(!f){
-          ev.preventDefault();
-          if (window.showToast) { window.showToast('Anexe o arquivo de conteúdo para publicar.', 'error'); } else { alert('Anexe o arquivo de conteúdo para publicar.'); }
+          showLabelError(lblConteudo, 'Anexe o arquivo de conteúdo.');
+          window.showToast && window.showToast('Anexe o arquivo de conteúdo para publicar.', 'error');
           return;
         }
         const ext = getExt(f.name);
         if(!ALLOW_EXT.has(ext)){
-          ev.preventDefault();
-          if (window.showToast) { window.showToast('Tipo de arquivo não permitido.', 'error'); } else { alert('Tipo de arquivo não permitido.'); }
+          showLabelError(lblConteudo, 'Tipo de arquivo não permitido.');
+          window.showToast && window.showToast('Tipo de arquivo não permitido.', 'error');
           return;
         }
       }
-      // termo é opcional, mas se vier, valida extensão
       if(termo){
         const ft = termo.files && termo.files[0];
-        if(ft){
-          const ext2 = getExt(ft.name);
-          if(!ALLOW_EXT.has(ext2)){
-            ev.preventDefault();
-            if (window.showToast) { window.showToast('Tipo de arquivo do termo não permitido.', 'error'); } else { alert('Tipo de arquivo do termo não permitido.'); }
-            return;
+        if(!ft){
+          showLabelError(lblTermo, 'Anexe o termo de autorização.');
+          window.showToast && window.showToast('Anexe o termo de autorização.', 'error');
+          return;
+        }
+        const ext2 = getExt(ft.name);
+        if(!ALLOW_EXT.has(ext2)){
+          showLabelError(lblTermo, 'Tipo de arquivo do termo não permitido.');
+          window.showToast && window.showToast('Tipo de arquivo do termo não permitido.', 'error');
+          return;
+        }
+      }
+
+      // submissão AJAX para não limpar a tela em caso de erro
+      try{
+        const fd = new FormData(publicacaoForm);
+        const resp = await fetch('/publicacao', {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const ct = resp.headers.get('Content-Type')||'';
+        let data = null;
+        if(ct.includes('application/json')){
+          data = await resp.json().catch(()=>null);
+        } else {
+          // Fallback: tenta ler texto
+          const text = await resp.text().catch(()=> '');
+          data = null;
+          if(!resp.ok){
+            throw new Error('Falha ao enviar a publicação.');
           }
         }
+        if(!resp.ok || (data && data.ok === false)){
+          const field = data && data.field;
+          const message = (data && data.message) || 'Verifique os campos e tente novamente.';
+          window.showToast && window.showToast(message, 'error');
+          // destaca campo específico sem limpar tela
+          const map = {
+            'autor': autor,
+            'captcha': captcha,
+            'titulo_conteudo': titulo,
+            'tipo_publicacao': tipo,
+            'curso': curso,
+            'orientador': orientador
+          };
+          const target = map[field] || captcha || titulo;
+          if(target){ showFieldError(target, message); target.focus(); }
+          // arquivos
+          if(field === 'conteudo'){ showLabelError(lblConteudo, message); }
+          if(field === 'termo'){ showLabelError(lblTermo, message); }
+          return;
+        }
+        // sucesso
+        const msg = (data && data.message) || 'Publicação criada com sucesso!';
+        window.showToast && window.showToast(msg, 'success');
+        // fecha modal e mantém lista atual; opcionalmente limpar
+        try{
+          const modal = document.getElementById('pubCreateModal');
+          if(modal){ modal.style.display='none'; modal.setAttribute('aria-hidden','true'); }
+        }catch(_){ }
+      }catch(err){
+        window.showToast && window.showToast('Falha ao enviar a publicação.', 'error');
       }
     });
   }

@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="configuracao.css">
   <link rel="stylesheet" href="topbar.css">
   <link rel="stylesheet" href="notifications.css?v=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
   <link rel="stylesheet" href="theme-dark.css">
   <script src="theme.js"></script>
@@ -29,7 +31,7 @@
       </button>
             <div class="profile-wrap" style="position:relative">
         <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
-          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário">
+          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário" decoding="async">
         </button>
         <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
           <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
@@ -62,7 +64,7 @@
   <div class="modal-content">
     <button id="closeModal" class="modal-close" aria-label="Fechar visualização">✕</button>
     <h3 id="avatarModalTitle" style="margin:0 0 12px 0">Foto do usuário</h3>
-    <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px">
+    <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px" loading="lazy" decoding="async">
   </div>
 </div>
     <!-- Backdrop e menu lateral -->

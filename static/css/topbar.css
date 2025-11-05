@@ -126,3 +126,20 @@ header.topbar .profile-btn:focus { outline: 2px solid #99ACF7; outline-offset: 2
     flex-wrap: wrap;
   }
 }
+
+/* ===== Mobile-friendly global tweaks ===== */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { touch-action: manipulation; }
+
+/* Inputs: previne zoom em iOS e garante alvo confortável */
+input, textarea, select { font-size: 16px; }
+button, .button { min-height: 40px; }
+
+/* Mídia responsiva */
+img, iframe { max-width: 100%; height: auto; }
+
+/* Rolagem suave e segura para usuários com redução de movimento */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+  html { scroll-behavior: auto; }
+}

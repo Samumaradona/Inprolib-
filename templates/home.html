@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="home.css">
   <link rel="stylesheet" href="topbar.css">
   <link rel="stylesheet" href="notifications.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
   <link rel="stylesheet" href="theme-dark.css">
   <script src="theme.js"></script>
@@ -22,7 +24,7 @@
       </button>
             <div class="profile-wrap" style="position:relative">
         <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
-          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário">
+          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário" decoding="async">
         </button>
         <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
           <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
@@ -56,7 +58,7 @@
   <div class="modal-content">
     <button id="closeModal" class="modal-close" aria-label="Fechar visualização">✕</button>
     <h3 id="avatarModalTitle" style="margin:0 0 12px 0">Foto do usuário</h3>
-    <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px">
+    <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px" loading="lazy" decoding="async">
   </div>
 </div>
 
@@ -147,22 +149,24 @@
         <button id="homeCardModalClose" class="modal-close" aria-label="Fechar">✕</button>
         <h3 id="homeCardModalTitle" style="margin:0 0 8px 0">Detalhes da publicação</h3>
         <div id="homeCardModalMeta" style="font-size:13px;color:#64748b;margin-bottom:8px"></div>
-        <div id="homeCardModalPreview" style="display:flex;align-items:center;justify-content:center;min-height:220px;border:1px solid #e5e7eb;border-radius:8px;background:#f8fafc"></div>
+        <!-- Preview à esquerda e denúncia à direita (layout lado a lado) -->
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div id="homeCardModalPreview" style="flex:1;display:flex;align-items:center;justify-content:center;min-height:220px;border:1px solid #e5e7eb;border-radius:8px;background:#f8fafc"></div>
+          <!-- Denúncia de Copyright (apenas neste contexto da Home) -->
+          <section id="homeCardComplaint" class="card" aria-labelledby="homeCardComplaintTitle" style="flex:0 0 320px;margin-top:0">
+            <h4 id="homeCardComplaintTitle" style="margin:0 0 8px 0">Denúncia de direitos autorais</h4>
+            <form id="homeCardComplaintForm" novalidate>
+              <textarea id="homeCardComplaintText" class="input" placeholder="Escreva sua denúncia..." maxlength="800" required style="margin-bottom:6px;min-height:160px;resize:vertical"></textarea>
+              <div class="btn-group">
+                <input type="file" id="homeCardComplaintImage" name="imagem" accept="image/*" hidden>
+                <label for="homeCardComplaintImage" class="button is-success is-sm">Anexar imagem</label>
+                <button id="homeCardComplaintSubmit" type="submit" class="button is-sm" aria-label="Enviar denúncia">Enviar denúncia</button>
+              </div>
+            </form>
+          </section>
+        </div>
         
         <!-- Botão de download removido: o download é feito na tela Publicação -->
-        
-        <!-- Denúncia de Copyright (apenas neste contexto da Home) -->
-        <section id="homeCardComplaint" class="card" aria-labelledby="homeCardComplaintTitle" style="margin-top:12px">
-          <h4 id="homeCardComplaintTitle" style="margin:0 0 8px 0">Denúncia de direitos autorais</h4>
-          <form id="homeCardComplaintForm" novalidate>
-            <textarea id="homeCardComplaintText" class="input" placeholder="Escreva sua denúncia..." maxlength="1500" required style="margin-bottom:6px;resize:none"></textarea>
-            <div class="btn-group">
-              <input type="file" id="homeCardComplaintImage" name="imagem" accept="image/*" hidden>
-              <label for="homeCardComplaintImage" class="button is-success is-sm">Anexar imagem</label>
-              <button id="homeCardComplaintSubmit" type="submit" class="button is-sm" aria-label="Enviar denúncia">Enviar denúncia</button>
-            </div>
-          </form>
-        </section>
       </div>
     </div>
 

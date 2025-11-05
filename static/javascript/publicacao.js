@@ -39,6 +39,20 @@
     toggleEvalBtn.addEventListener('click', (e)=>{ e.preventDefault(); expanded = !expanded; render(); });
   })();
 
+  // Reseta a UI de progresso/estado de download ao abrir/fechar o modal
+  function resetProgressUI(){
+    try{
+      const wrap = document.getElementById('pubDlWrap');
+      if(wrap){
+        wrap.style.display = 'none';
+        const bar = wrap.querySelector('progress');
+        const label = wrap.querySelector('span');
+        if(bar) bar.value = 0;
+        if(label) label.textContent = 'Baixando... 0%';
+      }
+    }catch(_){ /* noop */ }
+  }
+
   function openModal(data){
     const {id, titulo, tipo, curso, data: dataPublicacao, url, status} = data;
     titleEl.textContent = titulo || 'Publicação';
@@ -51,6 +65,9 @@
       // Sugere nome de download com o título
       link.setAttribute('download', (titulo || 'publicacao'));
     } catch(e){}
+
+    // Garante que qualquer mensagem anterior (ex.: "Download cancelado") seja removida
+    resetProgressUI();
 
     // Controle de permissão de download por status
     const st = String(status || '').toLowerCase();
@@ -181,6 +198,8 @@
     modal.style.display = 'none';
     modal.setAttribute('aria-hidden','true');
     preview.innerHTML = '';
+    // Ao fechar, também limpamos a UI de progresso
+    resetProgressUI();
   }
 
   if(btnClose){ btnClose.addEventListener('click', closeModal); }
@@ -191,7 +210,7 @@
   if(link){
     if(!link.dataset.bound){
       link.dataset.bound = '1';
-      const ensureProgressUI = ()=>{
+      const ensureProgressUI = (controller)=>{
         const actions = document.getElementById('pubActions');
         let wrap = document.getElementById('pubDlWrap');
         if(!wrap){
@@ -212,17 +231,60 @@
           const label = document.createElement('span');
           label.id = 'pubDlLabel';
           label.textContent = 'Baixando... 0%';
+          const btnCancel = document.createElement('button');
+          btnCancel.id = 'pubDlCancel';
+          btnCancel.type = 'button';
+          btnCancel.textContent = 'Cancelar';
+          btnCancel.style.marginLeft = '8px';
+          btnCancel.style.background = '#e2e8f0';
+          btnCancel.style.color = '#0f172a';
+          btnCancel.style.border = '0';
+          btnCancel.style.padding = '6px 10px';
+          btnCancel.style.borderRadius = '6px';
+          btnCancel.style.cursor = 'pointer';
+          btnCancel.setAttribute('aria-label','Cancelar download');
           wrap.appendChild(bar);
           wrap.appendChild(label);
+          wrap.appendChild(btnCancel);
           actions && actions.appendChild(wrap);
         }
         const bar = wrap.querySelector('progress');
         const label = wrap.querySelector('span');
+        const btnCancel = wrap.querySelector('#pubDlCancel');
+        if(btnCancel){
+          btnCancel.onclick = ()=>{
+            try{ controller && controller.abort && controller.abort(); }catch(e){}
+            // Atualiza rótulo imediatamente
+            label.textContent = 'Download cancelado';
+            wrap.style.display='flex';
+            try { window.showToast && window.showToast('Download cancelado', 'info'); } catch(_){}
+            try { setTimeout(()=>{ typeof closeModal === 'function' && closeModal(); }, 400); } catch(_){}
+          };
+        }
         return {
           show(){ wrap.style.display='flex'; bar.value=0; label.textContent='Baixando... 0%'; },
           update(p){ bar.value=p; label.textContent = `Baixando... ${Math.max(0, Math.min(100, Math.round(p)))}%`; },
-          done(name){ bar.value=100; label.textContent = name ? `Download concluído: ${name}` : 'Download concluído com sucesso'; /* mantém visível para o usuário */ wrap.style.display='flex'; },
+          done(name){
+            bar.value=100;
+            const msg = name ? `Download concluído: ${name}` : 'Download concluído com sucesso';
+            label.textContent = msg;
+            wrap.style.display='flex';
+            try {
+              if (window.location && window.location.pathname === '/publicacao') {
+                window.showToast && window.showToast(msg, 'success');
+              }
+            } catch(_){}
+            // Fecha o modal após breve intervalo para indicar conclusão
+            try { setTimeout(()=>{ typeof closeModal === 'function' && closeModal(); }, 600); } catch(_){}
+          },
           fail(){ label.textContent='Falha no download'; wrap.style.display='flex'; }
+          ,
+          cancel(){
+            label.textContent='Download cancelado';
+            wrap.style.display='flex';
+            try { window.showToast && window.showToast('Download cancelado', 'info'); } catch(_){}
+            try { setTimeout(()=>{ typeof closeModal === 'function' && closeModal(); }, 400); } catch(_){}
+          }
         };
       };
 
@@ -235,9 +297,12 @@
         }
         const url = link.href;
         let suggested = (link.getAttribute('download') || 'arquivo');
-        const progress = ensureProgressUI();
+        const controller = new AbortController();
+        let aborted = false;
+        try { controller.signal.addEventListener('abort', ()=>{ aborted = true; }); }catch(_){}
+        const progress = ensureProgressUI(controller);
         try {
-          const resp = await fetch(url, { credentials: 'same-origin' });
+          const resp = await fetch(url, { credentials: 'same-origin', signal: controller.signal });
           if(!resp.ok) throw new Error('Falha ao iniciar download');
 
           // Tenta obter nome sugerido do servidor (Content-Disposition)
@@ -265,20 +330,26 @@
             let received = 0;
             progress.show();
             while(true){
+              if(aborted) break;
               const {done, value} = await reader.read();
               if(done) break;
               await writable.write(value);
               received += (value && value.length) ? value.length : 0;
               if(total){ progress.update((received/total)*100); }
             }
-            await writable.close();
-            progress.done(suggested);
+            try { await writable.close(); } catch(_){}
+            if(!aborted){
+              progress.done(suggested);
+            } else {
+              progress.cancel();
+            }
           } else {
             const chunks = [];
             let received = 0;
             progress.show();
             if(reader){
               while(true){
+                if(aborted) break;
                 const {done, value} = await reader.read();
                 if(done) break;
                 chunks.push(value);
@@ -291,25 +362,34 @@
               progress.update(100);
             }
             // fallback para salvar via âncora ou API msSaveOrOpenBlob
-            const blob = new Blob(chunks, { type: /pdf/i.test(mime) ? 'application/pdf' : mime });
-            if(navigator.msSaveOrOpenBlob){
-              navigator.msSaveOrOpenBlob(blob, suggested);
-              progress.done(suggested);
+            if(!aborted){
+              const blob = new Blob(chunks, { type: /pdf/i.test(mime) ? 'application/pdf' : mime });
+              if(navigator.msSaveOrOpenBlob){
+                navigator.msSaveOrOpenBlob(blob, suggested);
+                progress.done(suggested);
+              } else {
+                const objectURL = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = objectURL;
+                a.download = suggested;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(objectURL);
+                progress.done(suggested);
+              }
             } else {
-              const objectURL = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = objectURL;
-              a.download = suggested;
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-              URL.revokeObjectURL(objectURL);
-              progress.done(suggested);
+              progress.cancel();
             }
           }
         } catch(err){
           console.error('Erro no download', err);
-          progress.fail();
+          // Se for cancelamento via AbortController, trate como cancelado
+          if(err && (err.name === 'AbortError' || err.code === 20)){
+            progress.cancel();
+          } else {
+            progress.fail();
+          }
         }
       });
     }
@@ -342,6 +422,26 @@
 
   function openCreateModal(){
     if(createModal){
+      // Reseta o formulário e limpa mensagens/estilos de erro
+      try{
+        const form = document.getElementById('pubFormContainer');
+        if(form && form.reset) form.reset();
+        // Limpa feedbacks de erro gerados dinamicamente
+        form && form.querySelectorAll('.field-msg.error').forEach(el=>{ try{ el.remove(); }catch(_){ } });
+        form && form.querySelectorAll('.field-error').forEach(el=>{ el.classList.remove('field-error'); });
+        form && form.querySelectorAll('label.required-missing').forEach(el=>{ el.classList.remove('required-missing'); });
+        // Restabelece textos das labels de arquivo
+        const lblConteudo = document.querySelector('label[for="conteudo"]');
+        const lblTermo = document.querySelector('label[for="termo"]');
+        if(lblConteudo){
+          const base = lblConteudo.getAttribute('data-base') || 'Anexar Conteúdo';
+          lblConteudo.textContent = base.includes('Selecionado:') ? 'Anexar Conteúdo' : base;
+        }
+        if(lblTermo){
+          const base2 = lblTermo.getAttribute('data-base') || 'Anexar Termo de Autorização';
+          lblTermo.textContent = base2.includes('Selecionado:') ? 'Anexar Termo de Autorização' : base2;
+        }
+      }catch(_){ /* noop */ }
       createModal.style.display = 'flex';
       createModal.setAttribute('aria-hidden','false');
       const firstField = document.getElementById('autor') || document.getElementById('titulo_conteudo');

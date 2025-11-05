@@ -526,6 +526,41 @@ def status_label(preferred: str) -> str:
                 if 'reprov' in nl or 'indef' in nl:
                     STATUS_LABEL_CACHE[key] = lab
                     return lab
+            # Se não encontrou rótulos equivalentes, tenta garantir a existência de um rótulo de reprovação
+            try:
+                ensure_status_enum_reprovado()
+            except Exception:
+                pass
+            # Reconsulta labels após tentativa de garantir o rótulo
+            try:
+                conn2 = get_db_connection()
+                if conn2:
+                    cur2 = conn2.cursor()
+                    cur2.execute(
+                        """
+                        SELECT e.enumlabel
+                        FROM pg_enum e
+                        JOIN pg_type t ON e.enumtypid = t.oid
+                        WHERE t.typname = %s
+                        ORDER BY e.enumsortorder
+                        """,
+                        ('status_publicacao',)
+                    )
+                    labels2 = [r[0] for r in cur2.fetchall()]
+                    cur2.close(); conn2.close()
+                    for lab in labels2:
+                        nl = _norm(lab)
+                        if 'reprov' in nl or 'indef' in nl:
+                            STATUS_LABEL_CACHE[key] = lab
+                            return lab
+            except Exception:
+                pass
+            # Fallback seguro para pedidos de reprovação: evita cair em 'Publicado'
+            for lab in labels:
+                nl = _norm(lab)
+                if 'pend' in nl or 'avali' in nl or 'analis' in nl:
+                    STATUS_LABEL_CACHE[key] = lab
+                    return lab
         # suporte explícito ao rótulo "Denunciado"
         if key in {'denunciado','denunciada'}:
             for lab in labels:
@@ -787,6 +822,39 @@ def ensure_status_enum_denunciado():
         except Exception:
             pass
 
+# Garante que o enum de status possua um rótulo de reprovação (e.g., Reprovado/Indeferido)
+def ensure_status_enum_reprovado():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT e.enumlabel
+            FROM pg_enum e
+            JOIN pg_type t ON e.enumtypid = t.oid
+            WHERE t.typname = %s
+            ORDER BY e.enumsortorder
+            """,
+            ('status_publicacao',)
+        )
+        labels = [r[0] for r in cur.fetchall()]
+        has_reprov = any(('reprov' in _norm(lab)) or ('indef' in _norm(lab)) for lab in labels)
+        if not has_reprov:
+            try:
+                cur.execute("ALTER TYPE status_publicacao ADD VALUE 'Reprovado'")
+                conn.commit()
+            except Exception:
+                # Ignora se já existir ou não puder adicionar
+                pass
+        cur.close(); conn.close()
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
 # Helper para garantir coluna de vínculo direto usuario.id_curso_usuario
 def ensure_usuario_curso_fk_column():
     conn = get_db_connection()
@@ -869,6 +937,10 @@ def init_schema_once():
             pass
         try:
             ensure_status_enum_denunciado()
+        except Exception:
+            pass
+        try:
+            ensure_status_enum_reprovado()
         except Exception:
             pass
         SCHEMA_INIT_DONE = True
@@ -1972,6 +2044,7 @@ def cadastro_curso():
 @roles_required(['Administrador','Docente','Aluno'])
 def publicacao():
     if request.method == 'POST':
+        is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest')
         # Garante que o enum possua rótulo de pendência
         try:
             ensure_status_enum_pending()
@@ -1989,28 +2062,53 @@ def publicacao():
         orientador_id = (request.form.get('orientador') or '').strip()
         captcha = (request.form.get('captcha') or '').strip()
         arquivo = request.files.get('conteudo')
+        termo_file = request.files.get('termo')
         # Captcha
         if str(session.get('captcha_answer')) != captcha:
+            if is_ajax:
+                return jsonify({'ok': False, 'message': 'Captcha incorreto.', 'field': 'captcha'}), 400
             flash('Captcha incorreto.', 'error')
             return redirect(url_for('publicacao'))
         if not titulo:
+            if is_ajax:
+                return jsonify({'ok': False, 'message': 'Informe o título da publicação.', 'field': 'titulo_conteudo'}), 400
             flash('Informe o título da publicação.', 'error')
             return redirect(url_for('publicacao'))
         if not tipo:
+            if is_ajax:
+                return jsonify({'ok': False, 'message': 'Informe o tipo da publicação.', 'field': 'tipo_publicacao'}), 400
             flash('Informe o tipo da publicação.', 'error')
             return redirect(url_for('publicacao'))
         # Orientador obrigatório e deve ser Professor
         if not orientador_id:
+            if is_ajax:
+                return jsonify({'ok': False, 'message': 'Selecione o orientador (perfil Professor) para a publicação.', 'field': 'orientador'}), 400
             flash('Selecione o orientador (perfil Professor) para a publicação.', 'error')
             return redirect(url_for('publicacao'))
         if not (arquivo and arquivo.filename):
+            if is_ajax:
+                return jsonify({'ok': False, 'message': 'Anexe o arquivo de conteúdo para publicar.', 'field': 'conteudo'}), 400
             flash('Anexe o arquivo de conteúdo para publicar.', 'error')
+            return redirect(url_for('publicacao'))
+        # Termo de autorização obrigatório
+        if not (termo_file and termo_file.filename):
+            if is_ajax:
+                return jsonify({'ok': False, 'message': 'Anexe o termo de autorização.', 'field': 'termo'}), 400
+            flash('Anexe o termo de autorização.', 'error')
             return redirect(url_for('publicacao'))
         # Validação de tipos de arquivo
         ALLOW_EXT = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt', '.png', '.jpg', '.jpeg', '.webp'}
         ext = os.path.splitext(arquivo.filename)[1].lower()
         if ext not in ALLOW_EXT:
+            if is_ajax:
+                return jsonify({'ok': False, 'message': 'Tipo de arquivo não permitido.', 'field': 'conteudo'}), 400
             flash('Tipo de arquivo não permitido.', 'error')
+            return redirect(url_for('publicacao'))
+        ext_termo = os.path.splitext(termo_file.filename)[1].lower()
+        if ext_termo not in ALLOW_EXT:
+            if is_ajax:
+                return jsonify({'ok': False, 'message': 'Tipo de arquivo do termo não permitido.', 'field': 'termo'}), 400
+            flash('Tipo de arquivo do termo não permitido.', 'error')
             return redirect(url_for('publicacao'))
 
         # Gerar nome seguro para o arquivo
@@ -2019,8 +2117,17 @@ def publicacao():
         novo_filename = f"{timestamp}_{filename}"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], novo_filename)
         
-        # Salvar o arquivo
+        # Salvar os arquivos
         arquivo.save(filepath)
+        # salva termo de autorização também (não referenciado na tabela)
+        try:
+            term_name = secure_filename(termo_file.filename)
+            ts_term = datetime.now().strftime('%Y%m%d%H%M%S')
+            new_term_name = f"{ts_term}_termo_{term_name}"
+            termpath = os.path.join(app.config['UPLOAD_FOLDER'], new_term_name)
+            termo_file.save(termpath)
+        except Exception:
+            pass
         
         conn = get_db_connection()
         if conn:
@@ -2067,6 +2174,11 @@ def publicacao():
                     pend_lbl = status_label('Pendente')
                 except Exception:
                     pend_lbl = 'Pendente'
+                if is_ajax:
+                    msg = 'Submissão criada e aguardando avaliação do orientador.' if _norm(initial_status) == _norm(pend_lbl) else 'Publicação criada e publicada.'
+                    cur.close(); conn.close()
+                    audit_log('publicacao_ok', {'titulo': titulo, 'arquivo': novo_filename})
+                    return jsonify({'ok': True, 'message': msg})
                 if _norm(initial_status) == _norm(pend_lbl):
                     flash('Submissão criada e aguardando avaliação do orientador.', 'success')
                 else:
@@ -2075,12 +2187,21 @@ def publicacao():
                 conn.close()
                 audit_log('publicacao_ok', {'titulo': titulo, 'arquivo': novo_filename})
             except Exception as e:
+                if is_ajax:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    audit_log('publicacao_error', {'error': str(e)})
+                    return jsonify({'ok': False, 'message': f'Erro ao publicar: {e}', 'field': None}), 500
                 flash(f'Erro ao publicar: {e}', 'error')
                 try:
                     conn.close()
                 except Exception:
                     pass
                 audit_log('publicacao_error', {'error': str(e)})
+        if is_ajax:
+            return jsonify({'ok': True, 'message': 'Publicação criada.'})
         return redirect(url_for('publicacao'))
 
     # Buscar cursos e tipos de publicação para o formulário e listar últimas publicações
@@ -3157,7 +3278,7 @@ def avaliacao():
     if conn:
         try:
             cur = conn.cursor(row_factory=dict_row)
-            # Busca apenas pendentes; se Docente, somente as do orientador atual
+            # Busca pendentes e denunciados para reavaliação; se Docente, somente as do orientador atual
             is_admin = (session.get('user_tipo') == 'Administrador')
             uid = session.get('user_id')
             pend_label = status_label('Pendente')
@@ -3923,7 +4044,7 @@ def suporte():
 # Denúncia de publicação: volta para avaliação do orientador com status 'Denunciado'
 @app.route('/publicacao/denuncia', methods=['POST'])
 @login_required
-@roles_required(['Administrador','Docente','Aluno'])
+@roles_required(['Administrador','Aluno'])
 def publicacao_denuncia():
     try:
         key = f"{request.remote_addr}:denuncia"
@@ -3936,7 +4057,24 @@ def publicacao_denuncia():
             id_pub_int = int(id_pub)
         except Exception:
             id_pub_int = None
-        mensagem = (request.form.get('mensagem') or '').strip()[:1500]
+        mensagem_raw = (request.form.get('mensagem') or '').strip()
+        # Mensagem simples enviada separadamente pelo front para validação de 800 caracteres
+        mensagem_plain = (request.form.get('mensagem_plain') or '').strip()
+        if not mensagem_plain:
+            # tenta extrair a parte após 'Descrição do usuário:' do texto completo
+            try:
+                idx = mensagem_raw.lower().rfind('descrição do usuário:')
+                if idx != -1:
+                    mensagem_plain = mensagem_raw[idx+len('descrição do usuário:'):].strip()
+                else:
+                    mensagem_plain = mensagem_raw
+            except Exception:
+                mensagem_plain = mensagem_raw
+        # aplica limite de 800 caracteres para a descrição
+        if len(mensagem_plain) > 800:
+            return jsonify({'ok': False, 'error': 'Descrição da denúncia deve ter no máximo 800 caracteres.'}), 400
+        # mensagem final a ser enviada por e-mail (com contexto enxuto)
+        mensagem = mensagem_plain
         arquivo = request.files.get('imagem')
         attach_tuple = None
         try:
@@ -3950,6 +4088,10 @@ def publicacao_denuncia():
 
         if not id_pub_int:
             return jsonify({'ok': False, 'error': 'Publicação inválida.'}), 400
+
+        # exige imagem de evidência
+        if not attach_tuple:
+            return jsonify({'ok': False, 'error': 'Anexe uma imagem do erro para avaliação.'}), 400
 
         # Atualiza status para Denunciado para aparecer na tela de avaliação
         conn = get_db_connection()
@@ -3989,7 +4131,7 @@ def publicacao_denuncia():
         except Exception:
             pass
         audit_log('denuncia_publicacao', {'id_publicacao': id_pub_int})
-        return jsonify({'ok': True})
+        return jsonify({'ok': True, 'redirect': '/publicacao'})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -4504,6 +4646,22 @@ def run_seed_admins():
             pass
         print('Erro ao executar seed de administradores:', e)
 
+
+@app.route('/relatorio/abnt')
+def relatorio_abnt_doc():
+    # Geração de Word (.doc) via HTML compatível
+    html = render_template(
+        'relatorio_abnt_doc.html',
+        titulo='Relatório técnico de otimizações de desempenho front-end',
+        projeto='Inprolib - Projeto TelaTest ADM',
+        autor='Assistente IA',
+        local='Brasil',
+        ano='2025'
+    )
+    resp = make_response(html)
+    resp.headers['Content-Type'] = 'application/msword; charset=utf-8'
+    resp.headers['Content-Disposition'] = 'attachment; filename="Relatorio_ABNT_Inprolib.doc"'
+    return resp
 
 if __name__ == '__main__':
     # Executa a validação quando chamado com --validate; migração com --hash-migrate; caso contrário, sobe o servidor.
