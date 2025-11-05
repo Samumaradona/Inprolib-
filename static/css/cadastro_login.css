@@ -212,7 +212,7 @@ header.topbar{
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.modal-body label{ display:block; margin: 6px 0 3px; font-weight:700; color:#0f172a; }
+.modal-body label{ display:block; margin: 3px 0 1px; font-weight:700; color:#0f172a; }
 .modal-body label.required::after{ content: " *"; color: var(--bs-danger); margin-left: 2px; }
 /* Também aplicar asterisco em labels de páginas que usam .input-label */
 .input-label.required::after{ content: " *"; color: var(--bs-danger); margin-left: 2px; }
@@ -257,15 +257,18 @@ header.topbar{
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
-.password-wrapper .input {
-  padding-right: 45px; /* espaço para o ícone */
+.password-wrapper input[type="password"],
+.password-wrapper input[type="text"]{
+  width: 100%;
+  padding-right: 68px; /* mais espaço para ícone deslocado à esquerda */
 }
 
-.password-toggle {
+.password-wrapper .password-toggle {
   position: absolute;
-  right: 12px;
+  right: 28px; /* desloca mais para a esquerda dentro do campo */
   top: 50%;
   transform: translateY(-50%);
   cursor: pointer;
@@ -279,16 +282,20 @@ header.topbar{
   border-radius: 4px;
   background: transparent;
   border: 0;
+  z-index: 1;
 }
 
-.password-toggle:hover {
+.password-wrapper .password-toggle:hover {
   color: var(--bs-new-casual);
   background-color: transparent; /* não contornar/realçar ícone */
 }
 
-.password-toggle:focus {
+.password-wrapper .password-toggle:focus {
   outline: none; /* remover contorno do ícone ao focar */
 }
+
+/* Ícone de ver senha dentro do campo, label simples */
+.modal-body label{ display: block; }
 
 /* ===== Overrides: compact spacing + fix cut off action buttons ===== */
 /* Botões da modal: garantir altura mínima para não ficarem cortados */
@@ -297,7 +304,7 @@ header.topbar{
 
 /* Modal mais compacta e ações fixas ao rodapé do card */
 .modal-content{ width: 560px; } /* manter largura original da modal */
-.modal-body label{ margin: 4px 0 2px; }
+.modal-body label{ margin: 3px 0 1px; }
 .modal-body input, .modal-body select{ padding: 3px 4px; font-size: 13px; line-height: 1.25; }
 .modal-body input, .modal-body select{ width: 100%; } /* alinhar como antes, sem espaços laterais */
 .modal-body{ padding-bottom: 64px; } /* evitar que o CAPTCHA seja coberto pelo rodapé */
@@ -335,7 +342,11 @@ header.topbar{
 
 /* ===== Formulário do cadastro: largura compacta igual ao CEP ===== */
 #registerModal .modal-body{
-  --field-width: 280px; /* tamanho aproximado do campo CEP na modal atual */
+  --field-width: 300px; /* tamanho compacto ajustado para melhor leitura */
+}
+#registerModal .modal-body input,
+#registerModal .modal-body select{
+  margin-bottom: 6px; /* espaço vertical mínimo entre campo e próximo label */
 }
 #registerModal .modal-body input,
 #registerModal .modal-body select{
@@ -344,7 +355,7 @@ header.topbar{
 }
 /* Fazer a modal acompanhar o conteúdo sem espaços vazios no desktop */
 #registerModal .modal-content{
-  width: max-content;
+  width: max-content; /* acompanha a largura dos campos e evita sobras laterais */
   max-width: 96%;
 }
 /* No mobile, voltar a ocupar toda a largura disponível */
@@ -352,4 +363,12 @@ header.topbar{
   #registerModal .modal-body input,
   #registerModal .modal-body select{ width: 100%; }
   #registerModal .modal-content{ width: 98%; }
+}
+
+/* Hints de acessibilidade/validação (texto discreto) */
+.modal-body .field-hint{
+  display:block;
+  font-size: 12px;
+  color: #64748b;
+  margin: 0 0 4px;
 }
