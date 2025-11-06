@@ -1699,6 +1699,10 @@ def cadastro_alunos():
             if not nome or not email or not cpf:
                 flash('Por favor, preencha nome, e-mail e CPF.', 'error')
                 return redirect(url_for('cadastro_alunos'))
+            # Limite de tamanho do nome
+            if len(nome) > 150:
+                flash('Nome deve ter no máximo 150 caracteres.', 'error')
+                return redirect(url_for('cadastro_alunos'))
             if '@' not in email or '.' not in email:
                 flash('E-mail inválido.', 'error')
                 return redirect(url_for('cadastro_alunos'))
@@ -1774,6 +1778,13 @@ def cadastro_alunos():
                 return jsonify({'ok': False, 'field': 'nome_user', 'message': msg}), 400
             flash(msg, 'error')
             return redirect(url_for('login', register='1', err='required'))
+        # Limite de tamanho do nome
+        if len(nome) > 150:
+            msg = 'Nome deve ter no máximo 150 caracteres.'
+            if is_ajax:
+                return jsonify({'ok': False, 'field': 'nome_user', 'message': msg}), 400
+            flash(msg, 'error')
+            return redirect(url_for('login', register='1', err='nome_len'))
         if senha != confirmar_senha:
             msg = 'As senhas não coincidem.'
             if is_ajax:
@@ -2028,7 +2039,7 @@ def cadastro_curso():
                 SELECT c.id_curso, c.nome_curso, c.descricao_curso, c.codigo_curso, c.autorizacao, c.ativo, c.id_coordenador, u.nome as coordenador
                 FROM curso c
                 LEFT JOIN usuario u ON c.id_coordenador = u.id_usuario
-                ORDER BY c.id_curso DESC
+                ORDER BY c.nome_curso ASC
                 """
             )
             cursos = cur.fetchall()

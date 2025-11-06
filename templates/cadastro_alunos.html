@@ -6,6 +6,7 @@
   <meta name="description" content="Cadastro de usuário no INPROLIB com validações e segurança." />
   <title>INPROLIB - Cadastro de usuário</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/cadastro_alunos.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}">
@@ -15,16 +16,70 @@
   <div id="app">
 <header class="topbar">
   <div class="container">
-    <!-- LADO ESQUERDO: botão Voltar padronizado -->
+    <!-- LADO ESQUERDO: hambúrguer + perfil -->
     <div class="left">
-        <button id="btnBack" class="button is-sm is-blue" type="button" aria-label="Voltar" title="Voltar">Voltar</button>
+      <button class="hamburger" id="btnHamburger" aria-controls="sideMenu" aria-expanded="false" aria-label="Abrir menu" title="Abrir menu">
+        <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+      </button>
+      <div class="profile-wrap" style="position:relative">
+        <button id="btnProfile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu do usuário">
+          <img id="profileAvatar" class="avatar" src="{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s' }}" alt="Avatar usuário" decoding="async">
+        </button>
+        <div id="profileDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <button id="viewPhoto" class="dropdown-action" role="menuitem">Ver foto</button>
+          <button id="changePhoto" class="dropdown-action" role="menuitem">Mudar foto</button>
+        </div>
+        <input id="fileAvatarInput" type="file" accept="image/*" style="display:none" aria-hidden="true">
+      </div>
+      <div>
+        <p id="username">{{ session.get('user_name', '') }}</p>
+      </div>
     </div>
+    <!-- LADO DIREITO: notificação -->
+    <div class="right" role="group" aria-label="Ações do usuário">
+      <div class="notif-wrap" style="position:relative">
+        <button id="btnNotifications" class="notif-btn" aria-haspopup="true" aria-expanded="false" aria-label="Notificações">
+          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+          <span id="notifBadge" class="notif-badge" aria-hidden="true" style="display:none"></span>
+        </button>
+        <div id="notificationsDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+          <div class="dropdown-item">Você não tem novas notificações</div>
+        </div>
+      </div>
+    </div>
+  </div>
 </header>
 
+<!-- modal de visualização da foto -->
+<div id="avatarModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
+  <div class="modal-content">
+    <button id="closeModal" class="modal-close" aria-label="Fechar visualização">✕</button>
+    <h3 id="avatarModalTitle" style="margin:0 0 12px 0">Foto do usuário</h3>
+    <img id="modalAvatarImg" src="" alt="Foto do usuário" style="max-width:100%;border-radius:8px" loading="lazy" decoding="async">
+  </div>
+</div>
+
+<!-- Backdrop e menu lateral -->
+<div id="backdrop" class="backdrop" tabindex="-1" aria-hidden="true"></div>
+<aside id="sideMenu" class="sidemenu" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="sideMenuTitle">
+  <header>
+    <div>
+      <strong id="sideMenuTitle">INPROLIB</strong>
+      <div style="font-size:12px;color:#64748b">Menu</div>
+    </div>
+    <div>
+      <button id="btnClose" aria-label="Fechar menu" title="Fechar">✕</button>
+    </div>
+  </header>
+  <nav class="routes" id="routesList">
+    <!-- rotas inseridas por JS -->
+  </nav>
+  <footer>
+    <a id="logoutBtn" class="route" href="/logout"><span class="material-symbols-outlined">logout</span>Sair</a>
+  </footer>
+</aside>
     <main>
-      <nav aria-label="breadcrumb" style="margin:8px 16px;color:#64748b">
-        <a href="/home" style="color:#1d4ed8;text-decoration:none">Home</a> · Cadastro de usuário
-      </nav>
+      <nav aria-label="breadcrumb" style="margin:8px 16px;color:#64748b">Cadastro</nav>
       {% with messages = get_flashed_messages(with_categories=True) %}
         {% if messages %}
           <script>
@@ -70,7 +125,7 @@
                 </tr>
               </thead>
               <tbody>
-                {% for u in usuarios %}
+                {% for u in usuarios|sort(attribute='nome') %}
                 <tr data-nome="{{ u.nome }}" data-email="{{ u.email or '' }}" data-cpf="{{ u.cpf or '' }}" data-tipo="{{ u.tipo or '' }}" data-curso="{{ u.curso_usuario or '' }}" data-ativo="{{ '1' if u.ativo else '0' }}" data-cep="{{ u.cep or '' }}" data-logradouro="{{ u.logradouro or '' }}" data-complemento="{{ u.complemento or '' }}" data-bairro="{{ u.bairro or '' }}" data-cidade="{{ u.cidade or '' }}" data-estado="{{ u.estado or '' }}">
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.nome }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.email or '-' }}</td>
@@ -84,7 +139,7 @@ class="icon-btn is-blue"
 aria-label="Editar usuário {{ u.nome }}"
 title="Editar"
 data-action="edit-user"
-data-id="{{ u.id_usuario }}">
+data-id="{{ u.id_usuario }}" {% if not u.ativo %}disabled aria-disabled="true" title="Usuário inativo"{% endif %}>
 <span class="material-symbols-outlined" aria-hidden="true">edit</span>
 </button>
                        <form method="POST" action="/cadastro_alunos" style="display:inline">
@@ -112,41 +167,61 @@ data-id="{{ u.id_usuario }}">
           <div class="container-grid">
             <div>
               <h3>Informações do usuário</h3>
-              <label for="nome_user" class="required">Nome</label>
-              <input type="text" id="nome_user" name="nome_user" placeholder="Insira o seu nome completo" required maxlength="255">
-              <label for="cpf_user" class="required">CPF</label>
-              <input type="text" id="cpf_user" name="cpf_user" placeholder="Insira o seu CPF" required inputmode="numeric" maxlength="14" pattern="\d{3}\.\d{3}\.\d{3}-\d{2}" title="Formato: 000.000.000-00">
-              <label for="email_user" class="required">Email</label>
-              <input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email" maxlength="40">
-              <label for="tipo_usuario">Tipo de Usuário</label>
-              <select id="tipo_usuario" name="tipo_usuario" required>
-                <option value="Aluno" selected>Aluno</option>
-              </select>
+              <div class="field-group">
+                <label for="nome_user" class="required">Nome</label>
+                <input type="text" id="nome_user" name="nome_user" placeholder="Insira o seu nome completo" required maxlength="255">
+              </div>
+              <div class="field-group">
+                <label for="cpf_user" class="required">CPF</label>
+                <input type="text" id="cpf_user" name="cpf_user" placeholder="Insira o seu CPF" required inputmode="numeric" maxlength="14" pattern="\d{3}\.\d{3}\.\d{3}-\d{2}" title="Formato: 000.000.000-00">
+              </div>
+              <div class="field-group">
+                <label for="email_user" class="required">Email</label>
+                <input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email" maxlength="40">
+              </div>
+              <div class="field-group">
+                <label for="tipo_usuario" class="required">Tipo de Usuário</label>
+                <select id="tipo_usuario" name="tipo_usuario" required>
+                  <option value="Aluno" selected>Aluno</option>
+                </select>
+              </div>
             </div>
             <div>
-               <label for="cep_user">CEP</label>
-               <input type="text" id="cep_user" name="cep_user" placeholder="00000-000" inputmode="numeric" maxlength="9" autocomplete="postal-code" pattern="\d{5}-\d{3}" title="Formato: 00000-000">
-               <div id="cepFeedback" style="font-size:12px;color:#64748b;margin:4px 0" aria-live="polite"></div>
-               <label for="logradouro">Rua (Logradouro)</label>
-               <input type="text" id="logradouro" name="logradouro" placeholder="Ex.: Avenida Brasil, 1000" autocomplete="address-line1" maxlength="120">
-               <label for="complemento">Complemento</label>
-               <input type="text" id="complemento" name="complemento" placeholder="Ex.: Apto 202" autocomplete="address-line2" maxlength="120">
-               <label for="bairro">Bairro</label>
-               <input type="text" id="bairro" name="bairro" placeholder="Ex.: Centro" autocomplete="address-level3" maxlength="80">
-               <label for="cidade">Cidade</label>
-               <input type="text" id="cidade" name="cidade" placeholder="Ex.: São Paulo" autocomplete="address-level2" maxlength="80">
-               <label for="estado">Estado</label>
-               <input type="text" id="estado" name="estado" placeholder="UF" maxlength="2" style="text-transform:uppercase" autocomplete="address-level1">
-               <div id="senhaGroup">
+               <div class="field-group">
+                 <label for="cep_user">CEP</label>
+                 <input type="text" id="cep_user" name="cep_user" placeholder="00000-000" inputmode="numeric" maxlength="9" autocomplete="postal-code" pattern="\d{5}-\d{3}" title="Formato: 00000-000">
+                 <div id="cepFeedback" style="font-size:12px;color:#64748b;margin:4px 0" aria-live="polite"></div>
+               </div>
+               <div class="field-group">
+                 <label for="logradouro">Rua (Logradouro)</label>
+                 <input type="text" id="logradouro" name="logradouro" placeholder="Ex.: Avenida Brasil, 1000" autocomplete="address-line1" maxlength="120">
+               </div>
+               <div class="field-group">
+                 <label for="complemento">Complemento</label>
+                 <input type="text" id="complemento" name="complemento" placeholder="Ex.: Apto 202" autocomplete="address-line2" maxlength="120">
+               </div>
+               <div class="field-group">
+                 <label for="bairro">Bairro</label>
+                 <input type="text" id="bairro" name="bairro" placeholder="Ex.: Centro" autocomplete="address-level3" maxlength="80">
+               </div>
+               <div class="field-group">
+                 <label for="cidade">Cidade</label>
+                 <input type="text" id="cidade" name="cidade" placeholder="Ex.: São Paulo" autocomplete="address-level2" maxlength="80">
+               </div>
+               <div class="field-group">
+                 <label for="estado">Estado</label>
+                 <input type="text" id="estado" name="estado" placeholder="UF" maxlength="2" style="text-transform:uppercase" autocomplete="address-level1">
+               </div>
+               <div id="senhaGroup" class="field-group">
                  <label for="senha" class="required">Senha</label>
   <input type="password" id="senha" name="senha" placeholder="Insira a sua senha" required minlength="8" maxlength="16" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,16}$" autocomplete="new-password" title="Use entre 8 e 16 caracteres com maiúscula, minúscula, número e símbolo">
                  <div id="pwdStrength" style="font-size:12px;color:#64748b;margin:4px 0">Força da senha: fraca</div>
                </div>
-               <div id="confirmarGroup">
+               <div id="confirmarGroup" class="field-group">
                  <label for="confirmar_senha" class="required">Confirmar senha</label>
   <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme a sua senha" required minlength="8" maxlength="16" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,16}$" autocomplete="new-password" title="Use entre 8 e 16 caracteres com maiúscula, minúscula, número e símbolo">
                </div>
-               <div id="captchaGroup">
+               <div id="captchaGroup" class="field-group">
                  <label for="captcha" class="required">Captcha: {{ captcha_question }}</label>
                  <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required inputmode="numeric" pattern="\d+" title="Digite apenas números">
                </div>
@@ -170,41 +245,61 @@ data-id="{{ u.id_usuario }}">
 <div class="container-grid">
 <div>
 <h3>Informações do usuário</h3>
+<div class="field-group">
 <label for="nome_user" class="required">Nome</label>
 <input type="text" id="nome_user" name="nome_user" placeholder="Insira o seu nome completo" required maxlength="255">
+</div>
+<div class="field-group">
 <label for="cpf_user" class="required">CPF</label>
 <input type="text" id="cpf_user" name="cpf_user" placeholder="Insira o seu CPF" required inputmode="numeric" maxlength="14" pattern="\d{3}\.\d{3}\.\d{3}-\d{2}" title="Formato: 000.000.000-00">
+</div>
+<div class="field-group">
 <label for="email_user" class="required">Email</label>
 <input type="email" id="email_user" name="email_user" placeholder="Insira o seu email" required autocomplete="email" maxlength="40">
-              <label for="tipo_usuario">Tipo de Usuário</label>
+</div>
+              <div class="field-group">
+              <label for="tipo_usuario" class="required">Tipo de Usuário</label>
               <select id="tipo_usuario" name="tipo_usuario" required>
                 <option value="Aluno" selected>Aluno</option>
               </select>
+              </div>
 </div>
 <div>
+<div class="field-group">
 <label for="cep_user">CEP</label>
 <input type="text" id="cep_user" name="cep_user" placeholder="00000-000" inputmode="numeric" maxlength="9" autocomplete="postal-code" pattern="\d{5}-\d{3}" title="Formato: 00000-000">
 <div id="cepFeedback" style="font-size:12px;color:#64748b;margin:4px 0" aria-live="polite"></div>
+</div>
+<div class="field-group">
 <label for="logradouro">Rua (Logradouro)</label>
 <input type="text" id="logradouro" name="logradouro" placeholder="Ex.: Avenida Brasil, 1000" autocomplete="address-line1" maxlength="120">
+</div>
+<div class="field-group">
 <label for="complemento">Complemento</label>
 <input type="text" id="complemento" name="complemento" placeholder="Ex.: Apto 202" autocomplete="address-line2" maxlength="120">
+</div>
+<div class="field-group">
 <label for="bairro">Bairro</label>
 <input type="text" id="bairro" name="bairro" placeholder="Ex.: Centro" autocomplete="address-level3" maxlength="80">
+</div>
+<div class="field-group">
 <label for="cidade">Cidade</label>
 <input type="text" id="cidade" name="cidade" placeholder="Ex.: São Paulo" autocomplete="address-level2" maxlength="80">
+</div>
+<div class="field-group">
 <label for="estado">Estado</label>
 <input type="text" id="estado" name="estado" placeholder="UF" maxlength="2" style="text-transform:uppercase" autocomplete="address-level1">
-<div id="senhaGroup">
+</div>
+<div id="senhaGroup" class="field-group">
 <label for="senha" class="required">Senha</label>
   <input type="password" id="senha" name="senha" placeholder="Insira a sua senha" required minlength="8" maxlength="16" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,16}$" autocomplete="new-password" title="Use entre 8 e 16 caracteres com maiúscula, minúscula, número e símbolo">
 <div id="pwdStrength" style="font-size:12px;color:#64748b;margin:4px 0">Força da senha: fraca</div>
 </div>
-<div id="confirmarGroup">
+<div id="confirmarGroup" class="field-group">
 <label for="confirmar_senha" class="required">Confirmar senha</label>
   <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Confirme a sua senha" required minlength="8" maxlength="16" pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,16}$" autocomplete="new-password" title="Use entre 8 e 16 caracteres com maiúscula, minúscula, número e símbolo">
 </div>
-<div id="captchaGroup">
+<div id="captchaGroup" class="field-group">
 <label for="captcha" class="required">Captcha: {{ captcha_question }}</label>
 <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required inputmode="numeric" pattern="\d+" title="Digite apenas números">
 </div>
@@ -528,7 +623,15 @@ data-id="{{ u.id_usuario }}">
       document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeModal(); });
 
       document.querySelectorAll('[data-action="edit-user"]').forEach(btn => {
-        btn.addEventListener('click', function(){ prepareEdit(this); });
+        btn.addEventListener('click', function(){
+          const tr = this.closest('tr');
+          const ativo = tr?.dataset?.ativo === '1';
+          if(!ativo || this.disabled){
+            if(window.showToast) window.showToast('Usuário inativo. Reative para editar.', 'warning');
+            return;
+          }
+          prepareEdit(this);
+        });
       });
     })();
   </script>

@@ -372,3 +372,8 @@ header.topbar{
   color: #64748b;
   margin: 0 0 4px;
 }
+
+/* Agrupamento de campos para consistência visual */
+.field-group{ margin-bottom:12px; }
+.field-group label{ display:block; margin-bottom:6px; }
+.field-group .field-msg.error, .field-group .field-error{ margin-top:4px; }

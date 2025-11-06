@@ -249,6 +249,129 @@ main{
 /* Botão de ícone-only compacto (para ações na tabela) */
 /* removidos estilos antigos comentados/inválidos */
 
+/* Preserve hamburger / sidemenu / dropdowns rules that home.js expects */
+.backdrop.visible{ opacity:1; pointer-events:auto; }
+
+aside.sidemenu{
+  position:fixed;
+  top:0;
+  left:0;
+  height:100%;
+  width:280px;
+  max-width:88vw;
+  box-shadow:0 10px 30px rgba(2,6,23,0.12);
+  transform:translateX(-110%);
+  transition:transform .28s cubic-bezier(.2,.9,.3,1);
+  z-index:50;
+  display:flex;
+  flex-direction:column;
+  background-color: var(--bs-body-bg);
+}
+aside.sidemenu.open{ transform:translateX(0) }
+
+.sidemenu header{
+  padding:16px;
+  border-bottom:1px solid #eef2ff;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.sidemenu .routes{
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  overflow:auto;
+}
+.route {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: transparent;
+  border: 0;
+  font-size: 15px;
+  color: var(--bs-body-color);
+  cursor: pointer;
+}
+.span-symbol {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+  font-size: 20px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bs-body-color);
+}
+.route-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.route .span-symbol { transition: color .18s ease; }
+.route:hover, .route:focus { background: #f1f5f9; color: var(--bs-primary); }
+.route.active { color: var(--bs-primary); background: rgba(var(--bs-primary-rgb), 0.06); }
+.sidemenu footer{ margin-top:auto; padding:12px; border-top:1px solid #eef2ff; }
+
+/* profile / avatar / dropdowns (compatível com home.js) */
+.profile-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:0;
+  width:40px;
+  height:40px;
+  border:0;
+  background:transparent;
+  cursor:pointer;
+}
+.avatar{
+  width:40px;
+  height:40px;
+  border-radius:999px;
+  object-fit:cover;
+  display:block;
+  border:2px solid rgba(0,0,0,0.06);
+}
+.dropdown-menu{
+  position:absolute;
+  top:48px;
+  min-width:180px;
+  background:var(--bs-body-bg);
+  border:1px solid var(--bs-primary-light-4);
+  box-shadow:0 8px 24px rgba(2,6,23,0.08);
+  border-radius:8px;
+  padding:8px;
+  display:none;
+  z-index:120;
+}
+.dropdown-menu[aria-hidden="false"], .dropdown-menu.open{ display:block; }
+.dropdown-item, .dropdown-action{
+  width:100%;
+  text-align:left;
+  padding:8px 10px;
+  border-radius:6px;
+  background:transparent;
+  border:0;
+  cursor:pointer;
+  font-size:14px;
+  color:var(--bs-body-color);
+}
+.dropdown-item:hover, .dropdown-action:hover,
+.dropdown-item:focus, .dropdown-action:focus{
+  background:#f1f5f9;
+  outline:none;
+}
+.notif-wrap > .dropdown-menu { right: 0; }
+
+/* Botão fechar do sidemenu (padrão Home) */
+#btnClose{ border:none; background-color:var(--bs-body-bg); cursor:pointer; color:var(--bs-gray-700); }
+#btnClose:hover{ color:var(--bs-gray-900); }
+
 /* Modal (compacto para esta tela) */
 .modal { position: fixed; inset: 0; background: rgba(2,6,23,0.55); display: none; align-items: center; justify-content: center; padding: 12px; }
 .modal.show { display: flex; }
@@ -259,6 +382,8 @@ main{
 .icon-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:6px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color:#334155; cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
 .icon-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
 .icon-btn .material-symbols-outlined { font-size:20px; line-height:1; margin:0; }
+/* Estado desabilitado para ações */
+.icon-btn[disabled]{ opacity:0.5; cursor:not-allowed; }
 /* Vermelho mais vivo */
 .icon-btn.is-danger { color:#dc2626; border-color:#fecaca; background:#fff5f5; }
 .icon-btn.is-danger:hover { background:#fee2e2; }
@@ -353,6 +478,10 @@ main{
   z-index: 5;
 }
 /* ===== Ajustes de responsividade globais ===== */
+/* Padrão de agrupamento de campos obrigatórios */
+.field-group{ margin-bottom:12px; }
+.field-group label{ display:block; margin-bottom:6px; }
+.field-group .field-msg.error{ margin-top:4px; }
 body { overflow-x: hidden; }
 
 @media (max-width: 640px) {

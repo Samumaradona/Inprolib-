@@ -142,6 +142,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }catch(e){ /* noop */ }
   }
 
+  // Removido contador de caracteres do campo Nome conforme solicitação
+
   if(openRegister){
     openRegister.addEventListener('click', (e)=>{ e.preventDefault(); openModal(); });
   }

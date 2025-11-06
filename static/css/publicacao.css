@@ -441,6 +441,11 @@ main{
 /* Mensagem de feedback pequena */
 .field-msg.error { font-size: 12px; margin-top: 4px; color: #dc2626; }
 
+/* Wrapper de campo para posicionar mensagens logo abaixo */
+.field-group{ margin-bottom:12px; }
+.field-group label{ display:block; margin-bottom:6px; }
+.field-group .field-msg.error{ margin-top:4px; }
+
 /* botão principal e grupo de botões - botões usam exclusivamente bs-new-casual/dark */
 .button {
   display: inline-flex;

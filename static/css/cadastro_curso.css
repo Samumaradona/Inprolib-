@@ -524,3 +524,31 @@ section > h3,
   .form-container h3,
   #cursoModalTitle { color: var(--bs-new-casual); }
 }
+
+/* ===== Campos obrigatórios (somente nesta tela) ===== */
+.form-container label.required::after {
+  content: "*";
+  color: var(--bs-danger);
+  margin-left: 4px;
+  font-weight: 700;
+}
+
+.required-missing {
+  border-color: var(--bs-danger) !important;
+  box-shadow: 0 0 0 0.12rem rgba(var(--bs-danger-rgb), .18);
+}
+
+.field-error {
+  display: none;
+  color: var(--bs-danger);
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+
+/* Quando o campo estiver marcado como ausente, exibe a mensagem logo abaixo */
+.required-missing ~ .field-error { display: block; }
+
+/* Padronização de agrupamento de campos (field-group) */
+.field-group{ margin-bottom:12px; }
+.field-group label{ display:block; margin-bottom:6px; }
+.field-group .field-error{ margin-top:4px; }

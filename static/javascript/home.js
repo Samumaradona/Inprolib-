@@ -629,6 +629,7 @@ function formatDate(v){
   const complaintText = document.getElementById('homeCardComplaintText');
   const complaintImage = document.getElementById('homeCardComplaintImage');
   const complaintSubmit = document.getElementById('homeCardComplaintSubmit');
+  const complaintCount = document.getElementById('homeComplaintCount');
   const complaintSection = document.getElementById('homeCardComplaint');
   const complaintImageLabel = (function(){
     try { return document.querySelector('label[for="homeCardComplaintImage"]'); } catch(_) { return null; }
@@ -645,6 +646,8 @@ function formatDate(v){
       if (v.length > MAX_DENUNCIA_LEN) {
         complaintText.value = v.slice(0, MAX_DENUNCIA_LEN);
       }
+      // Atualiza contador em tempo real
+      try { if (complaintCount) complaintCount.textContent = String((complaintText.value||'').length); } catch(_){}
       // limpa erro se usuário corrigir
       try {
         complaintText.classList.remove('field-error');
@@ -652,6 +655,8 @@ function formatDate(v){
         if (msgEl) msgEl.remove();
       } catch(_){}
     });
+    // Inicializa contador ao abrir a página/modal
+    try { if (complaintCount) complaintCount.textContent = String((complaintText.value||'').length); } catch(_){}
   }
 
   // Bloqueia denúncia para Docente (usa avaliação indeferir/deferir)
@@ -880,6 +885,7 @@ function formatDate(v){
         if (ok) {
           if (complaintText) complaintText.value = '';
           if (complaintImage) complaintImage.value = '';
+          try { if (complaintCount) complaintCount.textContent = '0'; } catch(_){}
           try { window.showToast && window.showToast('Denúncia enviada com sucesso!', 'success'); } catch(_) {}
           // redireciona para Últimas publicações com status denunciada
           try { window.location.href = '/publicacao'; } catch(_){}

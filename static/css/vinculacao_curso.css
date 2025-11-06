@@ -392,6 +392,31 @@
     font-size: 14px;
     color: var(--bs-body-color);
   }
+  /* Asterisco vermelho para labels obrigatórias (Vinculação de Curso) */
+  .form-container label.required::after {
+    content: " *";
+    color: var(--bs-danger);
+    margin-left: 2px;
+  }
+  /* Estados e mensagens de campos obrigatórios */
+  .required-missing {
+    border-color: var(--bs-danger) !important;
+    box-shadow: 0 0 0 0.12rem rgba(var(--bs-danger-rgb), .18);
+  }
+  .field-error {
+    display: none;
+    color: var(--bs-danger);
+    font-size: 0.85rem;
+    margin-top: 4px;
+  }
+  /* Exibe mensagem quando o campo está faltando */
+  select.required-missing ~ .field-error,
+  input.required-missing ~ .field-error,
+  textarea.required-missing ~ .field-error { display: block; }
+  /* Agrupamento de campos */
+  .field-group{ margin-bottom:12px; }
+  .field-group label{ display:block; margin-bottom:6px; }
+  .field-group .field-error{ margin-top:4px; }
   .form-container input,
  .form-container textarea,  .form-container select {
     width: 100%;

@@ -115,53 +115,65 @@
           <!-- Coluna 1 -->
           <div class="container-grid">
             <div>
-              <label for="autor">Autor</label>
-              <input type="text" id="autor" name="autor" placeholder="Insira o autor do conteúdo" required>
+              <div class="field-group">
+                <label for="autor">Autor</label>
+                <input type="text" id="autor" name="autor" placeholder="Insira o autor do conteúdo" required>
+              </div>
 
-              <label for="titulo_conteudo">Título do conteúdo</label>
-              <input type="text" id="titulo_conteudo" name="titulo_conteudo" placeholder="Insira o título da publicação" required maxlength="255">
+              <div class="field-group">
+                <label for="titulo_conteudo">Título do conteúdo</label>
+                <input type="text" id="titulo_conteudo" name="titulo_conteudo" placeholder="Insira o título da publicação" required maxlength="255">
+              </div>
 
-              <label for="codigo">Tipo da publicação</label>
-              <select id="tipo_publicacao" name="tipo_publicacao" required>
-                <option value="">Selecione o tipo</option>
-                {% if tipos and tipos|length > 0 %}
-                  {% for t in tipos %}
-                    <option value="{{ t.nome_tipo }}">{{ t.nome_tipo }}</option>
-                  {% endfor %}
-                {% else %}
-                  <option value="" disabled>(Nenhum tipo cadastrado)</option>
-                {% endif %}
-              </select>
+              <div class="field-group">
+                <label for="tipo_publicacao">Tipo da publicação</label>
+                <select id="tipo_publicacao" name="tipo_publicacao" required>
+                  <option value="">Selecione o tipo</option>
+                  {% if tipos and tipos|length > 0 %}
+                    {% for t in tipos %}
+                      <option value="{{ t.nome_tipo }}">{{ t.nome_tipo }}</option>
+                    {% endfor %}
+                  {% else %}
+                    <option value="" disabled>(Nenhum tipo cadastrado)</option>
+                  {% endif %}
+                </select>
+              </div>
             </div>
 
             <!-- Coluna 2 -->
             <div>
-              <label for="curso">Curso</label>
-              <select id="curso" name="curso" required>
-                <option value="">Selecione o curso</option>
-                {% if cursos and cursos|length > 0 %}
-                  {% for c in cursos %}
-                    <option value="{{ c.id_curso }}">{{ c.nome_curso }}</option>
-                  {% endfor %}
-                {% else %}
-                  <option value="" disabled>(Nenhum curso cadastrado)</option>
-                {% endif %}
-              </select>
+              <div class="field-group">
+                <label for="curso">Curso</label>
+                <select id="curso" name="curso" required>
+                  <option value="">Selecione o curso</option>
+                  {% if cursos and cursos|length > 0 %}
+                    {% for c in cursos %}
+                      <option value="{{ c.id_curso }}">{{ c.nome_curso }}</option>
+                    {% endfor %}
+                  {% else %}
+                    <option value="" disabled>(Nenhum curso cadastrado)</option>
+                  {% endif %}
+                </select>
+              </div>
               
-              <label for="orientador">Orientado/Professor</label>
-              <select id="orientador" name="orientador" required>
-                <option value="">Selecione o orientado/professor</option>
-                {% if professores and professores|length > 0 %}
-                  {% for p in professores %}
-                    <option value="{{ p.id_usuario }}">{{ p.nome }}</option>
-                  {% endfor %}
-                {% else %}
-                  <option value="" disabled>(Nenhum professor cadastrado)</option>
-                {% endif %}
-              </select>
+              <div class="field-group">
+                <label for="orientador">Orientado/Professor</label>
+                <select id="orientador" name="orientador" required>
+                  <option value="">Selecione o orientado/professor</option>
+                  {% if professores and professores|length > 0 %}
+                    {% for p in professores %}
+                      <option value="{{ p.id_usuario }}">{{ p.nome }}</option>
+                    {% endfor %}
+                  {% else %}
+                    <option value="" disabled>(Nenhum professor cadastrado)</option>
+                  {% endif %}
+                </select>
+              </div>
 
-              <label for="captcha">Captcha: {{ captcha_question }}</label>
-              <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required>
+              <div class="field-group">
+                <label for="captcha">Captcha: {{ captcha_question }}</label>
+                <input type="text" id="captcha" name="captcha" placeholder="Digite o resultado" required>
+              </div>
             </div>
           </div>
 

@@ -97,27 +97,36 @@
       <h3>Vinculação de Curso</h3>
     <!-- Coluna 1 -->
     <div class="container-grid">
-      <label for="tipo_usuario">Tipo de Usuário</label>
-      <select id="tipo_usuario" name="tipo_usuario" required>
-        <option value="">Selecione o tipo</option>
-        <option value="Professor">Professor</option>
-        <option value="Aluno">Aluno</option>
-      </select>
+      <div class="field-group">
+        <label for="tipo_usuario" class="required">Tipo de Usuário</label>
+        <select id="tipo_usuario" name="tipo_usuario" required>
+          <option value="">Selecione o tipo</option>
+          <option value="Professor">Professor</option>
+          <option value="Aluno">Aluno</option>
+        </select>
+        <div class="field-error">Campo obrigatório.</div>
+      </div>
 
-      <label for="usuario">Usuário</label>
-      <select id="usuario" name="usuario" required>
-        <option value="">Selecione o usuário</option>
-      </select>
+      <div class="field-group">
+        <label for="usuario" class="required">Usuário</label>
+        <select id="usuario" name="usuario" required>
+          <option value="">Selecione o usuário</option>
+        </select>
+        <div class="field-error">Campo obrigatório.</div>
+      </div>
 
-      <label for="curso">Curso</label>
-      <select id="curso" name="curso" required>
-        <option value="">Selecione o curso</option>
-        {% if cursos %}
-          {% for c in cursos %}
-            <option value="{{ c.id_curso }}">{{ c.nome_curso }}</option>
-          {% endfor %}
-        {% endif %}
-      </select>
+      <div class="field-group">
+        <label for="curso" class="required">Curso</label>
+        <select id="curso" name="curso" required>
+          <option value="">Selecione o curso</option>
+          {% if cursos %}
+            {% for c in cursos %}
+              <option value="{{ c.id_curso }}">{{ c.nome_curso }}</option>
+            {% endfor %}
+          {% endif %}
+        </select>
+        <div class="field-error">Campo obrigatório.</div>
+      </div>
                     <!-- Botão centralizado -->
                     <div class="btn-group">
                         <button type="submit">Gravar Vinculação</button>
@@ -212,6 +221,39 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
             usuarioEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }, 300);
         }
+      </script>
+      <script>
+        // Validação: destaca campos obrigatórios e mostra mensagem "Campo obrigatório."
+        (function(){
+          const form = document.querySelector('form.form-container');
+          if(!form) return;
+          const requiredIds = ['tipo_usuario','usuario','curso'];
+          function labelFor(id){ return document.querySelector(`label[for="${id}"]`); }
+          function flagRequired(id){
+            const lbl = labelFor(id); if(lbl) lbl.classList.add('required-missing');
+            const el = document.getElementById(id); if(el) el.classList.add('required-missing');
+          }
+          function clearRequired(id){
+            const lbl = labelFor(id); if(lbl) lbl.classList.remove('required-missing');
+            const el = document.getElementById(id); if(el) el.classList.remove('required-missing');
+          }
+          requiredIds.forEach((id)=>{
+            const el = document.getElementById(id);
+            if(!el) return;
+            el.addEventListener('input', ()=>{ if((el.value||'').trim()) clearRequired(id); });
+            el.addEventListener('change', ()=>{ if((el.value||'').trim()) clearRequired(id); });
+            el.addEventListener('blur', ()=>{ ((el.value||'').trim()) ? clearRequired(id) : flagRequired(id); });
+          });
+          form.addEventListener('submit', (e)=>{
+            const missing = requiredIds.filter((id)=>{ const el=document.getElementById(id); return !((el && el.value)||'').trim(); });
+            if(missing.length){
+              e.preventDefault();
+              missing.forEach((id)=>flagRequired(id));
+              if(window.showToast) window.showToast('Não pode faltar nenhum campo sem preenchimento.', 'error');
+              const first = document.getElementById(missing[0]); first && first.focus();
+            }
+          });
+        })();
       </script>
   <script src="notifications.js?v=1"></script>
   <script src="home.js?v=aval-fix-1"></script>

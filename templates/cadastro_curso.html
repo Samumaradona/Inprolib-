@@ -178,30 +178,45 @@
               <div class="container-grid">
                 <div>
                   <h3>Informações do curso</h3>
-                  <label for="nome">Nome do Curso</label>
-                  <input type="text" id="nome" name="nome" placeholder="Insira o nome de seu curso" required maxlength="255">
-                  <label for="descricao">Descrição</label>
-                  <input type="text" id="descricao" name="descricao" placeholder="Insira a descrição de seu curso">
-                  <label for="codigo">Código</label>
-                  <input type="text" id="codigo" name="codigo" placeholder="Insira o seu código" pattern="[A-Z0-9-]+" title="Use letras maiúsculas, números e hífen">
+                  <div class="field-group">
+                    <label for="nome" class="required">Nome do Curso</label>
+                    <input type="text" id="nome" name="nome" placeholder="Insira o nome de seu curso" required maxlength="255">
+                    <div class="field-error" aria-live="polite">Campo obrigatório.</div>
+                  </div>
+                  <div class="field-group">
+                    <label for="descricao" class="required">Descrição</label>
+                    <input type="text" id="descricao" name="descricao" placeholder="Insira a descrição de seu curso">
+                    <div class="field-error" aria-live="polite">Campo obrigatório.</div>
+                  </div>
+                  <div class="field-group">
+                    <label for="codigo" class="required">Código</label>
+                    <input type="text" id="codigo" name="codigo" placeholder="Insira o seu código" pattern="[A-Z0-9-]+" title="Use letras maiúsculas, números e hífen">
+                    <div class="field-error" aria-live="polite">Campo obrigatório.</div>
+                  </div>
                 </div>
               
                 <!-- Coluna 2 -->
                 <div>
                   <h3>Vinculação de Coordenador</h3>
-                  <label for="coordenador">Coordenador</label>
-                  <select id="coordenador" name="coordenador">
-                    <option value="">Selecione o coordenador</option>
-                    {% if professores %}
-                      {% for p in professores %}
-                        <option value="{{ p.id_usuario }}">{{ p.nome }}</option>
-                      {% endfor %}
-                    {% endif %}
-                  </select>
+                  <div class="field-group">
+                    <label for="coordenador" class="required">Coordenador</label>
+                    <select id="coordenador" name="coordenador">
+                      <option value="">Selecione o coordenador</option>
+                      {% if professores %}
+                        {% for p in professores %}
+                          <option value="{{ p.id_usuario }}">{{ p.nome }}</option>
+                        {% endfor %}
+                      {% endif %}
+                    </select>
+                    <div class="field-error" aria-live="polite">Campo obrigatório.</div>
+                  </div>
                 
                   <h3>Autorização do curso</h3>
-                  <label for="portaria">Portaria de Autorização</label>
-                  <input type="text" id="portaria" name="portaria" placeholder="Insira a portaria (alfanumérico)" inputmode="text" maxlength="40">
+                  <div class="field-group">
+                    <label for="portaria" class="required">Portaria de Autorização</label>
+                    <input type="text" id="portaria" name="portaria" placeholder="Insira a portaria (alfanumérico)" inputmode="text" maxlength="40">
+                    <div class="field-error" aria-live="polite">Campo obrigatório.</div>
+                  </div>
                 </div>
                 <!-- Botão centralizado -->
                 <div class="full-width">
@@ -239,6 +254,10 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
           if(document && document.body){ document.body.style.overflow = 'hidden'; }
           const firstInput = form && form.querySelector('#nome');
           if(firstInput){ firstInput.focus(); }
+          // Limpa estados de erro ao abrir o modal
+          if(form){
+            form.querySelectorAll('.required-missing').forEach(el => el.classList.remove('required-missing'));
+          }
         }
         function closeCursoModal(){
           modal.setAttribute('aria-hidden', 'true');
@@ -289,6 +308,51 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
               openCursoModal('Editar curso');
             }
           });
+        });
+     })();
+    </script>
+    <script>
+      (function(){
+        const form = document.getElementById('cursoForm');
+        if(!form) return;
+        const fieldIds = ['nome','descricao','codigo','coordenador','portaria'];
+
+        function trim(v){ return String(v||'').trim(); }
+
+        function clearError(el){ if(el){ el.classList.remove('required-missing'); } }
+        function setError(el){ if(el){ el.classList.add('required-missing'); } }
+
+        function validate(){
+          let ok = true;
+          fieldIds.forEach(id => {
+            const el = form.querySelector('#'+id);
+            if(!el) return;
+            const val = (el.tagName === 'SELECT') ? el.value : trim(el.value);
+            if(!val){ setError(el); ok = false; }
+            else { clearError(el); }
+          });
+          return ok;
+        }
+
+        // Feedback imediato: limpar ao digitar/alterar e marcar ao sair (blur)
+        fieldIds.forEach(id => {
+          const el = form.querySelector('#'+id);
+          if(!el) return;
+          const isSelect = el.tagName === 'SELECT';
+          const getVal = () => isSelect ? el.value : trim(el.value);
+          el.addEventListener(isSelect ? 'change' : 'input', function(){
+            if(getVal()) clearError(el);
+          });
+          el.addEventListener('blur', function(){
+            if(!getVal()) setError(el); else clearError(el);
+          });
+        });
+
+        form.addEventListener('submit', function(e){
+          const ok = validate();
+          if(!ok){
+            e.preventDefault();
+          }
         });
       })();
     </script>
