@@ -1728,6 +1728,23 @@ def cadastro_alunos():
             if conn:
                 try:
                     cur = conn.cursor()
+                    # Bloquear edição se usuário estiver inativo
+                    try:
+                        ensure_usuario_ativo_column()
+                        cur.execute("SELECT COALESCE(ativo, TRUE) FROM usuario WHERE id_usuario = %s", (id_usuario,))
+                        row_state = cur.fetchone()
+                        is_active = True
+                        if row_state is not None:
+                            val = row_state[0] if isinstance(row_state, tuple) else row_state
+                            is_active = bool(val) if val is not None else True
+                        if not is_active:
+                            flash('Usuário inativo. Reative para editar.', 'warning')
+                            audit_log('cadastro_aluno_update_blocked_inativo', {'id_usuario': id_usuario})
+                            cur.close(); conn.close()
+                            return redirect(url_for('cadastro_alunos'))
+                    except Exception:
+                        # Em caso de erro ao verificar, seguir para demais validações
+                        pass
                     # Verificar e-mail duplicado em outro usuário
                     cur.execute("SELECT 1 FROM usuario WHERE email = %s AND id_usuario <> %s", (email, id_usuario))
                     if cur.fetchone():
@@ -1994,6 +2011,24 @@ def cadastro_curso():
                         cur.close(); conn.close()
                         audit_log('cadastro_curso_fail', {'motivo': 'update_campos_invalidos'})
                         return redirect(url_for('cadastro_curso'))
+                    # Bloqueia edição se o curso estiver inativo
+                    try:
+                        ensure_curso_ativo_column()
+                    except Exception:
+                        pass
+                    ativo_row = None
+                    try:
+                        cur.execute("SELECT COALESCE(ativo, TRUE) FROM curso WHERE id_curso = %s", (id_curso,))
+                        ativo_row = cur.fetchone()
+                    except Exception:
+                        ativo_row = None
+                    if ativo_row is not None:
+                        is_active = ativo_row[0] if isinstance(ativo_row, tuple) else bool(ativo_row)
+                        if not is_active:
+                            flash('Curso inativo. Reative para editar.', 'warning')
+                            audit_log('cadastro_curso_update_bloqueado', {'id_curso': id_curso, 'motivo': 'curso_inativo'})
+                            cur.close(); conn.close()
+                            return redirect(url_for('cadastro_curso'))
                     cur.execute(
                         "UPDATE curso SET nome_curso = %s, descricao_curso = %s, codigo_curso = %s, autorizacao = %s, id_coordenador = %s WHERE id_curso = %s",
                         (nome_curso, descricao, codigo, autorizacao, coordenador_id, id_curso)
@@ -2280,22 +2315,69 @@ def publicacao():
             """)
             professores = cur.fetchall()
 
-            cur.execute("""
-                SELECT 
-                  p.id_publicacao,
-                  p.titulo,
-                  p.tipo,
-                  c.nome_curso AS curso,
-                  u.nome AS autor_nome,
-                  p.nome_arquivo,
-                  p.data_publicacao,
-                  p.status
-                FROM publicacao p
-                LEFT JOIN curso c ON c.id_curso = p.id_curso
-                LEFT JOIN usuario u ON u.id_usuario = p.id_autor
-                ORDER BY p.id_publicacao DESC
-                LIMIT 20
-            """)
+            # Filtragem de "Últimas publicações" conforme perfil
+            user_role = (session.get('user_tipo') or session.get('role') or '').strip()
+            uid = session.get('user_id')
+            if user_role == 'Aluno' and uid:
+                # Aluno: ver todas Publicadas; ver também Pendente/Indeferida apenas se forem do próprio usuário
+                try:
+                    pub_label = status_label('Publicado')
+                except Exception:
+                    pub_label = 'Publicado'
+                try:
+                    pend_label = status_label('Pendente')
+                except Exception:
+                    pend_label = 'Pendente'
+                # Aceita tanto "Reprovado" quanto "Indeferido" conforme enum
+                try:
+                    indefer_label = status_label('Indeferido')
+                except Exception:
+                    try:
+                        indefer_label = status_label('Reprovado')
+                    except Exception:
+                        indefer_label = 'Indeferido'
+
+                cur.execute(
+                    """
+                    SELECT 
+                      p.id_publicacao,
+                      p.titulo,
+                      p.tipo,
+                      c.nome_curso AS curso,
+                      u.nome AS autor_nome,
+                      p.nome_arquivo,
+                      p.data_publicacao,
+                      p.status
+                    FROM publicacao p
+                    LEFT JOIN curso c ON c.id_curso = p.id_curso
+                    LEFT JOIN usuario u ON u.id_usuario = p.id_autor
+                    WHERE p.status = %s
+                       OR (p.id_autor = %s AND p.status IN (%s, %s))
+                    ORDER BY p.id_publicacao DESC
+                    LIMIT 20
+                    """,
+                    (pub_label, uid, pend_label, indefer_label)
+                )
+            else:
+                # Administrador/Docente: mantém visão completa
+                cur.execute(
+                    """
+                    SELECT 
+                      p.id_publicacao,
+                      p.titulo,
+                      p.tipo,
+                      c.nome_curso AS curso,
+                      u.nome AS autor_nome,
+                      p.nome_arquivo,
+                      p.data_publicacao,
+                      p.status
+                    FROM publicacao p
+                    LEFT JOIN curso c ON c.id_curso = p.id_curso
+                    LEFT JOIN usuario u ON u.id_usuario = p.id_autor
+                    ORDER BY p.id_publicacao DESC
+                    LIMIT 20
+                    """
+                )
             publicacoes = cur.fetchall()
             
             cur.close()

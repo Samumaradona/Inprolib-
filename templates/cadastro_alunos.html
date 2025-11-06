@@ -134,21 +134,23 @@
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.curso_usuario or '-' }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">
                     <div class="action-buttons">
+                      {% if u.ativo %}
                       <button type="button"
 class="icon-btn is-blue"
 aria-label="Editar usuário {{ u.nome }}"
 title="Editar"
 data-action="edit-user"
-data-id="{{ u.id_usuario }}" {% if not u.ativo %}disabled aria-disabled="true" title="Usuário inativo"{% endif %}>
+data-id="{{ u.id_usuario }}">
 <span class="material-symbols-outlined" aria-hidden="true">edit</span>
 </button>
+                      {% endif %}
                        <form method="POST" action="/cadastro_alunos" style="display:inline">
                          <input type="hidden" name="action" value="toggle">
                          <input type="hidden" name="id_usuario" value="{{ u.id_usuario }}">
 
 <button type="submit" class="icon-btn {{ 'is-danger' if u.ativo else 'is-success' }}" aria-label="{{ 'Inativar' if u.ativo else 'Reativar' }} usuário {{ u.nome }}" title="{{ 'Inativar' if u.ativo else 'Reativar' }}">
-                           <span class="material-symbols-outlined" aria-hidden="true">{{ 'do_not_disturb_on' if u.ativo else 'check_circle' }}</span>
-                         </button>
+                         <span class="material-symbols-outlined" aria-hidden="true">{{ 'do_not_disturb_on' if u.ativo else 'check_circle' }}</span>
+                       </button>
                        </form>
                     </div>
                   </td>
@@ -320,6 +322,10 @@ data-id="{{ u.id_usuario }}" {% if not u.ativo %}disabled aria-disabled="true" t
 
   <script>window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";</script>
   <script src="{{ url_for('static', filename='javascript/notifications.js') }}"></script>
+  <!-- Define USER_PHOTO para o módulo de avatar em home.js não sobrescrever o src correto -->
+  <script>
+    window.USER_PHOTO = "{{ url_for('static', filename=session.get('user_photo')) if session.get('user_photo') else '' }}";
+  </script>
   <script src="{{ url_for('static', filename='javascript/home.js') }}"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
   <script>

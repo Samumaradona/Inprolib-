@@ -138,6 +138,7 @@
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.coordenador or '-' }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">
                     <div class="action-buttons">
+                      {% if c.ativo %}
                       <button type="button" class="icon-btn is-blue" aria-label="Editar curso {{ c.nome_curso }}" title="Editar"
                               data-action="edit"
                               data-id="{{ c.id_curso }}"
@@ -148,6 +149,7 @@
                               data-coordenador-id="{{ c.id_coordenador or '' }}">
                         <span class="material-symbols-outlined" aria-hidden="true">edit</span>
                       </button>
+                      {% endif %}
                       <form method="POST" action="/cadastro_curso" style="display:inline">
                         <input type="hidden" name="action" value="toggle">
                         <input type="hidden" name="id_curso" value="{{ c.id_curso }}">
