@@ -2353,7 +2353,7 @@ def publicacao():
                     LEFT JOIN usuario u ON u.id_usuario = p.id_autor
                     WHERE p.status = %s
                        OR (p.id_autor = %s AND p.status IN (%s, %s))
-                    ORDER BY p.id_publicacao DESC
+                    ORDER BY p.titulo ASC, p.data_publicacao DESC, p.id_publicacao DESC
                     LIMIT 20
                     """,
                     (pub_label, uid, pend_label, indefer_label)
@@ -2374,7 +2374,7 @@ def publicacao():
                     FROM publicacao p
                     LEFT JOIN curso c ON c.id_curso = p.id_curso
                     LEFT JOIN usuario u ON u.id_usuario = p.id_autor
-                    ORDER BY p.id_publicacao DESC
+                    ORDER BY p.titulo ASC, p.data_publicacao DESC, p.id_publicacao DESC
                     LIMIT 20
                     """
                 )
