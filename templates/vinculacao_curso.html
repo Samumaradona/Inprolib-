@@ -101,7 +101,7 @@
         <label for="tipo_usuario" class="required">Tipo de Usuário</label>
         <select id="tipo_usuario" name="tipo_usuario" required>
           <option value="">Selecione o tipo</option>
-          <option value="Docente" selected>Docente</option>
+          <option value="Professor" selected>Professor</option>
           <option value="Aluno">Aluno</option>
         </select>
         <div class="field-error">Campo obrigatório.</div>
@@ -169,6 +169,7 @@
                                     onclick="prefillForm('{{ 'Docente' if v.tipo_usuario == 'Professor' else ('' if v.tipo_usuario in ['Funcionário','Administrador'] else v.tipo_usuario) }}', '{{ v.id_usuario }}', '{{ v.id_curso }}')">Editar</button>
                             <form method="POST" action="/vinculacao_curso/remover" style="display:inline">
                               <input type="hidden" name="usuario_id" value="{{ v.id_usuario }}" />
+                              <input type="hidden" name="curso_id" value="{{ v.id_curso }}" />
                               <button type="submit" class="button" aria-label="Remover vinculação" title="Remover">Remover</button>
                             </form>
                           </div>

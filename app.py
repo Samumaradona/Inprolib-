@@ -888,6 +888,125 @@ def ensure_usuario_curso_fk_column():
             pass
         print(f"Falha ao garantir coluna usuario.id_curso_usuario: {e}")
 
+# Helper para garantir/ajustar a tabela usuario_curso conforme especificação
+def ensure_usuario_curso_schema():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute("SELECT current_schema()")
+        schema = (cur.fetchone() or {'current_schema': 'public'})
+        schema = schema.get('current_schema', 'public') or 'public'
+
+        # Verificar existência da tabela
+        cur.execute(
+            """
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema=%s AND table_name='usuario_curso'
+            """,
+            (schema,)
+        )
+        exists = cur.fetchone() is not None
+
+        if not exists:
+            # Criar tabela com estrutura nova
+            cur.execute(
+                f'''CREATE TABLE "{schema}".usuario_curso (
+                    id_usuario_curso BIGSERIAL PRIMARY KEY,
+                    id_usuario INTEGER NOT NULL REFERENCES "{schema}".usuario(id_usuario) ON DELETE CASCADE,
+                    id_curso INTEGER NOT NULL REFERENCES "{schema}".curso(id_curso) ON DELETE CASCADE,
+                    data_vinculacao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    responsavel_vinculacao INTEGER REFERENCES "{schema}".usuario(id_usuario),
+                    CONSTRAINT uq_usuario_curso UNIQUE (id_usuario, id_curso)
+                )'''
+            )
+            conn.commit()
+        else:
+            # Se existir, garantir colunas e constraints novas
+            # Detectar PK existente (composta) e substituir por coluna identity, mantendo UNIQUE
+            cur.execute(
+                """
+                SELECT tc.constraint_name
+                FROM information_schema.table_constraints tc
+                WHERE tc.table_schema=%s AND tc.table_name='usuario_curso' AND tc.constraint_type='PRIMARY KEY'
+                """,
+                (schema,)
+            )
+            pk_row = cur.fetchone()
+
+            # Colunas existentes
+            cur.execute(
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_schema=%s AND table_name='usuario_curso'
+                """,
+                (schema,)
+            )
+            cols = {r['column_name'] for r in cur.fetchall()}
+
+            # Adicionar coluna id_usuario_curso se ausente
+            if 'id_usuario_curso' not in cols:
+                # Se PK composta existir, tenta removê-la primeiro
+                if pk_row:
+                    try:
+                        pk_name = pk_row['constraint_name'] if isinstance(pk_row, dict) else pk_row[0]
+                        cur.execute(f'ALTER TABLE "{schema}".usuario_curso DROP CONSTRAINT {pk_name}')
+                        conn.commit()
+                    except Exception:
+                        pass
+                # Adiciona coluna identity e define como PK
+                try:
+                    cur.execute(f'ALTER TABLE "{schema}".usuario_curso ADD COLUMN id_usuario_curso BIGSERIAL')
+                    cur.execute(f'ALTER TABLE "{schema}".usuario_curso ADD CONSTRAINT pk_usuario_curso_id PRIMARY KEY (id_usuario_curso)')
+                    conn.commit()
+                except Exception:
+                    pass
+
+            # Adicionar data_vinculacao
+            if 'data_vinculacao' not in cols:
+                cur.execute(f'ALTER TABLE "{schema}".usuario_curso ADD COLUMN data_vinculacao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP')
+                conn.commit()
+
+            # Adicionar responsavel_vinculacao
+            if 'responsavel_vinculacao' not in cols:
+                cur.execute(f'ALTER TABLE "{schema}".usuario_curso ADD COLUMN responsavel_vinculacao INTEGER NULL')
+                try:
+                    cur.execute(
+                        f'ALTER TABLE "{schema}".usuario_curso ADD CONSTRAINT fk_usuario_curso_responsavel FOREIGN KEY (responsavel_vinculacao) REFERENCES "{schema}".usuario(id_usuario) ON DELETE SET NULL'
+                    )
+                except Exception:
+                    pass
+                conn.commit()
+
+            # Garantir UNIQUE (id_usuario,id_curso)
+            try:
+                cur.execute(
+                    f"""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint
+                            WHERE conname = 'uq_usuario_curso'
+                        ) THEN
+                            ALTER TABLE "{schema}".usuario_curso ADD CONSTRAINT uq_usuario_curso UNIQUE (id_usuario, id_curso);
+                        END IF;
+                    END $$;
+                    """
+                )
+                conn.commit()
+            except Exception:
+                pass
+
+        cur.close(); conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao garantir/ajustar tabela usuario_curso: {e}")
+
 # Helper para garantir coluna 'id_orientador' em publicacao
 def ensure_publicacao_orientador_column():
     conn = get_db_connection()
@@ -928,6 +1047,7 @@ def init_schema_once():
         ensure_usuario_endereco_columns()
         ensure_publicacao_orientador_column()
         ensure_usuario_curso_fk_column()
+        ensure_usuario_curso_schema()
         ensure_usuario_preferences_columns()
         ensure_avaliacao_table()
         # garante rótulos essenciais no enum de status
@@ -2081,9 +2201,28 @@ def cadastro_curso():
             ensure_curso_ativo_column()
             cur.execute(
                 """
-                SELECT c.id_curso, c.nome_curso, c.descricao_curso, c.codigo_curso, c.autorizacao, c.ativo, c.id_coordenador, u.nome as coordenador
+                SELECT c.id_curso,
+                       c.nome_curso,
+                       c.descricao_curso,
+                       c.codigo_curso,
+                       c.autorizacao,
+                       c.ativo,
+                       c.id_coordenador,
+                       u.nome as coordenador,
+                       COALESCE(vinc.total_vinculos, 0) AS total_vinculos,
+                       COALESCE(vinc.alunos, 0) AS alunos,
+                       COALESCE(vinc.docentes, 0) AS docentes
                 FROM curso c
                 LEFT JOIN usuario u ON c.id_coordenador = u.id_usuario
+                LEFT JOIN (
+                    SELECT uc.id_curso,
+                           COUNT(*) AS total_vinculos,
+                           COUNT(*) FILTER (WHERE us.tipo = 'Aluno') AS alunos,
+                           COUNT(*) FILTER (WHERE us.tipo = 'Professor') AS docentes
+                    FROM usuario_curso uc
+                    JOIN usuario us ON us.id_usuario = uc.id_usuario
+                    GROUP BY uc.id_curso
+                ) AS vinc ON vinc.id_curso = c.id_curso
                 ORDER BY c.nome_curso ASC
                 """
             )
@@ -3529,17 +3668,27 @@ def vinculacao_curso():
         if conn:
             try:
                 cur = conn.cursor()
-                # Garantir vínculo único: remove vínculos anteriores do usuário
-                cur.execute("DELETE FROM usuario_curso WHERE id_usuario = %s", (usuario_id,))
-                # Insere novo vínculo
+                # Insere vínculo, garantindo unicidade por (id_usuario,id_curso)
+                responsavel_id = session.get('user_id')
                 cur.execute(
-                    "INSERT INTO usuario_curso (id_usuario, id_curso) VALUES (%s, %s)",
-                    (usuario_id, curso_id)
+                    """
+                    INSERT INTO usuario_curso (id_usuario, id_curso, responsavel_vinculacao)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (id_usuario, id_curso) DO NOTHING
+                    """,
+                    (usuario_id, curso_id, responsavel_id)
                 )
-                # Atualiza vínculo direto na tabela de usuário
-                cur.execute("UPDATE usuario SET id_curso_usuario = %s WHERE id_usuario = %s", (curso_id, usuario_id))
+                # Se não inseriu, já existia
+                if getattr(cur, 'rowcount', None) == 0:
+                    flash('Usuário já está vinculado a este curso.', 'warning')
+                else:
+                    flash('Vínculo gravado com sucesso.', 'success')
+                # Atualiza vínculo direto na tabela de usuário (curso principal)
+                try:
+                    cur.execute("UPDATE usuario SET id_curso_usuario = %s WHERE id_usuario = %s", (curso_id, usuario_id))
+                except Exception:
+                    pass
                 conn.commit()
-                flash('Vínculo gravado com sucesso.', 'success')
                 audit_log('vinculacao_ok', {'usuario_id': usuario_id, 'curso_id': curso_id, 'tipo': tipo_usuario})
                 cur.close()
                 conn.close()
@@ -3619,6 +3768,7 @@ def api_usuarios_por_tipo(tipo):
 @roles_required(['Administrador'])
 def remover_vinculo_curso():
     usuario_id = request.form.get('usuario_id')
+    curso_id = request.form.get('curso_id')
     if not usuario_id:
         flash('Usuário inválido para remover vínculo.', 'error')
         return redirect(url_for('vinculacao_curso'))
@@ -3626,12 +3776,24 @@ def remover_vinculo_curso():
     if conn:
         try:
             cur = conn.cursor()
-            cur.execute("DELETE FROM usuario_curso WHERE id_usuario = %s", (usuario_id,))
-            cur.execute("UPDATE usuario SET id_curso_usuario = NULL WHERE id_usuario = %s", (usuario_id,))
+            if curso_id:
+                cur.execute("DELETE FROM usuario_curso WHERE id_usuario = %s AND id_curso = %s", (usuario_id, curso_id))
+                # Se o vínculo direto do usuário aponta para este curso, limpa
+                try:
+                    cur.execute("UPDATE usuario SET id_curso_usuario = CASE WHEN id_curso_usuario = %s THEN NULL ELSE id_curso_usuario END WHERE id_usuario = %s", (curso_id, usuario_id))
+                except Exception:
+                    pass
+            else:
+                # Fallback: remove todos vínculos do usuário
+                cur.execute("DELETE FROM usuario_curso WHERE id_usuario = %s", (usuario_id,))
+                try:
+                    cur.execute("UPDATE usuario SET id_curso_usuario = NULL WHERE id_usuario = %s", (usuario_id,))
+                except Exception:
+                    pass
             conn.commit()
             cur.close(); conn.close()
             flash('Vínculo removido.', 'success')
-            audit_log('vinculo_removido', {'usuario_id': usuario_id})
+            audit_log('vinculo_removido', {'usuario_id': usuario_id, 'curso_id': curso_id})
         except Exception as e:
             flash(f'Erro ao remover vínculo: {e}', 'error')
             audit_log('vinculo_remover_error', {'error': str(e)})
@@ -4794,6 +4956,6 @@ if __name__ == '__main__':
         elif arg in ('--seed-admins', 'seed-admins'):
             run_seed_admins()
         else:
-            app.run(debug=True)
+            app.run(host=os.getenv('FLASK_HOST','0.0.0.0'), port=int(os.getenv('FLASK_PORT','5000')), debug=True)
     else:
-        app.run(debug=True)
+        app.run(host=os.getenv('FLASK_HOST','0.0.0.0'), port=int(os.getenv('FLASK_PORT','5000')), debug=True)

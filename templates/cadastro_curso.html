@@ -126,6 +126,7 @@
                   <th style="padding:8px;border-bottom:1px solid #e5e7eb">Código</th>
                   <th style="padding:8px;border-bottom:1px solid #e5e7eb">Autorização</th>
                   <th style="padding:8px;border-bottom:1px solid #e5e7eb">Coordenador</th>
+                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">Vínculos</th>
                   <th style="padding:8px;border-bottom:1px solid #e5e7eb">Ações</th>
                 </tr>
               </thead>
@@ -136,6 +137,7 @@
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.codigo_curso or '-' }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.autorizacao or '-' }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.coordenador or '-' }}</td>
+                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ c.alunos or 0 }} Aluno(s) · {{ c.docentes or 0 }} Professor(es)</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">
                     <div class="action-buttons">
                       {% if c.ativo %}
