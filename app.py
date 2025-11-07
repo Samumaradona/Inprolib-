@@ -4305,8 +4305,22 @@ def exportar_relatorio():
         from datetime import datetime as _dt
         fname_base = f"relatorio_inprolib_{_dt.now().strftime('%Y%m%d_%H%M%S')}"
 
+        def ui_status_label(raw: str) -> str:
+            ns = _norm(str(raw or ''))
+            if 'reprov' in ns or 'indef' in ns:
+                return 'Indeferida'
+            if 'public' in ns:
+                return 'Publicada'
+            if 'denunc' in ns:
+                return 'Denunciado'
+            if 'pend' in ns or 'avali' in ns or 'analis' in ns or 'desativ' in ns:
+                return 'Pendente'
+            return raw or ''
+
         def val_for(col_key, r):
             v = r.get(col_key)
+            if col_key == 'status':
+                return ui_status_label(v)
             if col_key == 'data_publicacao' and v:
                 try:
                     # psycopg returns date/datetime; para CSV/PDF usar dd/mm/aaaa
@@ -4412,7 +4426,9 @@ def exportar_relatorio():
                 row_vals = []
                 for c in excel_cols:
                     v = r.get(c)
-                    if c == 'data_publicacao' and v:
+                    if c == 'status':
+                        row_vals.append(ui_status_label(v))
+                    elif c == 'data_publicacao' and v:
                         row_vals.append(v)  # manter como date/datetime para formatar
                     else:
                         row_vals.append(v if (v is not None) else '')
