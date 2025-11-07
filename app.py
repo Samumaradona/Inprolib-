@@ -4591,9 +4591,22 @@ def preview_relatorio():
         cur.execute(sql, params)
         rows = cur.fetchall() or []
         cur.close(); conn.close()
-        # Normaliza datas para string
+        # Normaliza datas para string e mapeia rótulo de status para visualização
         out = []
         for r in rows:
+            raw_status = r.get('status') or ''
+            ns = _norm(str(raw_status))
+            # Mapeamento consistente de rótulos para a UI
+            if 'reprov' in ns or 'indef' in ns:
+                ui_status = 'Indeferida'
+            elif 'public' in ns:
+                ui_status = 'Publicada'
+            elif 'denunc' in ns:
+                ui_status = 'Denunciado'
+            elif 'pend' in ns or 'avali' in ns or 'analis' in ns or 'desativ' in ns:
+                ui_status = 'Pendente'
+            else:
+                ui_status = raw_status
             out.append({
                 'id_publicacao': r.get('id_publicacao'),
                 'titulo': r.get('titulo'),
@@ -4602,7 +4615,7 @@ def preview_relatorio():
                 'docente': r.get('docente'),
                 'curso': r.get('curso'),
                 'data_publicacao': r.get('data_publicacao').strftime('%d/%m/%Y') if r.get('data_publicacao') else '',
-                'status': r.get('status')
+                'status': ui_status
             })
         return jsonify({'rows': out})
     except Exception as e:
