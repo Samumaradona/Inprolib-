@@ -141,6 +141,14 @@
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">
                     <div class="action-buttons">
                       {% if c.ativo %}
+                      <a class="icon-btn btn-export-curso"
+                         href="/cadastro_curso/exportar?curso={{ c.id_curso }}"
+                         aria-label="Exportar vínculos do curso {{ c.nome_curso }} (Excel)"
+                         title="Relatório Excel"
+                         data-id="{{ c.id_curso }}"
+                         data-nome="{{ c.nome_curso }}">
+                        <span class="material-symbols-outlined" aria-hidden="true">download</span>
+                      </a>
                       <button type="button" class="icon-btn is-blue" aria-label="Editar curso {{ c.nome_curso }}" title="Editar"
                               data-action="edit"
                               data-id="{{ c.id_curso }}"
@@ -313,6 +321,59 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
             }
           });
         });
+        // Exportar Excel por curso (com fluxo correto de salvar/cancelar)
+        document.querySelectorAll('.btn-export-curso').forEach(function(btn){
+          btn.addEventListener('click', function(e){
+            e.preventDefault();
+            const url = this.getAttribute('href');
+            const nome = this.dataset.nome || 'curso';
+            window.showToast && window.showToast(`Gerando Excel para "${nome}"...`, 'info');
+            fetch(url, { method: 'GET' })
+              .then(function(res){
+                if(!res.ok){ throw new Error('Falha ao gerar Excel ('+res.status+')'); }
+                return res.blob();
+              })
+              .then(async function(blob){
+                const filename = `vinculos_${nome.replace(/\s+/g,'_')}.xlsx`;
+                if(window.showSaveFilePicker){
+                  try{
+                    const handle = await window.showSaveFilePicker({
+                      suggestedName: filename,
+                      types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    window.showToast && window.showToast('Excel salvo com sucesso.', 'success');
+                  } catch(err){
+                    // Cancelamento do usuário no file picker
+                    if(err && (err.name === 'AbortError' || String(err.message||'').includes('AbortError'))){
+                      window.showToast && window.showToast('Download cancelado.', 'warning');
+                    } else {
+                      console.error(err);
+                      window.showToast && window.showToast('Erro ao salvar: '+err.message, 'error');
+                    }
+                  }
+                } else {
+                  // Fallback: inicia download via link; não há como detectar cancelamento
+                  const a = document.createElement('a');
+                  const objectUrl = URL.createObjectURL(blob);
+                  a.href = objectUrl;
+                  a.download = filename;
+                  a.style.display = 'none';
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(objectUrl);
+                  window.showToast && window.showToast('Download iniciado. Salve o arquivo pelo navegador.', 'info');
+                }
+              })
+              .catch(function(err){
+                console.error(err);
+                window.showToast && window.showToast('Erro ao exportar: '+err.message, 'error');
+              });
+          });
+        });
      })();
     </script>
     <script>
@@ -400,7 +461,7 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
            applyCourseFilters();
          });
          applyCourseFilters();
-       })();
-     </script>
+     })();
+    </script>
   </body>
   </html>

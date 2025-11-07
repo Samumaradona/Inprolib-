@@ -399,10 +399,16 @@
     margin-left: 2px;
   }
   /* Estados e mensagens de campos obrigatórios */
-  .required-missing {
+.required-missing {
     border-color: var(--bs-danger) !important;
     box-shadow: 0 0 0 0.12rem rgba(var(--bs-danger-rgb), .18);
-  }
+}
+/* Remover contorno vermelho apenas para os campos Usuário e Curso */
+#usuario.required-missing,
+#curso.required-missing {
+  border-color: #d1d5db !important; /* volta ao padrão */
+  box-shadow: none !important;      /* sem contorno vermelho */
+}
   .field-error {
     display: none;
     color: var(--bs-danger);

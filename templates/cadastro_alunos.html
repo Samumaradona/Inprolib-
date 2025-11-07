@@ -108,9 +108,13 @@
               <span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
               Limpar filtros
             </button>
-            <span id="resultsCounter" class="results-counter" aria-live="polite"></span>
+          <span id="resultsCounter" class="results-counter" aria-live="polite"></span>
           </div>
-
+          <div class="actions" style="display:flex; gap:8px; align-items:center">
+            <a class="icon-btn is-success btn-export-usuarios" href="/cadastro_alunos/exportar" title="Relatório Excel" aria-label="Relatório Excel">
+              <span class="material-symbols-outlined" aria-hidden="true">download</span>
+            </a>
+          </div>
         </div>
 
         {% if usuarios and usuarios|length > 0 %}
@@ -124,7 +128,6 @@
                   <th style="padding:8px;border-bottom:1px solid #e5e7eb">E-mail</th>
                   <th style="padding:8px;border-bottom:1px solid #e5e7eb">CPF</th>
                   <th style="padding:8px;border-bottom:1px solid #e5e7eb">Tipo</th>
-                  <th style="padding:8px;border-bottom:1px solid #e5e7eb">Curso</th>
                   <th style="padding:8px;border-bottom:1px solid #e5e7eb">Ações</th>
                 </tr>
               </thead>
@@ -135,7 +138,6 @@
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.email or '-' }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.cpf or '-' }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ 'Docente' if (u.tipo|default('')|lower) == 'professor' else ('Administrador' if (u.tipo|default('')|lower in ['funcionario','funcionário']) else (u.tipo or '-')) }}</td>
-                  <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ u.curso_usuario or '-' }}</td>
                   <td style="padding:8px;border-bottom:1px solid #f1f5f9">
                     <div class="action-buttons">
                       {% if u.ativo %}
@@ -666,6 +668,60 @@ data-id="{{ u.id_usuario }}">
             return;
           }
           prepareEdit(this);
+        });
+      });
+    })();
+  </script>
+  <script>
+    (function(){
+      // Exportar Excel de usuários (Alunos, Professores e Funcionários)
+      document.querySelectorAll('.btn-export-usuarios').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+          e.preventDefault();
+          const url = this.getAttribute('href');
+          window.showToast && window.showToast('Gerando Excel de usuários...', 'info');
+          fetch(url, { method: 'GET' })
+            .then(function(res){
+              if(!res.ok){ throw new Error('Falha ao gerar Excel ('+res.status+')'); }
+              return res.blob();
+            })
+            .then(async function(blob){
+              const filename = 'usuarios_cadastrados.xlsx';
+              if(window.showSaveFilePicker){
+                try{
+                  const handle = await window.showSaveFilePicker({
+                    suggestedName: filename,
+                    types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
+                  });
+                  const writable = await handle.createWritable();
+                  await writable.write(blob);
+                  await writable.close();
+                  window.showToast && window.showToast('Excel salvo com sucesso.', 'success');
+                } catch(err){
+                  if(err && (err.name === 'AbortError' || String(err.message||'').includes('AbortError'))){
+                    window.showToast && window.showToast('Download cancelado.', 'warning');
+                  } else {
+                    console.error(err);
+                    window.showToast && window.showToast('Erro ao salvar: '+err.message, 'error');
+                  }
+                }
+              } else {
+                const a = document.createElement('a');
+                const objectUrl = URL.createObjectURL(blob);
+                a.href = objectUrl;
+                a.download = filename;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(objectUrl);
+                window.showToast && window.showToast('Download iniciado. Salve o arquivo pelo navegador.', 'info');
+              }
+            })
+            .catch(function(err){
+              console.error(err);
+              window.showToast && window.showToast('Erro ao exportar: '+err.message, 'error');
+            });
         });
       });
     })();

@@ -115,6 +115,8 @@ header.topbar{
   vertical-align: middle;
 }
 
+/* (revert) remover estilos de botão de ícone adicionados */
+
 /* Notif button (mantive tamanhos/proporções do sino) */
 .notif-btn{
   display:inline-flex;

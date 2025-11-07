@@ -425,6 +425,10 @@ aside.sidemenu.open{ transform:translateX(0) }
 .icon-btn.is-success { color:#166534; border-color:#bbf7d0; background:#f0fdf4; }
 .icon-btn.is-success:hover { background:#dcfce7; }
 .icon-btn.is-success .material-symbols-outlined { color:#166534; }
+
+/* Botão “Relatório Excel” mais compacto */
+.btn-export-usuarios { padding: 4px 8px; gap: 4px; font-size: 13px; line-height: 1; }
+.btn-export-usuarios .material-symbols-outlined { font-size: 22px; color: #16a34a; }
 /* Azul padrão dos botões da página */
 .icon-btn.is-blue { color: var(--bs-new-casual); border-color: var(--bs-new-light); background:#eff6ff; }
 .icon-btn.is-blue:hover { background:#dbeafe; }
@@ -434,6 +438,8 @@ aside.sidemenu.open{ transform:translateX(0) }
 
 /* Filtros na toolbar */
 #filterBar { gap: 8px; }
+/* Garantir que o conteúdo do filtro não seja cortado */
+/* Removido overflow para permitir exibição do contador */
 .input-with-icon {
   display: inline-flex;
   align-items: center;
@@ -453,7 +459,7 @@ aside.sidemenu.open{ transform:translateX(0) }
   outline: none;
   padding: 8px 6px;
   font-size: 14px;
-  width: 220px;
+  width: 140px;
   background: transparent;
 }
 .input-with-icon input::placeholder { color: #94a3b8; }
@@ -465,8 +471,14 @@ aside.sidemenu.open{ transform:translateX(0) }
   font-size: 14px;
   height: 36px;
 }
+.btn-export-usuarios { white-space: nowrap; }
+.toolbar .filters { flex: 1 1 auto; min-width: 0; }
+.toolbar .actions { flex: 0 0 auto; margin-left: auto; }
+.toolbar .actions .btn-export-usuarios { display: inline-flex; align-items: center; }
+.results-counter { white-space: nowrap; margin-left: 4px; flex: 0 0 auto; }
+
 @media (max-width: 640px) {
-  .input-with-icon input { width: 140px; }
+.input-with-icon input { width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 .results-counter {
   color: #64748b;
@@ -532,7 +544,10 @@ body { overflow-x: hidden; }
   .container { padding: 10px 12px; }
   .container-grid { grid-template-columns: 1fr; }
   #filterBar { flex-wrap: wrap; gap: 8px; }
-  .input-with-icon input { width: 140px; }
+.input-with-icon input { width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Ellipsis também aplicado ao placeholder para garantir truncamento visual */
+.input-with-icon input::placeholder { text-overflow: ellipsis; }
   .table-container, .table-wrapper { overflow: auto; }
 }
 /* Azul nos títulos das colunas do quadro de alunos */

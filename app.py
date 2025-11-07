@@ -2233,6 +2233,341 @@ def cadastro_curso():
             flash(f'Erro ao buscar professores: {e}', 'error')
     return render_template('cadastro_curso.html', professores=professores, cursos=cursos)
 
+# Exportação de vínculos por curso em Excel
+@app.route('/cadastro_curso/exportar', methods=['GET'])
+@login_required
+@roles_required(['Administrador'])
+def exportar_curso_excel():
+    try:
+        curso_id_str = (request.args.get('curso') or request.args.get('id_curso') or '').strip()
+        if not curso_id_str or not curso_id_str.isdigit():
+            flash('Curso inválido para exportação.', 'error')
+            return redirect(url_for('cadastro_curso'))
+        curso_id = int(curso_id_str)
+
+        # Limite de taxa por usuário: 10/min
+        key = f"curso_export::{session.get('user_id') or 'anon'}"
+        if not check_rate_limit(key, limit=10, window=60):
+            return make_response('Muitas exportações. Tente novamente em instantes.', 429)
+
+        conn = get_db_connection()
+        if not conn:
+            flash('Falha de conexão com o banco.', 'error')
+            return redirect(url_for('cadastro_curso'))
+
+        cur = conn.cursor(row_factory=dict_row)
+        # Dados do curso
+        cur.execute(
+            """
+            SELECT c.id_curso, c.nome_curso, c.codigo_curso, c.autorizacao,
+                   u.nome AS coordenador
+            FROM curso c
+            LEFT JOIN usuario u ON u.id_usuario = c.id_coordenador
+            WHERE c.id_curso = %s
+            """,
+            (curso_id,)
+        )
+        curso = cur.fetchone()
+        if not curso:
+            cur.close(); conn.close()
+            flash('Curso não encontrado.', 'error')
+            return redirect(url_for('cadastro_curso'))
+
+        # Vínculos por curso
+        cur.execute(
+            """
+            SELECT u.id_usuario, u.nome, u.email, u.cpf, u.tipo::text AS tipo,
+                   uc.data_vinculacao, uc.responsavel_vinculacao,
+                   u_resp.nome AS responsavel_nome
+            FROM usuario_curso uc
+            JOIN usuario u ON u.id_usuario = uc.id_usuario
+            LEFT JOIN usuario u_resp ON u_resp.id_usuario = uc.responsavel_vinculacao
+            WHERE uc.id_curso = %s
+            ORDER BY u.nome ASC
+            """,
+            (curso_id,)
+        )
+        rows = cur.fetchall() or []
+        # Fallback defensivo: se não retornou nada, tenta sem cast de enum e com normalização básica
+        if not rows:
+            try:
+                cur.execute(
+                    """
+                    SELECT u.id_usuario, u.nome, u.email, u.cpf, u.tipo AS tipo,
+                           uc.data_vinculacao, uc.responsavel_vinculacao,
+                           u_resp.nome AS responsavel_nome
+                    FROM usuario_curso uc
+                    JOIN usuario u ON u.id_usuario = uc.id_usuario
+                    LEFT JOIN usuario u_resp ON u_resp.id_usuario = uc.responsavel_vinculacao
+                    WHERE uc.id_curso = %s
+                    ORDER BY u.nome ASC
+                    """,
+                    (curso_id,)
+                )
+                rows = cur.fetchall() or []
+            except Exception:
+                pass
+        cur.close(); conn.close()
+
+        # Particiona por tipo (sem aba Funcionários no arquivo)
+        grupos = {
+            'Professores': [],
+            'Alunos': []
+        }
+        for r in rows:
+            t = (r.get('tipo') or '').lower()
+            if ('prof' in t) or ('docent' in t):
+                grupos['Professores'].append(r)
+            else:
+                grupos['Alunos'].append(r)
+
+        # Gera Excel (padrão similar à tela Relatórios)
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        wb = Workbook()
+
+        def build_sheet(title: str, data: list):
+            ws = wb.active if wb.active.title == 'Sheet' else wb.create_sheet()
+            ws.title = title
+            # Cabeçalhos e linhas iniciais
+            headers = ['ID', 'Nome', 'Email', 'CPF', 'Tipo', 'Data Vinculação', 'Responsável']
+            # Linha 1: Título geral
+            ws.append([f"Vínculos do curso: {curso.get('nome_curso')} — Aba: {title}"])
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+            ws['A1'].font = Font(size=16, bold=True, color='1F4E79')
+            ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[1].height = 24
+            # Linha 2: Cabeçalho de tabela
+            ws.append(headers)
+            header_row = 2
+            for col_idx in range(1, len(headers)+1):
+                cell = ws.cell(row=header_row, column=col_idx)
+                cell.font = Font(bold=True, color='0f172a')
+                cell.fill = PatternFill('solid', fgColor='e2e8f0')
+                cell.alignment = Alignment(horizontal='left', vertical='center')
+                cell.border = Border(
+                    left=Side(style='thin', color='94a3b8'),
+                    right=Side(style='thin', color='94a3b8'),
+                    top=Side(style='thin', color='94a3b8'),
+                    bottom=Side(style='thin', color='94a3b8')
+                )
+            # Dados
+            for r in data:
+                ws.append([
+                    r.get('id_usuario'),
+                    r.get('nome'),
+                    r.get('email'),
+                    r.get('cpf'),
+                    r.get('tipo'),
+                    r.get('data_vinculacao'),
+                    r.get('responsavel_nome') or ''
+                ])
+            # Linha final: Resumo — total desta aba
+            total_reg = len(data)
+            ws.append([""])  # espaçamento
+            ws.append([f"Resumo — Total nesta aba: {total_reg}"])
+            end_row = ws.max_row
+            ws.merge_cells(start_row=end_row, start_column=1, end_row=end_row, end_column=len(headers))
+            ws[f'A{end_row}'].font = Font(size=13, bold=True, color='334155')
+            ws[f'A{end_row}'].alignment = Alignment(horizontal='center', vertical='center')
+            # Larguras
+            widths = [8, 28, 34, 16, 14, 20, 24]
+            for i, w in enumerate(widths, start=1):
+                ws.column_dimensions[get_column_letter(i)].width = w
+            # Congela cabeçalho
+            ws.freeze_panes = 'A3'
+            return ws
+
+        # Cria apenas as abas solicitadas
+        build_sheet('Professores', grupos['Professores'])
+        build_sheet('Alunos', grupos['Alunos'])
+
+        # Nome do arquivo
+        from datetime import datetime as _dt
+        base = curso.get('codigo_curso') or f"curso_{curso.get('id_curso')}"
+        fname = f"vinculos_{base}_{_dt.now().strftime('%Y%m%d_%H%M%S')}"
+
+        import io
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        resp = send_file(
+            buf,
+            as_attachment=True,
+            download_name=f"{fname}.xlsx",
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            max_age=0
+        )
+        try:
+            resp.headers['Content-Length'] = buf.getbuffer().nbytes
+        except Exception:
+            pass
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+        try:
+            audit_log('curso_export', {
+                'curso_id': int(curso_id),
+                'nome_curso': curso.get('nome_curso'),
+                'counts': {k: len(v) for k, v in grupos.items()}
+            })
+        except Exception:
+            pass
+        return resp
+    except Exception as e:
+        flash(f'Erro ao exportar vínculos do curso: {e}', 'error')
+        return redirect(url_for('cadastro_curso'))
+
+# Exportação de usuários em Excel (Alunos, Professores e Funcionários)
+@app.route('/cadastro_alunos/exportar', methods=['GET'])
+@login_required
+@roles_required(['Administrador'])
+def exportar_usuarios_excel():
+    try:
+        # Limite de taxa por usuário: 10/min
+        key = f"usuarios_export::{session.get('user_id') or 'anon'}"
+        if not check_rate_limit(key, limit=10, window=60):
+            return make_response('Muitas exportações. Tente novamente em instantes.', 429)
+
+        conn = get_db_connection()
+        if not conn:
+            flash('Falha de conexão com o banco.', 'error')
+            return redirect(url_for('cadastro_alunos'))
+
+        # Busca todos os usuários cadastrados para agrupar por tipo
+        cur = conn.cursor(row_factory=dict_row)
+        try:
+            cur.execute(
+                """
+                SELECT id_usuario, nome, email, cpf, tipo::text AS tipo,
+                       COALESCE(curso_usuario, '-') AS curso_usuario,
+                       COALESCE(ativo, TRUE) AS ativo
+                FROM usuario
+                ORDER BY nome ASC
+                """
+            )
+            rows = cur.fetchall() or []
+        except Exception:
+            # Fallback defensivo caso enum/texto cause erro
+            cur.execute(
+                """
+                SELECT id_usuario, nome, email, cpf, tipo AS tipo,
+                       COALESCE(curso_usuario, '-') AS curso_usuario,
+                       COALESCE(ativo, TRUE) AS ativo
+                FROM usuario
+                ORDER BY nome ASC
+                """
+            )
+            rows = cur.fetchall() or []
+        cur.close(); conn.close()
+
+        # Particiona por tipo
+        grupos = {
+            'Professores': [],
+            'Alunos': [],
+            'Funcionários': []
+        }
+        for r in rows:
+            t = (r.get('tipo') or '').lower()
+            if ('prof' in t) or ('docent' in t):
+                grupos['Professores'].append(r)
+            elif ('func' in t) or ('admin' in t):
+                grupos['Funcionários'].append(r)
+            else:
+                grupos['Alunos'].append(r)
+
+        # Gera Excel (padrão similar à tela de cursos)
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        wb = Workbook()
+
+        def build_sheet(title: str, data: list):
+            ws = wb.active if wb.active.title == 'Sheet' else wb.create_sheet()
+            ws.title = title
+            headers = ['ID', 'Nome', 'Email', 'CPF', 'Tipo', 'Ativo']
+            # Linha 1: Título
+            ws.append([f"Usuários cadastrados — Aba: {title}"])
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+            ws['A1'].font = Font(size=16, bold=True, color='1F4E79')
+            ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[1].height = 24
+            # Linha 2: Cabeçalho
+            ws.append(headers)
+            header_row = 2
+            for col_idx in range(1, len(headers)+1):
+                cell = ws.cell(row=header_row, column=col_idx)
+                cell.font = Font(bold=True, color='0f172a')
+                cell.fill = PatternFill('solid', fgColor='e2e8f0')
+                cell.alignment = Alignment(horizontal='left', vertical='center')
+                cell.border = Border(
+                    left=Side(style='thin', color='94a3b8'),
+                    right=Side(style='thin', color='94a3b8'),
+                    top=Side(style='thin', color='94a3b8'),
+                    bottom=Side(style='thin', color='94a3b8')
+                )
+            # Dados
+            for r in data:
+                ativo_str = 'Sim' if bool(r.get('ativo', True)) else 'Não'
+                ws.append([
+                    r.get('id_usuario'),
+                    r.get('nome'),
+                    r.get('email'),
+                    r.get('cpf'),
+                    r.get('tipo'),
+                    ativo_str
+                ])
+            # Resumo
+            total_reg = len(data)
+            ws.append([""])
+            ws.append([f"Resumo — Total nesta aba: {total_reg}"])
+            end_row = ws.max_row
+            ws.merge_cells(start_row=end_row, start_column=1, end_row=end_row, end_column=len(headers))
+            ws[f'A{end_row}'].font = Font(size=13, bold=True, color='334155')
+            ws[f'A{end_row}'].alignment = Alignment(horizontal='center', vertical='center')
+            # Larguras e congelamento
+            widths = [8, 28, 34, 16, 14, 10]
+            for i, w in enumerate(widths, start=1):
+                ws.column_dimensions[get_column_letter(i)].width = w
+            ws.freeze_panes = 'A3'
+            return ws
+
+        build_sheet('Professores', grupos['Professores'])
+        build_sheet('Alunos', grupos['Alunos'])
+        build_sheet('Funcionários', grupos['Funcionários'])
+
+        # Nome do arquivo
+        from datetime import datetime as _dt
+        fname = f"usuarios_cadastrados_{_dt.now().strftime('%Y%m%d_%H%M%S')}"
+
+        import io
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        resp = send_file(
+            buf,
+            as_attachment=True,
+            download_name=f"{fname}.xlsx",
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            max_age=0
+        )
+        try:
+            resp.headers['Content-Length'] = buf.getbuffer().nbytes
+        except Exception:
+            pass
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+        try:
+            audit_log('usuarios_export', { 'counts': {k: len(v) for k, v in grupos.items()} })
+        except Exception:
+            pass
+        return resp
+    except Exception as e:
+        flash(f'Erro ao exportar usuários: {e}', 'error')
+        return redirect(url_for('cadastro_alunos'))
+
 # Rota para a página de publicação
 @app.route('/publicacao', methods=['GET', 'POST'])
 @login_required
@@ -3708,8 +4043,23 @@ def vinculacao_curso():
             cur.execute("SELECT * FROM usuario ORDER BY nome")
             usuarios = cur.fetchall()
             
-            cur.execute("SELECT * FROM curso ORDER BY nome_curso")
-            cursos = cur.fetchall()
+            # Cursos: remover duplicados por nome para não repetir "Administração" etc.
+            cur.execute("SELECT * FROM curso ORDER BY nome_curso, id_curso")
+            cursos_all = cur.fetchall() or []
+            def _norm_name(name: str) -> str:
+                try:
+                    import unicodedata
+                    return unicodedata.normalize('NFKD', str(name or '')).encode('ascii', 'ignore').decode('ascii').strip().lower()
+                except Exception:
+                    return str(name or '').strip().lower()
+            seen = set()
+            cursos = []
+            for c in cursos_all:
+                key = _norm_name(c.get('nome_curso'))
+                if key in seen:
+                    continue
+                seen.add(key)
+                cursos.append(c)
 
             cur.execute(
                 """
@@ -4110,6 +4460,9 @@ def exportar_relatorio():
                 d_idx = excel_cols.index('data_publicacao') + 1
                 for row_num in range(hdr_row+1, ws.max_row+1):
                     ws.cell(row=row_num, column=d_idx).number_format = 'DD/MM/YYYY'
+            
+            # Removidas abas adicionais de usuários nesta exportação para manter apenas a aba principal
+
             buf = io.BytesIO()
             wb.save(buf)
             buf.seek(0)

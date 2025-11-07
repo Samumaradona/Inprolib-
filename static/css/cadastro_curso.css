@@ -482,9 +482,9 @@ main{
 }
 
 /* Icon-only buttons to match alunos screen */
-.icon-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:6px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color:#334155; cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
+.icon-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:6px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color: var(--bs-body-color); cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
 .icon-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
-.icon-btn .material-symbols-outlined { font-size:20px; line-height:1; }
+.icon-btn .material-symbols-outlined { font-size:20px; line-height:1; color: inherit; }
 .icon-btn.is-danger { color:#dc2626; border-color:#fecaca; background:#fff5f5; }
 .icon-btn.is-danger:hover { background:#fee2e2; }
 .icon-btn.is-danger .material-symbols-outlined { color:#dc2626; }
