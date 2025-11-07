@@ -902,12 +902,29 @@ body {
   font-size: 15px;
   color: var(--bs-body-color);
   margin-top: 0;
+  /* truncamento para evitar quebra em telas menores */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* linhas de meta (autor, assunto, data) com menor cor */
 .card-meta .meta-line {
   color: var(--bs-gray-600);
   font-size: 12px;
+}
+
+/* linha de tipo + título com ícone */
+.type-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.type-icon {
+  font-size: 18px;
+  line-height: 1;
+  color: #64748b;
+  flex-shrink: 0;
 }
 
 /* remove espaço extra que poderia aparecer dentro do card */

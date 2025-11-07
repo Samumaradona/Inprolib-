@@ -216,8 +216,8 @@ main{
 }
 
 /* Variante azul para padronização com demais telas */
-.button.is-blue { background: #1d4ed8; color: #fff; }
-.button.is-blue:hover { background: #1e40af; }
+.button.is-blue { background: var(--bs-new-casual); color: #fff; }
+.button.is-blue:hover { background: var(--bs-new-dark); }
 
 /* btn-group: ocupa as 2 colunas e centraliza */
 .btn-group{
@@ -376,6 +376,39 @@ aside.sidemenu.open{ transform:translateX(0) }
 .modal { position: fixed; inset: 0; background: rgba(2,6,23,0.55); display: none; align-items: center; justify-content: center; padding: 12px; }
 .modal.show { display: flex; }
 .modal-content { background: var(--card-bg); border-radius: 10px; box-shadow: var(--card-shadow); width: 100%; max-width: 720px; padding: 16px 20px; }
+
+/* Toolbar: evitar que o botão encolha no layout responsivo */
+.toolbar .button.is-sm { flex-shrink: 0; }
+
+/* ===== Replicar layout compacto da modal de login no modal de usuário ===== */
+#usuarioModal .modal-content{ width: max-content; max-width: 96%; }
+#usuarioModal .form-container{ display:block; }
+#usuarioModal .container-grid{ display:block; }
+#usuarioModal .field-group label{ margin:3px 0 1px; }
+#usuarioModal .field-group input,
+#usuarioModal .field-group select{ padding:3px 4px; font-size:13px; line-height:1.25; }
+#usuarioModal .field-group input,
+#usuarioModal .field-group select{ width: var(--field-width, 300px); max-width: 100%; margin-bottom:6px; }
+#usuarioModal .full-width{ position: sticky; bottom: 0; background: #fff; padding: 8px 12px 12px; display:flex; gap:8px; justify-content:flex-end; }
+#usuarioModal .button{ min-height:36px; }
+
+/* Botões no padrão visual da aplicação (primário/ secundário) */
+.btn-primary{ background: var(--bs-new-casual); color:#fff; border:0; padding:10px 22px; border-radius:10px; cursor:pointer; }
+.btn-primary:hover{ background: var(--bs-new-dark); }
+.btn-secondary{ background: #6b7280; color:#fff; border:0; padding:10px 22px; border-radius:10px; cursor:pointer; }
+
+/* Password toggle (compatível com login) */
+#usuarioModal .password-wrapper { position: relative; display: flex; align-items: center; width: var(--field-width, 300px); max-width: 100%; }
+#usuarioModal .password-wrapper input[type="password"],
+#usuarioModal .password-wrapper input[type="text"]{ width: 100%; padding-right: 68px; }
+#usuarioModal .password-toggle { position: absolute; right: 28px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--bs-gray-600); transition: color 0.2s ease; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 4px; background: transparent; border: 0; z-index: 1; }
+#usuarioModal .password-toggle:hover { color: var(--bs-new-casual); }
+
+/* Mobile: largura total */
+@media (max-width: 640px){
+  #usuarioModal .modal-content{ width: 98%; }
+  #usuarioModal .field-group input, #usuarioModal .field-group select{ width: 100%; }
+}
 .modal-close { position: absolute; right: 12px; top: 12px; border: 0; background: transparent; font-size: 18px; cursor: pointer; color: #334155; }
 @media (max-width: 720px){ .modal-content { padding: 14px 16px; } }
 /* Botão de ícone-only compacto (moderno e neutro) */

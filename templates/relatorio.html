@@ -166,7 +166,6 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
       </header>
       <section style="padding:16px 20px;overflow:auto;flex:1 1 auto;min-height:0;overscroll-behavior:contain;scrollbar-gutter:stable both-edges;-webkit-overflow-scrolling:touch;">
         <div id="colConfig" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px">
-          <div style="font-weight:500">Colunas visíveis</div>
           <button id="btnColsAll" class="button is-sm" type="button" style="background:#e2e8f0;color:#0f172a">Selecionar tudo</button>
           <button id="btnColsNone" class="button is-sm" type="button" style="background:#e2e8f0;color:#0f172a">Limpar seleção</button>
           <div id="colCheckboxes" style="display:flex;flex-wrap:wrap;gap:12px"></div>
@@ -174,7 +173,7 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
         <table id="reportTable" style="width:100%;border-collapse:collapse">
           <thead>
             <tr style="background:#f8fafc">
-              <th data-sort="autor" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Orientador/ Professor</th>
+              <th data-sort="autor" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Autor</th>
               <th data-sort="titulo" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Título</th>
               <th data-sort="tipo" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Tipo</th>
               <th data-sort="curso" style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;cursor:pointer">Curso</th>
@@ -243,47 +242,31 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
       const FILTERS_KEY = 'inprolib_relatorio_filters::' + (window.USER_NAME || 'anon');
       const COLS_KEY = 'inprolib_relatorio_cols::' + (window.USER_NAME || 'anon');
       const ALL_COLS = [
-        { key: 'autor', label: 'Orientador/ Professor' },
+        { key: 'autor', label: 'Autor' },
+        { key: 'docente', label: 'Docente' },
         { key: 'titulo', label: 'Título' },
         { key: 'tipo', label: 'Tipo' },
         { key: 'curso', label: 'Curso' },
         { key: 'data_publicacao', label: 'Data' },
-        { key: 'status', label: 'Status' },
-        { key: 'assuntos', label: 'Assuntos' }
+        { key: 'status', label: 'Status' }
       ];
       const labelByKey = Object.fromEntries(ALL_COLS.map(c => [c.key, c.label]));
       let selectedCols = [];
 
-      function loadSavedFilters(){
-        try{
-          const raw = localStorage.getItem(FILTERS_KEY);
-          if(!raw) return;
-          const f = JSON.parse(raw);
-          // Não restaurar datas para evitar persistência após login
-          ['autor','orientador','curso','tipo','status'].forEach(k=>{
-            const el = form.querySelector(`[name="${k}"]`);
-            if(el && f[k] != null) el.value = f[k];
-          });
-          const di = form.querySelector('[name="data_inicial"]');
-          const df = form.querySelector('[name="data_final"]');
-          if(di) di.value = '';
-          if(df) df.value = '';
-        }catch(e){}
+      // Reset total dos filtros ao entrar na tela ou ao retornar via back/forward
+      function resetFilters(){
+        try{ localStorage.removeItem(FILTERS_KEY); }catch(e){}
+        ['autor','orientador','curso','tipo','status','data_inicial','data_final'].forEach(k=>{
+          const el = form.querySelector(`[name="${k}"]`);
+          if(!el) return;
+          // selects voltam para opção vazia (placeholder/Todos), inputs para string vazia
+          el.value = '';
+        });
       }
 
+      // Desabilitar persistência de filtros: não salvar nada entre navegações
       function saveFilters(){
-        try{
-          const obj = {};
-          // Persistir apenas filtros não relacionados a data
-          ['autor','orientador','curso','tipo','status'].forEach(k=>{
-            const el = form.querySelector(`[name="${k}"]`);
-            obj[k] = el ? el.value : '';
-          });
-          // Limpar sempre as datas no armazenamento
-          obj['data_inicial'] = '';
-          obj['data_final'] = '';
-          localStorage.setItem(FILTERS_KEY, JSON.stringify(obj));
-        }catch(e){}
+        try{ localStorage.removeItem(FILTERS_KEY); }catch(e){}
       }
 
       function loadSavedCols(){
@@ -323,13 +306,8 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
             const idx = selectedCols.indexOf(key);
             if(inp.checked && idx === -1) selectedCols.push(key);
             if(!inp.checked && idx !== -1) selectedCols.splice(idx, 1);
-            if(selectedCols.length === 0){
-              // manter pelo menos uma coluna
-              selectedCols = ['titulo'];
-              Array.from(colBoxes.querySelectorAll('input[type="checkbox"]')).forEach(cb=>{ cb.checked = (cb.dataset.key === 'titulo'); });
-            }
             saveCols();
-            if(!selectedCols.includes(sortKey)){
+            if(selectedCols.length && !selectedCols.includes(sortKey)){
               sortKey = selectedCols[0];
             }
             buildHeader();
@@ -500,18 +478,15 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
       // Atualiza selectedCols baseado nos checkboxes visíveis
       function updateSelectedCols(){
         if(!colBoxes) return;
-        selectedCols = Array.from(colBoxes.querySelectorAll('input[type="checkbox"]'))
+        const checkedKeys = Array.from(colBoxes.querySelectorAll('input[type="checkbox"]'))
           .filter(cb => cb.checked)
           .map(cb => cb.dataset.key || cb.value)
           .filter(Boolean);
-        if(selectedCols.length === 0){
-          selectedCols = ['titulo'];
-          colBoxes.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            cb.checked = (cb.dataset.key === 'titulo' || cb.value === 'titulo');
-          });
-        }
+        // Preserva ordem atual e adiciona novos ao final para refletir ordem de seleção
+        selectedCols = selectedCols.filter(k => checkedKeys.includes(k));
+        checkedKeys.forEach(k => { if(!selectedCols.includes(k)) selectedCols.push(k); });
         saveCols();
-        if(!selectedCols.includes(sortKey)) sortKey = selectedCols[0];
+        if(selectedCols.length && !selectedCols.includes(sortKey)) sortKey = selectedCols[0];
         buildHeader();
         page = 1;
         renderTable();
@@ -557,7 +532,7 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
       }
 
       async function doPreview(){
-        // Salva filtros sem datas
+        // Não persistir filtros entre navegações
         saveFilters();
         updateDownloadURLs();
         const url = '/relatorio/preview' + (qs() ? ('?' + qs()) : '');
@@ -579,12 +554,8 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
           empty.style.display = 'block';
           openModal();
         } finally {
-          // Após a filtragem, limpar campos de data no formulário
-          const di = form.querySelector('[name="data_inicial"]');
-          const df = form.querySelector('[name="data_final"]');
-          if(di) di.value = '';
-          if(df) df.value = '';
-          // Regravar filtros sem datas
+          // Após a visualização, zerar filtros para próxima busca
+          resetFilters();
           saveFilters();
         }
       }
@@ -748,15 +719,18 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
 
       btnColsNone && btnColsNone.addEventListener('click', function(){
         const checkboxes = colBoxes.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(cb => {
-          if((cb.dataset && cb.dataset.key) === 'titulo' || cb.value === 'titulo') cb.checked = true; // manter título
-          else cb.checked = false;
-        });
-        updateSelectedCols();
+        checkboxes.forEach(cb => { cb.checked = false; });
+        // permite seleção vazia para reordenar livremente
+        selectedCols = [];
+        saveCols();
+        buildHeader();
+        page = 1;
+        renderTable();
+        updateDownloadURLs();
       });
 
-      // Inicialização
-      loadSavedFilters();
+      // Inicialização: sempre começar com filtros zerados
+      resetFilters();
       loadSavedCols();
       renderColumnControls();
       buildHeader();
@@ -802,6 +776,11 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
           }
         }, true);
       }
+
+      // Ao retornar via histórico (bfcache), garantir que filtros permaneçam limpos
+      window.addEventListener('pageshow', function(){
+        resetFilters();
+      });
     })();
   </script>
 </body>

@@ -101,7 +101,7 @@
         <label for="tipo_usuario" class="required">Tipo de Usuário</label>
         <select id="tipo_usuario" name="tipo_usuario" required>
           <option value="">Selecione o tipo</option>
-          <option value="Professor">Professor</option>
+          <option value="Docente" selected>Docente</option>
           <option value="Aluno">Aluno</option>
         </select>
         <div class="field-error">Campo obrigatório.</div>
@@ -129,7 +129,7 @@
       </div>
                     <!-- Botão centralizado -->
                     <div class="btn-group">
-                        <button type="submit">Gravar Vinculação</button>
+                        <button type="submit" class="button">Gravar Vinculação</button>
                     </div>
                 </div>
             </form>
@@ -137,6 +137,16 @@
             {% if vinculos %}
             <section style="padding:16px">
               <h3 style="margin:0 0 8px 0">Últimas vinculações</h3>
+              <div class="toolbar" style="margin:8px 0 12px 0; display:flex; gap:12px; align-items:center; justify-content:space-between">
+                <div style="display:flex; gap:8px; align-items:center">
+                  <div class="input-with-icon">
+                    <span class="material-symbols-outlined" aria-hidden="true">search</span>
+                    <input type="text" id="linkSearch" placeholder="Buscar vinculações..." aria-label="Buscar vinculações">
+                  </div>
+                  <button type="button" id="btnClearLinks" class="button" title="Limpar filtros">Limpar filtros</button>
+                </div>
+                <span id="resultsCounterLinks" class="results-counter" aria-live="polite"></span>
+              </div>
               <div style="overflow:auto;border:1px solid #e5e7eb;border-radius:8px">
                 <table style="width:100%;border-collapse:collapse">
                   <thead>
@@ -149,21 +159,17 @@
                   </thead>
                   <tbody>
                     {% for v in vinculos %}
-                      <tr>
-                        <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ v.tipo_usuario }}</td>
+                      <tr data-tipo="{{ v.tipo_usuario }}" data-usuario="{{ v.usuario }}" data-curso="{{ v.curso }}">
+                        <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ 'Docente' if v.tipo_usuario == 'Professor' else ('Administrador' if v.tipo_usuario == 'Funcionário' else v.tipo_usuario) }}</td>
                         <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ v.usuario }}</td>
                         <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ v.curso }}</td>
                         <td style="padding:8px;border-bottom:1px solid #f1f5f9">
                           <div class="action-buttons">
-                            <button type="button" class="icon-btn is-blue" aria-label="Editar vinculação" title="Editar"
-                                    onclick="prefillForm('{{ v.tipo_usuario }}', '{{ v.id_usuario }}', '{{ v.id_curso }}')">
-                              <span class="material-symbols-outlined" aria-hidden="true">edit</span>
-                            </button>
+                            <button type="button" class="button" aria-label="Editar vinculação" title="Editar"
+                                    onclick="prefillForm('{{ 'Docente' if v.tipo_usuario == 'Professor' else ('' if v.tipo_usuario in ['Funcionário','Administrador'] else v.tipo_usuario) }}', '{{ v.id_usuario }}', '{{ v.id_curso }}')">Editar</button>
                             <form method="POST" action="/vinculacao_curso/remover" style="display:inline">
                               <input type="hidden" name="usuario_id" value="{{ v.id_usuario }}" />
-                              <button type="submit" class="icon-btn is-danger" aria-label="Remover vinculação" title="Remover">
-                                <span class="material-symbols-outlined" aria-hidden="true">delete</span>
-                              </button>
+                              <button type="submit" class="button" aria-label="Remover vinculação" title="Remover">Remover</button>
                             </form>
                           </div>
                         </td>
@@ -204,6 +210,50 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
             usuarioSel.innerHTML = '<option value="">Erro ao carregar usuários</option>';
           }
         });
+
+        // Filtro de busca com normalização de sinônimos
+        (function(){
+          const input = document.getElementById('linkSearch');
+          const clearBtn = document.getElementById('btnClearLinks');
+          const counterEl = document.getElementById('resultsCounterLinks');
+          const tbody = document.querySelector('section table tbody');
+          function normalizeSynonym(s){
+            const t = String(s||'').toLowerCase();
+            if(t.includes('prof') || t.includes('docent')) return 'docente';
+            if(t.includes('administr') || t.includes('funcion')) return 'admin';
+            if(t.includes('alun')) return 'aluno';
+            return t;
+          }
+          function applyFilters(){
+            if(!tbody){ if(counterEl) counterEl.textContent = ''; return; }
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const q = (input?.value || '').trim().toLowerCase();
+            const qSyn = normalizeSynonym(q);
+            let visible = 0;
+            rows.forEach(row => {
+              const ds = row.dataset || {};
+              const tipo = String(ds.tipo||'').toLowerCase();
+              const tipoSyn = normalizeSynonym(tipo);
+              const usuario = String(ds.usuario||'').toLowerCase();
+              const curso = String(ds.curso||'').toLowerCase();
+              let matchText = true;
+              if(q){ matchText = usuario.includes(q) || curso.includes(q) || tipo.includes(q) || tipoSyn.includes(qSyn); }
+              const show = matchText;
+              row.style.display = show ? '' : 'none';
+              if(show) visible++;
+            });
+            if(counterEl){ counterEl.textContent = `Exibindo ${visible} de ${rows.length}`; }
+          }
+          if(input) input.addEventListener('input', applyFilters);
+          if(clearBtn) clearBtn.addEventListener('click', ()=>{ if(input) input.value=''; applyFilters(); });
+          applyFilters();
+        })();
+
+        // Carrega automaticamente os usuários quando há tipo selecionado (ex.: Docente por padrão)
+        if (tipoSel && (tipoSel.value || '').trim()) {
+          const evtInit = new Event('change');
+          tipoSel.dispatchEvent(evtInit);
+        }
 
         // Preenche formulário para edição a partir da tabela
         function prefillForm(tipo, usuarioId, cursoId) {

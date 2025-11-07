@@ -15,7 +15,7 @@ const USER_ROLE = (typeof window !== 'undefined' ? (window.USER_ROLE || '') : ''
 const ALL_ROUTES = [
   { name: 'Home', path: '/home', icon: 'home' },
   { name: 'Cadastro de Cursos', path: '/cadastro_curso', icon: 'school' },
-  { name: 'Cadastro de Alunos', path: '/cadastro_alunos', icon: 'people' },
+  { name: 'Cadastro de Usuários', path: '/cadastro_alunos', icon: 'people' },
   { name: 'Publicação', path: '/publicacao', icon: 'publish' },
   { name: 'Avaliação', path: '/avaliacao', icon: 'rate_review' },
   { name: 'Relatórios', path: '/relatorio', icon: 'bar_chart' },
@@ -952,6 +952,16 @@ function formatDate(v){
     title.className = 'title';
     title.textContent = doc.title || 'Sem título';
 
+    // linha com ícone do tipo + título
+    const typeRow = document.createElement('div');
+    typeRow.className = 'type-row';
+    const typeIconEl = document.createElement('span');
+    typeIconEl.className = 'material-symbols-outlined type-icon';
+    typeIconEl.setAttribute('aria-hidden','true');
+    typeIconEl.textContent = getTypeIcon(doc.tipo);
+    typeRow.appendChild(typeIconEl);
+    typeRow.appendChild(title);
+
     const author = document.createElement('div');
     author.className = 'meta-line';
     author.textContent = `Autor: ${doc.author || '—'}`;
@@ -968,7 +978,7 @@ function formatDate(v){
     date.className = 'meta-line';
     date.textContent = `Data: ${doc.date || ''}`;
 
-    meta.appendChild(title);
+    meta.appendChild(typeRow);
     meta.appendChild(author);
     meta.appendChild(tipo);
     meta.appendChild(course);
@@ -1209,7 +1219,7 @@ function formatDate(v){
 
     // Asterisco vermelho nos campos obrigatórios e feedback de ausência
     function labelFor(id){ return document.querySelector(`label[for="${id}"]`); }
-    const requiredIds = ['autor','titulo_conteudo','tipo_publicacao','curso','orientador','captcha'];
+    const requiredIds = ['titulo_conteudo','tipo_publicacao','curso','orientador','captcha'];
     requiredIds.forEach((id)=>{
       const lbl = labelFor(id);
       if(lbl) lbl.classList.add('required');
@@ -1522,3 +1532,17 @@ if (typeof window !== 'undefined' && !window.applyTheme) {
     sideMenu.appendChild(wrap);
   }
 })();
+  // Mapeia tipo -> ícone (Material Symbols)
+  function getTypeIcon(tipoRaw){
+    const t = String(tipoRaw || '').toLowerCase();
+    if(!t) return 'insert_drive_file';
+    if(t.includes('artigo')) return 'article';
+    if(t.includes('tcc')) return 'assignment';
+    if(t.includes('monografia')) return 'menu_book';
+    if(t.includes('disserta')) return 'menu_book';
+    if(t.includes('tese')) return 'menu_book';
+    if(t.includes('relat')) return 'summarize';
+    if(t.includes('resumo')) return 'notes';
+    if(t.includes('projeto') || t.includes('plano')) return 'assignment';
+    return 'insert_drive_file';
+  }

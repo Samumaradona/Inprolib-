@@ -1092,8 +1092,9 @@ def home():
     if conn:
         try:
             cur = conn.cursor(row_factory=dict_row)
-            # Buscar as últimas publicações
-            cur.execute("""
+            # Buscar as últimas publicações: somente Publicadas para todos os perfis
+            cur.execute(
+                """
                 SELECT p.*, u.nome as autor_nome, c.nome_curso 
                 FROM publicacao p
                 JOIN usuario u ON p.id_autor = u.id_usuario
@@ -1101,7 +1102,9 @@ def home():
                 WHERE p.status = %s
                 ORDER BY p.data_publicacao DESC
                 LIMIT 10
-            """, (status_label('Publicado'),))
+                """,
+                (status_label('Publicado'),)
+            )
             publicacoes = cur.fetchall()
             cur.close()
             conn.close()
@@ -1876,8 +1879,15 @@ def cadastro_alunos():
                     flash(msg, 'error')
                     cur.close(); conn.close()
                     return redirect(url_for('login', register='1', err='email_dup'))
-                # Determinar tipo do usuário no banco: cadastro sempre como 'Aluno'
+                # Determinar tipo do usuário no banco
+                # Admin pode escolher 'Docente' (mapeado para 'Professor'); público permanece 'Aluno'
                 tipo_db = 'Aluno'
+                try:
+                    if (tipo_form or '').strip().lower() == 'docente':
+                        tipo_db = 'Professor'
+                except Exception:
+                    # Em caso de qualquer problema, manter padrão 'Aluno'
+                    tipo_db = 'Aluno'
                 # Inserir novo usuário
                 senha_hash = generate_password_hash(senha)
                 cur.execute(
@@ -3578,11 +3588,25 @@ def vinculacao_curso():
 @roles_required(['Administrador'])
 def api_usuarios_por_tipo(tipo):
     data = []
+    # Normaliza sinônimos recebidos na URL
+    tipo_in = (tipo or '').strip().lower()
+    if ('docent' in tipo_in) or ('prof' in tipo_in):
+        tipo_db = 'Professor'
+    elif ('administr' in tipo_in) or ('funcion' in tipo_in):
+        tipo_db = 'Funcionário'
+    elif ('alun' in tipo_in):
+        tipo_db = 'Aluno'
+    else:
+        # Fallback: capitaliza primeira letra, mantendo acentuação se já vier correta
+        try:
+            tipo_db = tipo.strip().capitalize()
+        except Exception:
+            tipo_db = 'Aluno'
     conn = get_db_connection()
     if conn:
         try:
             cur = conn.cursor(row_factory=dict_row)
-            cur.execute("SELECT id_usuario, nome FROM usuario WHERE tipo = %s AND ativo = TRUE ORDER BY nome", (tipo,))
+            cur.execute("SELECT id_usuario, nome FROM usuario WHERE tipo = %s AND ativo = TRUE ORDER BY nome", (tipo_db,))
             data = cur.fetchall()
             cur.close(); conn.close()
         except Exception as e:
@@ -3668,7 +3692,8 @@ def exportar_relatorio():
     params = []
 
     if autor:
-        where.append("u.nome ILIKE %s")
+        # busca pelo nome do aluno autor
+        where.append("u_autor.nome ILIKE %s")
         params.append(f"%{autor}%")
     if orientador:
         where.append("p.id_orientador = %s")
@@ -3720,9 +3745,9 @@ def exportar_relatorio():
           p.tipo,
           p.data_publicacao,
           p.status,
-          COALESCE(u_orient.nome, u_autor.nome, '') AS autor,
-          COALESCE(c.nome_curso, '') AS curso,
-          COALESCE(p.assuntos_relacionados, '') AS assuntos
+          COALESCE(u_autor.nome, '') AS autor,
+          COALESCE(u_orient.nome, '') AS docente,
+          COALESCE(c.nome_curso, '') AS curso
         FROM publicacao p
         LEFT JOIN usuario u_autor ON u_autor.id_usuario = p.id_autor
         LEFT JOIN usuario u_orient ON u_orient.id_usuario = p.id_orientador
@@ -3750,16 +3775,16 @@ def exportar_relatorio():
         import re, io
         fmt = (request.args.get('format') or 'xlsx').lower()
         cols_param = (request.args.get('cols') or '').strip()
-        valid_cols = ['id_publicacao','titulo','tipo','autor','curso','data_publicacao','status','assuntos']
+        valid_cols = ['id_publicacao','titulo','tipo','autor','docente','curso','data_publicacao','status']
         col_map = {
             'id_publicacao':'ID',
             'titulo':'Título',
             'tipo':'Tipo',
-            'autor':'Orientador/ Professor',
+            'autor':'Autor',
+            'docente':'Docente',
             'curso':'Curso',
             'data_publicacao':'Data Publicação',
-            'status':'Status',
-            'assuntos':'Assuntos'
+            'status':'Status'
         }
         selected_cols = [c for c in re.split(r'[\s,;]+', cols_param) if c in valid_cols]
         if not selected_cols:
@@ -3895,10 +3920,10 @@ def exportar_relatorio():
                     row_num = i + hdr_row + 1
                     for col_idx in range(1, len(excel_headers)+1):
                         ws.cell(row=row_num, column=col_idx).fill = PatternFill('solid', fgColor='F9FAFB')
-            # Wrap em Título/Assuntos
+            # Wrap em Título
             wrap_cols = []
             for idx, key in enumerate(excel_cols, start=1):
-                if key in {'titulo','assuntos'}:
+                if key in {'titulo'}:
                     wrap_cols.append(idx)
             for row_num in range(hdr_row+1, ws.max_row+1):
                 for idx in wrap_cols:
@@ -3908,10 +3933,10 @@ def exportar_relatorio():
                 'titulo': 50,
                 'tipo': 18,
                 'autor': 24,
+                'docente': 24,
                 'curso': 24,
                 'data_publicacao': 14,
-                'status': 16,
-                'assuntos': 36
+                'status': 16
             }
             for idx, key in enumerate(excel_cols, start=1):
                 ws.column_dimensions[get_column_letter(idx)].width = width_map.get(key, 22)
@@ -3985,7 +4010,8 @@ def preview_relatorio():
     where = ["1=1"]
     params = []
     if autor:
-        where.append("u.nome ILIKE %s")
+        # busca pelo nome do aluno autor
+        where.append("u_autor.nome ILIKE %s")
         params.append(f"%{autor}%")
     if orientador:
         where.append("p.id_orientador = %s")
@@ -4031,8 +4057,9 @@ def preview_relatorio():
     where_clause = " AND ".join(where)
     sql = f"""
         SELECT 
-          p.id_publicacao, p.titulo, p.tipo, p.status, p.assuntos_relacionados as assuntos,
-          COALESCE(u_orient.nome, u_autor.nome) as autor, c.nome_curso as curso, p.data_publicacao
+          p.id_publicacao, p.titulo, p.tipo, p.status,
+          u_autor.nome as autor, u_orient.nome as docente,
+          c.nome_curso as curso, p.data_publicacao
         FROM publicacao p
         LEFT JOIN usuario u_autor ON u_autor.id_usuario = p.id_autor
         LEFT JOIN usuario u_orient ON u_orient.id_usuario = p.id_orientador
@@ -4057,10 +4084,10 @@ def preview_relatorio():
                 'titulo': r.get('titulo'),
                 'tipo': r.get('tipo'),
                 'autor': r.get('autor'),
+                'docente': r.get('docente'),
                 'curso': r.get('curso'),
                 'data_publicacao': r.get('data_publicacao').strftime('%d/%m/%Y') if r.get('data_publicacao') else '',
-                'status': r.get('status'),
-                'assuntos': r.get('assuntos')
+                'status': r.get('status')
             })
         return jsonify({'rows': out})
     except Exception as e:

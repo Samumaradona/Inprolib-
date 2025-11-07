@@ -106,7 +106,7 @@
     <div style="background:#fff;max-width:860px;width:92%;border-radius:10px;box-shadow:0 10px 25px rgba(0,0,0,0.15);overflow:hidden">
       <header style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb;position:sticky;top:0;background:#fff;z-index:5">
         <div>
-          <h3 id="pubCreateModalTitle" style="margin:0">Informações da publicação</h3>
+          <h3 id="pubCreateModalTitle" style="margin:0">Adicionar publicação</h3>
         </div>
         <button id="pubCreateModalClose" aria-label="Fechar" style="border:none;background:#f1f5f9;color:#0f172a;padding:6px 10px;border-radius:6px;cursor:pointer"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
       </header>
@@ -117,7 +117,7 @@
             <div>
               <div class="field-group">
                 <label for="autor">Autor</label>
-                <input type="text" id="autor" name="autor" placeholder="Insira o autor do conteúdo" required>
+                <input type="text" id="autor" name="autor" placeholder="Autor vinculado ao usuário logado" value="{{ session.get('user_name', '') }}" readonly aria-readonly="true">
               </div>
 
               <div class="field-group">
@@ -202,6 +202,7 @@
         <table style="width:100%;border-collapse:collapse">
           <thead>
             <tr style="background:#f8fafc">
+              <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Autor</th>
               <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Título</th>
               <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Tipo</th>
               <th style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left">Curso</th>
@@ -214,12 +215,14 @@
               <tr class="pub-row" style="cursor:pointer" 
                   data-id="{{ p.id_publicacao }}"
                   data-titulo="{{ p.titulo }}" 
+                  data-autor="{{ p.autor_nome }}"
                   data-tipo="{{ p.tipo }}" 
                   data-curso="{{ p.curso }}" 
                   data-data="{{ p.data_publicacao.strftime('%d/%m/%Y') if p.data_publicacao else '' }}" 
                   data-url="{{ url_for('static', filename='uploads/' ~ p.nome_arquivo) if p.nome_arquivo else '' }}" 
                   data-status="{{ p.status }}"
                   title="Visualizar publicação">
+                <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.autor_nome }}</td>
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.titulo }}</td>
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.tipo }}</td>
                 <td style="padding:8px;border-bottom:1px solid #f1f5f9">{{ p.curso }}</td>

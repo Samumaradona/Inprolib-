@@ -444,7 +444,10 @@
       }catch(_){ /* noop */ }
       createModal.style.display = 'flex';
       createModal.setAttribute('aria-hidden','false');
-      const firstField = document.getElementById('autor') || document.getElementById('titulo_conteudo');
+      // Foca no título por padrão; se não existir, foca no autor apenas se não estiver readonly
+      const titleField = document.getElementById('titulo_conteudo');
+      const autorField = document.getElementById('autor');
+      const firstField = titleField || (autorField && !autorField.readOnly ? autorField : null);
       if(firstField) try { firstField.focus(); } catch(e){}
     }
   }
