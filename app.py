@@ -20,6 +20,7 @@ import mimetypes
 import json
 import unicodedata
 import socket
+import ssl
 
 # Carrega .env de forma robusta (procura subindo diretórios)
 try:
@@ -165,16 +166,52 @@ def send_reset_email(to_email: str, reset_url: str, token: str | None = None) ->
             )
         )
         
+        force_ipv4 = (os.getenv('SMTP_FORCE_IPV4', '0').strip().lower() in {'1','true','yes'})
+
+        def _resolve_ipv4(h: str, p: int) -> tuple[str, str]:
+            try:
+                infos = socket.getaddrinfo(h, p, socket.AF_INET, socket.SOCK_STREAM)
+                if infos:
+                    ip = infos[0][4][0]
+                    return ip, h  # ip para conectar, h para SNI
+            except Exception:
+                pass
+            return h, h
+
         def _send_via_starttls() -> None:
-            with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
-                smtp.set_debuglevel(debug_level)
-                smtp.ehlo()
-                smtp.starttls()
-                smtp.ehlo()
-                smtp.login(user, password)
-                smtp.send_message(msg)
+            if force_ipv4:
+                connect_host, sni_host = _resolve_ipv4(host, port)
+                smtp = smtplib.SMTP(timeout=timeout_sec)
+                try:
+                    smtp.connect(connect_host, port)
+                    smtp.set_debuglevel(debug_level)
+                    smtp.ehlo()
+                    # garantir SNI correto
+                    import ssl
+                    context = ssl.create_default_context()
+                    smtp.starttls(context=context, server_hostname=sni_host)
+                    smtp.ehlo()
+                    smtp.login(user, password)
+                    smtp.send_message(msg)
+                finally:
+                    try:
+                        smtp.quit()
+                    except Exception:
+                        pass
+            else:
+                with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
+                    smtp.set_debuglevel(debug_level)
+                    smtp.ehlo()
+                    smtp.starttls()
+                    smtp.ehlo()
+                    smtp.login(user, password)
+                    smtp.send_message(msg)
 
         def _send_via_ssl() -> None:
+            # Quando forçando IPv4, prefira STARTTLS para manter SNI correto
+            if force_ipv4:
+                _send_via_starttls()
+                return
             with smtplib.SMTP_SSL(host, port, timeout=timeout_sec) as smtp:
                 smtp.set_debuglevel(debug_level)
                 smtp.ehlo()
@@ -295,12 +332,46 @@ def send_support_email(body_text: str, attachment: tuple | None = None, reply_to
                 maintype, subtype = 'application', 'octet-stream'
             msg.add_attachment(data_bytes, maintype=maintype, subtype=subtype, filename=filename)
 
+        force_ipv4 = (os.getenv('SMTP_FORCE_IPV4', '0').strip().lower() in {'1','true','yes'})
+
+        def _resolve_ipv4(h: str, p: int) -> tuple[str, str]:
+            try:
+                infos = socket.getaddrinfo(h, p, socket.AF_INET, socket.SOCK_STREAM)
+                if infos:
+                    ip = infos[0][4][0]
+                    return ip, h
+            except Exception:
+                pass
+            return h, h
+
         def _send_via_starttls() -> None:
-            with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
-                smtp.set_debuglevel(debug_level)
-                smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
+            if force_ipv4:
+                connect_host, sni_host = _resolve_ipv4(host, port)
+                smtp = smtplib.SMTP(timeout=timeout_sec)
+                try:
+                    smtp.connect(connect_host, port)
+                    smtp.set_debuglevel(debug_level)
+                    smtp.ehlo()
+                    import ssl
+                    context = ssl.create_default_context()
+                    smtp.starttls(context=context, server_hostname=sni_host)
+                    smtp.ehlo()
+                    smtp.login(user, password)
+                    smtp.send_message(msg)
+                finally:
+                    try:
+                        smtp.quit()
+                    except Exception:
+                        pass
+            else:
+                with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
+                    smtp.set_debuglevel(debug_level)
+                    smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
 
         def _send_via_ssl() -> None:
+            if force_ipv4:
+                _send_via_starttls()
+                return
             with smtplib.SMTP_SSL(host, port, timeout=timeout_sec) as smtp:
                 smtp.set_debuglevel(debug_level)
                 smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
@@ -1555,66 +1626,77 @@ def smtp_self_test():
     user = os.getenv('SMTP_USER')
     password = os.getenv('SMTP_PASSWORD')
     debug_level = int(os.getenv('SMTP_DEBUG', '0'))
-    # Respeitar timeout configurável para evitar travas e 502 no Render
     timeout_sec = int(os.getenv('SMTP_TIMEOUT', '8'))
+    force_ipv4 = (os.getenv('SMTP_FORCE_IPV4', '0').strip().lower() in {'1','true','yes'})
 
     if not host or not user or not password:
-        return jsonify({
-            'ok': False,
-            'error': 'Configuração incompleta: defina SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASSWORD.'
-        }), 400
+        return jsonify({'ok': False, 'error': 'Configuração incompleta: defina SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASSWORD.'}), 400
+
+    # Resolve host para IPv4 quando solicitado
+    connect_host = host
+    ipv4_addr = None
+    if force_ipv4:
+        try:
+            infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+            if infos:
+                ipv4_addr = infos[0][4][0]
+                connect_host = ipv4_addr
+        except Exception as e:
+            return jsonify({'ok': False, 'error': f'Falha ao resolver IPv4 para {host}: {e}'}), 500
 
     try:
         # Verificação rápida de conectividade (antes de tentar login)
         try:
-            conn = socket.create_connection((host, port), timeout=timeout_sec)
+            conn = socket.create_connection((connect_host, port), timeout=timeout_sec)
             try:
                 conn.close()
             except Exception:
                 pass
         except Exception as e_conn:
-            return jsonify({
-                'ok': False,
-                'error': f'Falha de conexão ao servidor SMTP: {e_conn}',
-                'hint': 'Verifique SMTP_HOST/PORT e liberação de saída do provedor. Para Gmail use starttls:587.'
-            }), 500
+            hint = 'Verifique SMTP_HOST/PORT e saída do provedor.'
+            if force_ipv4:
+                hint += ' Está forçando IPv4; confirme que a porta 587/465 aceita IPv4.'
+            else:
+                hint += ' Se ver "Network is unreachable", defina SMTP_FORCE_IPV4=1.'
+            return jsonify({'ok': False, 'error': f'Falha de conexão ao servidor SMTP: {e_conn}', 'hint': hint, 'used_connect_host': connect_host}), 500
 
-        if security == 'ssl':
-            try:
-                with smtplib.SMTP_SSL(host, port, timeout=timeout_sec) as smtp:
-                    smtp.set_debuglevel(debug_level)
-                    smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
-            except Exception as e1:
-                with smtplib.SMTP(host, 587, timeout=timeout_sec) as smtp:
-                    smtp.set_debuglevel(debug_level)
-                    smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
+        code = None
+        if security == 'ssl' and not force_ipv4:
+            # SSL nativo usando hostname (permite validação de cert padrão)
+            with smtplib.SMTP_SSL(host, port, timeout=timeout_sec) as smtp:
+                smtp.set_debuglevel(debug_level)
+                smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
         elif security == 'none':
-            try:
-                with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
-                    smtp.set_debuglevel(debug_level)
-                    smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
-            except Exception as e1:
-                with smtplib.SMTP(host, 587, timeout=timeout_sec) as smtp:
-                    smtp.set_debuglevel(debug_level)
-                    smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
-        else:  # starttls
-            try:
-                with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
-                    smtp.set_debuglevel(debug_level)
-                    smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
-            except Exception as e1:
-                with smtplib.SMTP_SSL(host, 465, timeout=timeout_sec) as smtp:
-                    smtp.set_debuglevel(debug_level)
-                    smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
-        return jsonify({'ok': True, 'message': 'Login SMTP OK', 'noop_code': code, 'timeout': timeout_sec})
+            # Sem TLS (não recomendado), apenas EHLO + LOGIN
+            with smtplib.SMTP(connect_host, port, timeout=timeout_sec) as smtp:
+                smtp.set_debuglevel(debug_level)
+                smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
+        else:
+            # STARTTLS preferido (e também usado quando IPv4 é forçado)
+            with smtplib.SMTP(connect_host, 587 if port == 465 else port, timeout=timeout_sec) as smtp:
+                smtp.set_debuglevel(debug_level)
+                smtp.ehlo()
+                try:
+                    ctx = ssl.create_default_context()
+                    smtp.starttls(context=ctx)
+                except Exception:
+                    # Tenta STARTTLS sem contexto customizado
+                    smtp.starttls()
+                smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
+
+        return jsonify({'ok': True, 'message': 'Login SMTP OK', 'noop_code': code, 'timeout': timeout_sec, 'used_connect_host': connect_host})
     except Exception as e:
         msg = str(e)
         hint = None
         if 'Username and Password not accepted' in msg or '5.7.8' in msg:
             hint = 'Gmail exige 2FA e "Senha de app". Gere uma senha de app e use em SMTP_PASSWORD.'
         if 'timed out' in msg.lower():
-            hint = (hint or '') + (' Ajuste SMTP_TIMEOUT (ex.: 15) ou verifique liberação de saída do provedor.')
-        return jsonify({'ok': False, 'error': msg, 'hint': hint}), 500
+            extra = ' Ajuste SMTP_TIMEOUT (ex.: 15) ou verifique liberação de saída do provedor.'
+            hint = (hint + extra) if hint else extra
+        if 'unreachable' in msg.lower() and not force_ipv4:
+            extra = ' Possível IPv6 indisponível. Defina SMTP_FORCE_IPV4=1.'
+            hint = (hint + extra) if hint else extra
+        return jsonify({'ok': False, 'error': msg, 'hint': hint, 'used_connect_host': connect_host}), 500
 
 # Resetar senha via token
 @app.route('/resetar_senha', methods=['GET', 'POST'])

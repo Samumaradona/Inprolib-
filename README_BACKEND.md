@@ -197,6 +197,12 @@ SMTP_USE_SSL=0
 - **Notificações** - Alertas de sistema (futuro)
 - **Fallback local** - Exibe código no modal para desenvolvimento
 
+### Dicas para Render / IPv4
+- Em alguns provedores, conexões IPv6 podem estar indisponíveis e causar erro "Network is unreachable".
+- Defina `SMTP_FORCE_IPV4=1` para obrigar a conexão via IPv4.
+- Ajuste `SMTP_TIMEOUT` (ex.: `15`) para evitar travas e respostas 502.
+- Para Gmail, prefira `SMTP_PORT=587` com STARTTLS e use senha de app.
+
 ## 🚀 Execução e Deploy
 
 ### Desenvolvimento Local
