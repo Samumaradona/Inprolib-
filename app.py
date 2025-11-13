@@ -19,6 +19,7 @@ from email.message import EmailMessage
 import mimetypes
 import json
 import unicodedata
+import socket
 
 # Carrega .env de forma robusta (procura subindo diretórios)
 try:
@@ -1554,6 +1555,8 @@ def smtp_self_test():
     user = os.getenv('SMTP_USER')
     password = os.getenv('SMTP_PASSWORD')
     debug_level = int(os.getenv('SMTP_DEBUG', '0'))
+    # Respeitar timeout configurável para evitar travas e 502 no Render
+    timeout_sec = int(os.getenv('SMTP_TIMEOUT', '8'))
 
     if not host or not user or not password:
         return jsonify({
@@ -1562,39 +1565,55 @@ def smtp_self_test():
         }), 400
 
     try:
+        # Verificação rápida de conectividade (antes de tentar login)
+        try:
+            conn = socket.create_connection((host, port), timeout=timeout_sec)
+            try:
+                conn.close()
+            except Exception:
+                pass
+        except Exception as e_conn:
+            return jsonify({
+                'ok': False,
+                'error': f'Falha de conexão ao servidor SMTP: {e_conn}',
+                'hint': 'Verifique SMTP_HOST/PORT e liberação de saída do provedor. Para Gmail use starttls:587.'
+            }), 500
+
         if security == 'ssl':
             try:
-                with smtplib.SMTP_SSL(host, port) as smtp:
+                with smtplib.SMTP_SSL(host, port, timeout=timeout_sec) as smtp:
                     smtp.set_debuglevel(debug_level)
                     smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
             except Exception as e1:
-                with smtplib.SMTP(host, 587) as smtp:
+                with smtplib.SMTP(host, 587, timeout=timeout_sec) as smtp:
                     smtp.set_debuglevel(debug_level)
                     smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
         elif security == 'none':
             try:
-                with smtplib.SMTP(host, port) as smtp:
+                with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
                     smtp.set_debuglevel(debug_level)
                     smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
             except Exception as e1:
-                with smtplib.SMTP(host, 587) as smtp:
+                with smtplib.SMTP(host, 587, timeout=timeout_sec) as smtp:
                     smtp.set_debuglevel(debug_level)
                     smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
         else:  # starttls
             try:
-                with smtplib.SMTP(host, port) as smtp:
+                with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
                     smtp.set_debuglevel(debug_level)
                     smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
             except Exception as e1:
-                with smtplib.SMTP_SSL(host, 465) as smtp:
+                with smtplib.SMTP_SSL(host, 465, timeout=timeout_sec) as smtp:
                     smtp.set_debuglevel(debug_level)
                     smtp.ehlo(); smtp.login(user, password); code, _ = smtp.noop()
-        return jsonify({'ok': True, 'message': 'Login SMTP OK', 'noop_code': code})
+        return jsonify({'ok': True, 'message': 'Login SMTP OK', 'noop_code': code, 'timeout': timeout_sec})
     except Exception as e:
         msg = str(e)
         hint = None
         if 'Username and Password not accepted' in msg or '5.7.8' in msg:
             hint = 'Gmail exige 2FA e "Senha de app". Gere uma senha de app e use em SMTP_PASSWORD.'
+        if 'timed out' in msg.lower():
+            hint = (hint or '') + (' Ajuste SMTP_TIMEOUT (ex.: 15) ou verifique liberação de saída do provedor.')
         return jsonify({'ok': False, 'error': msg, 'hint': hint}), 500
 
 # Resetar senha via token

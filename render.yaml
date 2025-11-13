@@ -38,7 +38,7 @@ services:
         value: 0
       - key: SUPPORT_EMAIL
         value: suporteinprolib@gmail.com
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 60 --workers 2 --threads 4
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2 --threads 4
     disk:
       name: uploads
       mountPath: static/uploads
