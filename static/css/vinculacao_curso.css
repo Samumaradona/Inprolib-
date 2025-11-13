@@ -587,3 +587,13 @@ table thead th { color: var(--bs-new-casual); }
   .icon-btn.is-danger:hover { background:#fee2e2; }
   .icon-btn.is-danger .material-symbols-outlined { color:#b91c1c; }
   
+  /* ===== Busca (Vinculação de Curso) ===== */
+  .input-with-icon { display:inline-flex; align-items:center; gap:8px; border:1px solid #e5e7eb; border-radius:8px; padding:4px 8px; background:#f8fafc; }
+  .input-with-icon input { border:none; outline:none; background:transparent; padding:6px 4px; min-width:220px; color:#0f172a; }
+  .input-with-icon input::placeholder { color:#94a3b8; }
+  .input-with-icon .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20; font-size:20px; color:#64748b; }
+
+  /* ===== Lista com rolagem ===== */
+  .table-container { overflow-y: auto; overflow-x: auto; max-height: calc(100vh - 320px); }
+  @media (max-width: 640px) { .table-container { max-height: calc(100vh - 280px); } }
+  

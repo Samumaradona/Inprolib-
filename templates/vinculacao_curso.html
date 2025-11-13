@@ -140,14 +140,15 @@
               <div class="toolbar" style="margin:8px 0 12px 0; display:flex; gap:12px; align-items:center; justify-content:space-between">
                 <div style="display:flex; gap:8px; align-items:center">
                   <div class="input-with-icon">
-                    <span class="material-symbols-outlined" aria-hidden="true">search</span>
                     <input type="text" id="linkSearch" placeholder="Buscar vinculações..." aria-label="Buscar vinculações">
+                    <span class="material-symbols-outlined" aria-hidden="true">search</span>
                   </div>
+                  <button type="button" id="btnSearchLinks" class="button" title="Buscar">Buscar</button>
                   <button type="button" id="btnClearLinks" class="button" title="Limpar filtros">Limpar filtros</button>
                 </div>
                 <span id="resultsCounterLinks" class="results-counter" aria-live="polite"></span>
               </div>
-              <div style="overflow:auto;border:1px solid #e5e7eb;border-radius:8px">
+              <div class="table-container" style="border:1px solid #e5e7eb;border-radius:8px">
                 <table style="width:100%;border-collapse:collapse">
                   <thead>
                     <tr style="background:#f8fafc">
@@ -215,6 +216,7 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
         // Filtro de busca com normalização de sinônimos
         (function(){
           const input = document.getElementById('linkSearch');
+          const searchBtn = document.getElementById('btnSearchLinks');
           const clearBtn = document.getElementById('btnClearLinks');
           const counterEl = document.getElementById('resultsCounterLinks');
           const tbody = document.querySelector('section table tbody');
@@ -246,6 +248,7 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
             if(counterEl){ counterEl.textContent = `Exibindo ${visible} de ${rows.length}`; }
           }
           if(input) input.addEventListener('input', applyFilters);
+          if(searchBtn) searchBtn.addEventListener('click', applyFilters);
           if(clearBtn) clearBtn.addEventListener('click', ()=>{ if(input) input.value=''; applyFilters(); });
           applyFilters();
         })();
