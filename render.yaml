@@ -16,6 +16,8 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      - key: DB_SCHEMA
+        value: public
     disk:
       name: uploads
       mountPath: static/uploads
