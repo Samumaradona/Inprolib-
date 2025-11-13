@@ -141,6 +141,7 @@ def send_reset_email(to_email: str, reset_url: str, token: str | None = None) ->
     sender = (os.getenv('SMTP_FROM') or user or '').strip()
     sender_name = (os.getenv('SMTP_FROM_NAME') or 'INPROLIB').strip()
     debug_level = int(os.getenv('SMTP_DEBUG', '0'))
+    timeout_sec = int(os.getenv('SMTP_TIMEOUT', '8'))
 
     if not host or not user or not password or not sender:
         print('[SMTP] Configuração incompleta. Não foi possível enviar e-mail.')
@@ -164,7 +165,7 @@ def send_reset_email(to_email: str, reset_url: str, token: str | None = None) ->
         )
         
         def _send_via_starttls() -> None:
-            with smtplib.SMTP(host, port) as smtp:
+            with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
                 smtp.set_debuglevel(debug_level)
                 smtp.ehlo()
                 smtp.starttls()
@@ -173,14 +174,14 @@ def send_reset_email(to_email: str, reset_url: str, token: str | None = None) ->
                 smtp.send_message(msg)
 
         def _send_via_ssl() -> None:
-            with smtplib.SMTP_SSL(host, port) as smtp:
+            with smtplib.SMTP_SSL(host, port, timeout=timeout_sec) as smtp:
                 smtp.set_debuglevel(debug_level)
                 smtp.ehlo()
                 smtp.login(user, password)
                 smtp.send_message(msg)
 
         def _send_plain() -> None:
-            with smtplib.SMTP(host, port) as smtp:
+            with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
                 smtp.set_debuglevel(debug_level)
                 smtp.ehlo()
                 # Sem STARTTLS
@@ -199,7 +200,7 @@ def send_reset_email(to_email: str, reset_url: str, token: str | None = None) ->
                         _port = 587
                     else:
                         _port = port
-                    with smtplib.SMTP(host, _port) as smtp:
+                    with smtplib.SMTP(host, _port, timeout=timeout_sec) as smtp:
                         smtp.set_debuglevel(debug_level)
                         smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
                 except Exception as e2:
@@ -213,12 +214,12 @@ def send_reset_email(to_email: str, reset_url: str, token: str | None = None) ->
                 try:
                     # Se porta comum 25 foi usada, tenta 587
                     _port = 587 if port in (25,) else port
-                    with smtplib.SMTP(host, _port) as smtp:
+                    with smtplib.SMTP(host, _port, timeout=timeout_sec) as smtp:
                         smtp.set_debuglevel(debug_level)
                         smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
                 except Exception as e2:
                     print('[SMTP] STARTTLS falhou, tentando SSL 465:', e2)
-                    with smtplib.SMTP_SSL(host, 465) as smtp:
+                    with smtplib.SMTP_SSL(host, 465, timeout=timeout_sec) as smtp:
                         smtp.set_debuglevel(debug_level)
                         smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
         else:  # starttls
@@ -227,7 +228,7 @@ def send_reset_email(to_email: str, reset_url: str, token: str | None = None) ->
             except Exception as e1:
                 print('[SMTP] STARTTLS falhou, tentando SSL 465:', e1)
                 try:
-                    with smtplib.SMTP_SSL(host, 465) as smtp:
+                    with smtplib.SMTP_SSL(host, 465, timeout=timeout_sec) as smtp:
                         smtp.set_debuglevel(debug_level)
                         smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
                 except Exception as e2:
@@ -246,6 +247,8 @@ def send_reset_email(to_email: str, reset_url: str, token: str | None = None) ->
             print('[SMTP] Dica: habilite STARTTLS ou use porta 587.')
         if 'SSL' in str(e) and 'wrong version number' in str(e).lower():
             print('[SMTP] Dica: ajuste SMTP_SECURITY=ssl e SMTP_PORT=465 para servidores que exigem SSL.')
+        if 'timed out' in str(e).lower():
+            print('[SMTP] Timeout: defina SMTP_TIMEOUT (padrão 8s) ou verifique liberação de saída no provedor.')
         print('[SMTP] Código de redefinição:', token)
         return False
 
@@ -258,12 +261,17 @@ def send_support_email(body_text: str, attachment: tuple | None = None, reply_to
     - reply_to: e-mail do usuário para facilitar resposta
     """
     host = os.getenv('SMTP_HOST')
-    port = int(os.getenv('SMTP_PORT', '587'))
+    # Segurança unificada: starttls (padrão), ssl ou none
+    security = (os.getenv('SMTP_SECURITY', '').strip().lower() or 'starttls')
+    default_port = 587 if security != 'ssl' else 465
+    port = int(os.getenv('SMTP_PORT', str(default_port)))
     user = os.getenv('SMTP_USER')
     password = os.getenv('SMTP_PASSWORD')
-    sender = os.getenv('SMTP_FROM', user or '')
-    use_ssl = os.getenv('SMTP_USE_SSL', '0').lower() in {'1','true','yes'}
+    sender = (os.getenv('SMTP_FROM') or user or '').strip()
+    sender_name = (os.getenv('SMTP_FROM_NAME') or 'INPROLIB').strip()
     to_email = os.getenv('SUPPORT_EMAIL', 'suporteinprolib@gmail.com')
+    debug_level = int(os.getenv('SMTP_DEBUG', '0'))
+    timeout_sec = int(os.getenv('SMTP_TIMEOUT', '8'))
 
     if not host or not user or not password or not sender:
         print('[SMTP] Configuração incompleta. Não foi possível enviar e-mail de suporte.')
@@ -272,7 +280,7 @@ def send_support_email(body_text: str, attachment: tuple | None = None, reply_to
     try:
         msg = EmailMessage()
         msg['Subject'] = subject
-        msg['From'] = sender
+        msg['From'] = f"{sender_name} <{sender}>"
         msg['To'] = to_email
         if reply_to:
             msg['Reply-To'] = reply_to
@@ -286,20 +294,66 @@ def send_support_email(body_text: str, attachment: tuple | None = None, reply_to
                 maintype, subtype = 'application', 'octet-stream'
             msg.add_attachment(data_bytes, maintype=maintype, subtype=subtype, filename=filename)
 
-        if use_ssl:
-            with smtplib.SMTP_SSL(host, port) as smtp:
-                smtp.login(user, password)
-                smtp.send_message(msg)
+        def _send_via_starttls() -> None:
+            with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
+                smtp.set_debuglevel(debug_level)
+                smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
+
+        def _send_via_ssl() -> None:
+            with smtplib.SMTP_SSL(host, port, timeout=timeout_sec) as smtp:
+                smtp.set_debuglevel(debug_level)
+                smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
+
+        def _send_plain() -> None:
+            with smtplib.SMTP(host, port, timeout=timeout_sec) as smtp:
+                smtp.set_debuglevel(debug_level)
+                smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
+
+        if security == 'ssl':
+            try:
+                _send_via_ssl()
+            except Exception as e1:
+                print('[SMTP] SSL falhou, tentando STARTTLS:', e1)
+                try:
+                    with smtplib.SMTP(host, 587, timeout=timeout_sec) as smtp:
+                        smtp.set_debuglevel(debug_level)
+                        smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
+                except Exception as e2:
+                    print('[SMTP] STARTTLS falhou, tentando sem TLS:', e2)
+                    _send_plain()
+        elif security == 'none':
+            try:
+                _send_plain()
+            except Exception as e1:
+                print('[SMTP] Sem TLS falhou, tentando STARTTLS:', e1)
+                try:
+                    with smtplib.SMTP(host, 587, timeout=timeout_sec) as smtp:
+                        smtp.set_debuglevel(debug_level)
+                        smtp.ehlo(); smtp.starttls(); smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
+                except Exception as e2:
+                    print('[SMTP] STARTTLS falhou, tentando SSL 465:', e2)
+                    with smtplib.SMTP_SSL(host, 465, timeout=timeout_sec) as smtp:
+                        smtp.set_debuglevel(debug_level)
+                        smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
         else:
-            with smtplib.SMTP(host, port) as smtp:
-                smtp.ehlo()
-                smtp.starttls()
-                smtp.ehlo()
-                smtp.login(user, password)
-                smtp.send_message(msg)
+            try:
+                _send_via_starttls()
+            except Exception as e1:
+                print('[SMTP] STARTTLS falhou, tentando SSL 465:', e1)
+                try:
+                    with smtplib.SMTP_SSL(host, 465, timeout=timeout_sec) as smtp:
+                        smtp.set_debuglevel(debug_level)
+                        smtp.ehlo(); smtp.login(user, password); smtp.send_message(msg)
+                except Exception as e2:
+                    print('[SMTP] SSL falhou, tentando sem TLS:', e2)
+                    _send_plain()
         return True
     except Exception as e:
         print('[SMTP] Erro ao enviar e-mail de suporte:', e)
+        if 'Username and Password not accepted' in str(e) or '5.7.8' in str(e):
+            print('[SMTP] Dica: no Gmail, habilite 2FA e use uma "Senha de app".')
+        if 'timed out' in str(e).lower():
+            print('[SMTP] Timeout: defina SMTP_TIMEOUT (padrão 8s) ou verifique saída liberada no provedor.')
         return False
 
 def validar_cpf(cpf: str) -> bool:

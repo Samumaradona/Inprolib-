@@ -18,6 +18,27 @@ services:
         sync: false
       - key: DB_SCHEMA
         value: public
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: INPROLIB
+      - key: SMTP_SECURITY
+        value: starttls
+      - key: SMTP_TIMEOUT
+        value: 8
+      - key: SMTP_DEBUG
+        value: 0
+      - key: SUPPORT_EMAIL
+        value: suporteinprolib@gmail.com
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 60 --workers 2 --threads 4
     disk:
       name: uploads
       mountPath: static/uploads
