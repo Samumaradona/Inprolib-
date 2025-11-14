@@ -20,6 +20,8 @@ import mimetypes
 import json
 import unicodedata
 import socket
+import requests
+import socket
 import ssl
 import requests
 
@@ -71,6 +73,24 @@ DB_CONFIG = {
 # Garantir que a pasta de uploads exista
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs'), exist_ok=True)
+
+# Injeta avatar_url em todos os templates (valor já resolvido por request)
+@app.context_processor
+def inject_avatar_url():
+    try:
+        fp = str(session.get('user_photo') or '').strip()
+        default_url = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s'
+        if not fp:
+            val = default_url
+        elif fp.startswith('http://') or fp.startswith('https://'):
+            val = fp
+        elif fp.startswith('/avatar/'):
+            val = fp
+        else:
+            val = url_for('static', filename=fp)
+        return {'avatar_url': val}
+    except Exception:
+        return {'avatar_url': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s'}
 
 # Rate limiting simples em memória: chave por IP+rota
 RATE_LIMIT = {}
@@ -147,22 +167,6 @@ def _send_email_via_brevo(to_email: str, subject: str, text_content: str, html_c
         'subject': subject,
         'textContent': text_content
     }
-@app.context_processor
-def inject_avatar_url():
-    def avatar_url():
-        try:
-            fp = str(session.get('user_photo') or '').strip()
-            default_url = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s'
-            if not fp:
-                return default_url
-            if fp.startswith('http://') or fp.startswith('https://'):
-                return fp
-            if fp.startswith('/avatar/'):
-                return fp
-            return url_for('static', filename=fp)
-        except Exception:
-            return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s'
-    return dict(avatar_url=avatar_url())
     if html_content:
         payload['htmlContent'] = html_content
     if reply_to:
@@ -499,6 +503,16 @@ def send_support_email(body_text: str, attachment: tuple | None = None, reply_to
             print('[SMTP] Dica: no Gmail, habilite 2FA e use uma "Senha de app".')
         if 'timed out' in str(e).lower():
             print('[SMTP] Timeout: defina SMTP_TIMEOUT (padrão 8s) ou verifique saída liberada no provedor.')
+        # Fallback automático para Brevo se configurado
+        try:
+            prov = (os.getenv('EMAIL_API_PROVIDER') or 'smtp').strip().lower()
+            if prov != 'brevo' and (os.getenv('BREVO_API_KEY') or '').strip():
+                print('[SMTP] Fallback: tentando envio via Brevo API...')
+                fb_ok = _send_email_via_brevo(to_email, subject, body_text, None, reply_to)
+                if fb_ok:
+                    return True
+        except Exception as e_fb:
+            print('[BREVO] Fallback falhou:', e_fb)
         return False
 
 def validar_cpf(cpf: str) -> bool:
