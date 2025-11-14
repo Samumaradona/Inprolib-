@@ -21,6 +21,7 @@ import json
 import unicodedata
 import socket
 import ssl
+import requests
 
 # Carrega .env de forma robusta (procura subindo diretórios)
 try:
@@ -130,7 +131,57 @@ def audit_log(event: str, details: dict):
     except Exception:
         pass
 
+def _send_email_via_brevo(to_email: str, subject: str, text_content: str, html_content: str | None = None, reply_to: str | None = None) -> bool:
+    api_key = (os.getenv('BREVO_API_KEY') or '').strip()
+    sender_email = (os.getenv('BREVO_SENDER_EMAIL') or '').strip()
+    sender_name = (os.getenv('BREVO_SENDER_NAME') or 'INPROLIB').strip()
+    if not api_key or not sender_email:
+        print('[BREVO] Configuração incompleta: defina BREVO_API_KEY e BREVO_SENDER_EMAIL (verificado).')
+        return False
+    payload = {
+        'sender': {
+            'email': sender_email,
+            'name': sender_name
+        },
+        'to': [{'email': to_email}],
+        'subject': subject,
+        'textContent': text_content
+    }
+    if html_content:
+        payload['htmlContent'] = html_content
+    if reply_to:
+        payload['replyTo'] = {'email': reply_to}
+    try:
+        resp = requests.post(
+            'https://api.brevo.com/v3/smtp/email',
+            headers={'api-key': api_key, 'Content-Type': 'application/json'},
+            json=payload,
+            timeout=int(os.getenv('EMAIL_API_TIMEOUT','10'))
+        )
+        if resp.status_code in (200, 201):
+            return True
+        print('[BREVO] Falha ao enviar:', resp.status_code, resp.text)
+        return False
+    except Exception as e:
+        print('[BREVO] Erro de rede ao enviar:', e)
+        return False
+
 def send_reset_email(to_email: str, reset_url: str, token: str | None = None) -> bool:
+    provider = (os.getenv('EMAIL_API_PROVIDER') or 'smtp').strip().lower()
+    if provider == 'brevo':
+        text = (
+            'Olá,\n\nVocê solicitou a redefinição de senha no INPROLIB.\n'
+            f'Use o código abaixo para criar uma nova senha (expira em {RESET_TOKEN_EXP_SECONDS} segundos):\n\n{token or "[token indisponível]"}\n\n'
+            'Acesse a página "Recuperar senha" e insira o código recebido.\n'
+            'Se você não solicitou, ignore este e-mail.'
+        )
+        return _send_email_via_brevo(
+            to_email,
+            'INPROLIB - Redefinição de senha',
+            text,
+            None,
+            None
+        )
     host = os.getenv('SMTP_HOST')
     # Porta padrão depende da segurança
     default_port = 587
@@ -298,6 +349,12 @@ def send_support_email(body_text: str, attachment: tuple | None = None, reply_to
     - attachment: tuple opcional (filename, data_bytes, mimetype)
     - reply_to: e-mail do usuário para facilitar resposta
     """
+    provider = (os.getenv('EMAIL_API_PROVIDER') or 'smtp').strip().lower()
+    if provider == 'brevo':
+        # Envia via API Brevo para o endereço de suporte definido
+        to_email = os.getenv('SUPPORT_EMAIL', 'suporteinprolib@gmail.com')
+        ok = _send_email_via_brevo(to_email, subject, body_text, None, reply_to)
+        return ok
     host = os.getenv('SMTP_HOST')
     # Segurança unificada: starttls (padrão), ssl ou none
     security = (os.getenv('SMTP_SECURITY', '').strip().lower() or 'starttls')
