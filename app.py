@@ -147,6 +147,22 @@ def _send_email_via_brevo(to_email: str, subject: str, text_content: str, html_c
         'subject': subject,
         'textContent': text_content
     }
+@app.context_processor
+def inject_avatar_url():
+    def avatar_url():
+        try:
+            fp = str(session.get('user_photo') or '').strip()
+            default_url = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s'
+            if not fp:
+                return default_url
+            if fp.startswith('http://') or fp.startswith('https://'):
+                return fp
+            if fp.startswith('/avatar/'):
+                return fp
+            return url_for('static', filename=fp)
+        except Exception:
+            return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s'
+    return dict(avatar_url=avatar_url())
     if html_content:
         payload['htmlContent'] = html_content
     if reply_to:
@@ -1218,6 +1234,28 @@ def ensure_publicacao_orientador_column():
             pass
         print(f"Falha ao garantir coluna publicacao.id_orientador: {e}")
 
+def ensure_usuario_avatar_table():
+    try:
+        conn = get_db_connection(); cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS usuario_avatar (
+                id_usuario INTEGER PRIMARY KEY,
+                mime TEXT NOT NULL,
+                data BYTEA NOT NULL,
+                updated_at TIMESTAMP DEFAULT NOW(),
+                CONSTRAINT fk_avatar_usuario FOREIGN KEY (id_usuario)
+                    REFERENCES usuario(id_usuario) ON DELETE CASCADE
+            )
+        """)
+        conn.commit()
+        cur.close(); conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao garantir tabela usuario_avatar: {e}")
+
 # Inicialização do schema na primeira requisição
 SCHEMA_INIT_DONE = False
 @app.before_request
@@ -1233,6 +1271,7 @@ def init_schema_once():
         ensure_usuario_curso_schema()
         ensure_usuario_preferences_columns()
         ensure_avaliacao_table()
+        ensure_usuario_avatar_table()
         # garante rótulos essenciais no enum de status
         try:
             ensure_status_enum_pending()
@@ -1482,6 +1521,8 @@ def login():
                 if idx != -1:
                     rel = fp[idx+len('static/'):]
                     return rel
+                if fp.startswith('/avatar/'):
+                    return fp
                 if fp.startswith('uploads/'):
                     return fp
                 return ''
@@ -1493,6 +1534,18 @@ def login():
                 except Exception:
                     fallback_rel = ''
                 rel_photo = _norm_photo_path(fallback_rel) or fallback_rel
+            # Se houver avatar na tabela usuario_avatar, usa a rota dedicada
+            try:
+                conn_av = get_db_connection()
+                if conn_av:
+                    cur_av = conn_av.cursor()
+                    cur_av.execute("SELECT 1 FROM usuario_avatar WHERE id_usuario = %s", (user['id_usuario'],))
+                    has_row = cur_av.fetchone() is not None
+                    cur_av.close(); conn_av.close()
+                    if has_row:
+                        rel_photo = f"/avatar/{user['id_usuario']}"
+            except Exception:
+                pass
             session['user_photo'] = rel_photo
 
             # carrega tema preferido do usuário
@@ -1544,54 +1597,78 @@ def upload_avatar():
         return jsonify({'ok': False, 'error': 'Formato não suportado'}), 400
 
     # diretório de avatares
-    avatars_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'avatars')
-    os.makedirs(avatars_dir, exist_ok=True)
-
-    # nome do arquivo por usuário
-    uid = session.get('user_id')
-    ts = int(time.time())
-    out_name = f"avatar_{uid}_{ts}{ext}"
-    out_path = os.path.join(avatars_dir, out_name)
+    # lê bytes do arquivo para salvar diretamente em BYTEA
     try:
-        file.save(out_path)
+        file.stream.seek(0)
+        bytes_data = file.read()
     except Exception as e:
-        return jsonify({'ok': False, 'error': f'Falha ao salvar: {e}'}), 500
+        return jsonify({'ok': False, 'error': f'Falha ao ler arquivo: {e}'}), 500
 
-    # caminho relativo para servir via static
-    rel_path = f"uploads/avatars/{out_name}"
-    # Atualiza índice local (fallback sem banco)
-    try:
-        _update_avatar_index(uid, rel_path)
-    except Exception:
-        pass
-
-    # Atualiza no banco
+    uid = session.get('user_id')
+    # insere/atualiza na tabela usuario_avatar
     db_saved = False
     conn = get_db_connection()
-    if conn:
+    if not conn:
+        return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco.'}), 500
+    try:
+        cur = conn.cursor()
+        # MIME correto baseado na extensão
+        mime = 'image/png'
+        if ext in ('.jpg', '.jpeg'):
+            mime = 'image/jpeg'
+        elif ext == '.webp':
+            mime = 'image/webp'
+        elif ext == '.gif':
+            mime = 'image/gif'
+        cur.execute(
+            """
+            INSERT INTO usuario_avatar (id_usuario, mime, data, updated_at)
+            VALUES (%s, %s, %s, NOW())
+            ON CONFLICT (id_usuario) DO UPDATE
+                SET mime = EXCLUDED.mime,
+                    data = EXCLUDED.data,
+                    updated_at = NOW()
+            """,
+            (uid, mime, psycopg.Binary(bytes_data))
+        )
+        conn.commit()
+        cur.close(); conn.close()
+        db_saved = True
+    except Exception as e:
         try:
-            cur = conn.cursor()
-            cur.execute("UPDATE usuario SET foto_perfil = %s WHERE id_usuario = %s", (rel_path, uid))
-            conn.commit()
-            cur.close()
             conn.close()
-            db_saved = True
         except Exception:
-            try:
-                conn.close()
-            except Exception:
-                pass
-            # segue com índice local e sessão
-    else:
-        # sem conexão, segue com índice local e sessão
-        pass
+            pass
+        return jsonify({'ok': False, 'error': f'Falha ao salvar no banco: {e}'}), 500
 
-    # Atualiza sessão
-    session['user_photo'] = rel_path
+    # Atualiza sessão para usar a rota dedicada de avatar
+    session['user_photo'] = f"/avatar/{uid}"
 
-    # URL acessível
-    photo_url = url_for('static', filename=rel_path)
+    photo_url = f"/avatar/{uid}"
     return jsonify({'ok': True, 'photo_url': photo_url, 'db_saved': db_saved})
+
+# Servir avatar armazenado em banco
+@app.route('/avatar/<int:user_id>', methods=['GET'])
+def serve_avatar(user_id: int):
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return make_response('DB connection error', 500)
+        cur = conn.cursor()
+        cur.execute("SELECT mime, data FROM usuario_avatar WHERE id_usuario = %s", (user_id,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        if not row:
+            return redirect('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s', code=302)
+        mime, data = row
+        return send_file(
+            io.BytesIO(data),
+            mimetype=(mime or 'image/png'),
+            as_attachment=False,
+            download_name=f"avatar_{user_id}"
+        )
+    except Exception as e:
+        return make_response(f'Erro ao servir avatar: {e}', 500)
 
 # Esqueci a senha: solicitar token
 @app.route('/esqueci_senha', methods=['GET', 'POST'])

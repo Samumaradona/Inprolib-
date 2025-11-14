@@ -33,6 +33,14 @@ CREATE TABLE "public"."usuario" (
     estado VARCHAR(2)
 );
 
+-- Tabela de Avatar de Usuário (persistência de imagem no banco)
+CREATE TABLE IF NOT EXISTS "public"."usuario_avatar" (
+    id_usuario INTEGER PRIMARY KEY REFERENCES "public"."usuario"(id_usuario) ON DELETE CASCADE,
+    mime TEXT NOT NULL,
+    data BYTEA NOT NULL,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Tabela de Cursos
 CREATE TABLE "public"."curso" (
     id_curso SERIAL PRIMARY KEY,
