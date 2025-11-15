@@ -19,6 +19,7 @@ from email.message import EmailMessage
 import mimetypes
 import json
 import unicodedata
+import base64
 import socket
 import requests
 import socket
@@ -151,7 +152,7 @@ def audit_log(event: str, details: dict):
     except Exception:
         pass
 
-def _send_email_via_brevo(to_email: str, subject: str, text_content: str, html_content: str | None = None, reply_to: str | None = None) -> bool:
+def _send_email_via_brevo(to_email: str, subject: str, text_content: str, html_content: str | None = None, reply_to: str | None = None, attachment: tuple | None = None) -> bool:
     api_key = (os.getenv('BREVO_API_KEY') or '').strip()
     sender_email = (os.getenv('BREVO_SENDER_EMAIL') or '').strip()
     sender_name = (os.getenv('BREVO_SENDER_NAME') or 'INPROLIB').strip()
@@ -171,6 +172,17 @@ def _send_email_via_brevo(to_email: str, subject: str, text_content: str, html_c
         payload['htmlContent'] = html_content
     if reply_to:
         payload['replyTo'] = {'email': reply_to}
+    # Suporte a anexos na API Brevo (base64)
+    try:
+        if attachment:
+            filename, data_bytes, _mimetype = attachment
+            b64 = base64.b64encode(data_bytes).decode('ascii')
+            payload['attachment'] = [{
+                'name': filename,
+                'content': b64
+            }]
+    except Exception as _e_att:
+        print('[BREVO] Falha ao preparar anexo:', _e_att)
     try:
         resp = requests.post(
             'https://api.brevo.com/v3/smtp/email',
@@ -199,6 +211,7 @@ def send_reset_email(to_email: str, reset_url: str, token: str | None = None) ->
             to_email,
             'INPROLIB - Redefinição de senha',
             text,
+            None,
             None,
             None
         )
@@ -371,9 +384,9 @@ def send_support_email(body_text: str, attachment: tuple | None = None, reply_to
     """
     provider = (os.getenv('EMAIL_API_PROVIDER') or 'smtp').strip().lower()
     if provider == 'brevo':
-        # Envia via API Brevo para o endereço de suporte definido
+        # Envia via API Brevo para o endereço de suporte definido (com anexo)
         to_email = os.getenv('SUPPORT_EMAIL', 'suporteinprolib@gmail.com')
-        ok = _send_email_via_brevo(to_email, subject, body_text, None, reply_to)
+        ok = _send_email_via_brevo(to_email, subject, body_text, None, reply_to, attachment)
         return ok
     host = os.getenv('SMTP_HOST')
     # Segurança unificada: starttls (padrão), ssl ou none
@@ -508,7 +521,7 @@ def send_support_email(body_text: str, attachment: tuple | None = None, reply_to
             prov = (os.getenv('EMAIL_API_PROVIDER') or 'smtp').strip().lower()
             if prov != 'brevo' and (os.getenv('BREVO_API_KEY') or '').strip():
                 print('[SMTP] Fallback: tentando envio via Brevo API...')
-                fb_ok = _send_email_via_brevo(to_email, subject, body_text, None, reply_to)
+                fb_ok = _send_email_via_brevo(to_email, subject, body_text, None, reply_to, attachment)
                 if fb_ok:
                     return True
         except Exception as e_fb:
