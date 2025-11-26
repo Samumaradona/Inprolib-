@@ -549,6 +549,10 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
     closeAllMenus();
     notifDropdown.setAttribute('aria-hidden','false');
     btnNotifications.setAttribute('aria-expanded','true');
+    // estado de carregamento enquanto busca dados
+    try {
+      notifDropdown.innerHTML = '<div class="notif-loading">Carregando notificações...</div>';
+    } catch(_){ }
     // busca e renderiza notificações ao abrir
     fetchAndRenderNotifList();
     // atualiza badge por garantia
@@ -633,7 +637,8 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
       const title = (n.titulo || n.title || '');
       const msg = (n.mensagem || n.message || '');
       const ts = (n.ts || n.timestamp || n.created_at || '');
-      const read = !!(n.lida || n.read);
+      // servidor usa 'lido'; também aceitamos variações por compatibilidade
+      const read = !!(n.lido || n.lida || n.read);
       const id = (n.id || n.id_notificacao || '');
       const refTipo = (n.ref_tipo || n.refType || '');
       const refId = (n.ref_id || n.refId || '');
@@ -759,6 +764,15 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
             const prev = parseInt(notifBadge && (notifBadge.textContent||'0'), 10) || 0;
             updateNotifBadge(data.count);
             // Não autoabrir dropdown ao receber novas notificações
+            // Se o dropdown estiver aberto e ainda não houver itens, mas há count>0, tenta re-buscar
+            if (notifDropdown && notifDropdown.getAttribute('aria-hidden') === 'false'){
+              const hasItems = !!notifDropdown.querySelector('.notif-item');
+              if (!hasItems && data.count > 0){
+                // mostra estado de carregamento e re-busca lista
+                try { notifDropdown.innerHTML = '<div class="notif-loading">Carregando notificações...</div>'; } catch(_){}
+                fetchAndRenderNotifList();
+              }
+            }
           }
           const items = data.items;
           if(items && notifDropdown && notifDropdown.getAttribute('aria-hidden') === 'false'){
