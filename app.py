@@ -977,6 +977,126 @@ def ensure_avaliacao_table():
             pass
         print(f"Falha ao garantir tabela avaliacao: {e}")
 
+# Helper para garantir existência da tabela 'notificacao'
+def ensure_notificacoes_table():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        # Verifica a existência da tabela no search_path atual
+        cur.execute("SELECT to_regclass('notificacao')")
+        reg = cur.fetchone()
+        exists = reg and reg[0] is not None
+        if not exists:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS notificacao (
+                    id_notificacao SERIAL PRIMARY KEY,
+                    id_usuario_destinatario INTEGER NOT NULL REFERENCES usuario(id_usuario) ON DELETE CASCADE,
+                    titulo TEXT NOT NULL,
+                    mensagem TEXT,
+                    tipo VARCHAR(16) DEFAULT 'info',
+                    ref_tipo VARCHAR(32),
+                    ref_id INTEGER,
+                    lido BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.commit()
+        cur.close(); conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao garantir tabela notificacao: {e}")
+
+# Cria uma notificação individual para um destinatário
+def create_notification(recipient_id: int, titulo: str, mensagem: str = None, tipo: str = 'info', ref_tipo: str = None, ref_id: int = None):
+    try:
+        ensure_notificacoes_table()
+    except Exception:
+        pass
+    conn = get_db_connection()
+    if not conn:
+        return False
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO notificacao (id_usuario_destinatario, titulo, mensagem, tipo, ref_tipo, ref_id, lido, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, FALSE, NOW())
+            """,
+            (recipient_id, titulo, (mensagem or None), (tipo or 'info')[:16], (ref_tipo or None), ref_id)
+        )
+        conn.commit()
+        cur.close(); conn.close()
+        try:
+            audit_log('notif_create', {'to': recipient_id, 'titulo': titulo, 'ref': {'tipo': ref_tipo, 'id': ref_id}})
+        except Exception:
+            pass
+        return True
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print('Falha ao criar notificação:', e)
+        return False
+
+# Notifica por papel (Administrador/Docente/Aluno), aceitando lista e IDs extras específicos
+def notify_roles(roles, titulo: str, mensagem: str = None, tipo: str = 'info', ref_tipo: str = None, ref_id: int = None, extra_user_ids=None):
+    try:
+        ensure_notificacoes_table()
+    except Exception:
+        pass
+    # Normaliza entrada de roles para lista
+    if isinstance(roles, str):
+        roles = [roles]
+    roles = [str(r).strip() for r in (roles or []) if r]
+    # Mapeia perfis da aplicação para valores possíveis no banco
+    role_to_db = {
+        'Administrador': ['Funcionário', 'Administrador'],
+        'Docente': ['Professor', 'Docente'],
+        'Aluno': ['Aluno']
+    }
+    tipos_db = set()
+    for r in roles:
+        for t in role_to_db.get(r, [r]):
+            tipos_db.add(t)
+    recipients = set(int(u) for u in (extra_user_ids or []) if u)
+    conn = get_db_connection()
+    if not conn:
+        # ainda tenta notificar explicitamente IDs extras
+        for uid in recipients:
+            create_notification(uid, titulo, mensagem, tipo, ref_tipo, ref_id)
+        return len(recipients) > 0
+    try:
+        cur = conn.cursor()
+        if tipos_db:
+            cur.execute(
+                "SELECT id_usuario FROM usuario WHERE tipo::text = ANY(%s) AND COALESCE(ativo, TRUE) = TRUE",
+                (list(tipos_db),)
+            )
+            rows = cur.fetchall() or []
+            for r in rows:
+                try:
+                    recipients.add(int(r[0]))
+                except Exception:
+                    pass
+        cur.close(); conn.close()
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    ok_any = False
+    for uid in recipients:
+        ok_any = create_notification(uid, titulo, mensagem, tipo, ref_tipo, ref_id) or ok_any
+    return ok_any
+
 # Garante que o enum de status possua um rótulo de pendência (e.g., Pendente/Em avaliação)
 def ensure_status_enum_pending():
     conn = get_db_connection()
@@ -1313,7 +1433,12 @@ def init_schema_once():
         except Exception:
             pass
         SCHEMA_INIT_DONE = True
-        print("Schema inicial garantido: usuario.ativo, endereço, publicacao.id_orientador, usuario.id_curso_usuario, preferências e tabela avaliacao.")
+        # Garante tabela de notificações
+        try:
+            ensure_notificacoes_table()
+        except Exception:
+            pass
+        print("Schema inicial garantido: usuario.ativo, endereço, publicacao.id_orientador, usuario.id_curso_usuario, preferências, tabela avaliacao e notificacao.")
     except Exception as e:
         print(f"Falha ao garantir schema inicial: {e}")
 
@@ -3007,19 +3132,41 @@ def publicacao():
                     user_tipo = ''
                 initial_status = status_label('Pendente') if user_tipo == 'Aluno' else status_label('Publicado')
 
-                # Inserir nova publicação (id_autor e id_curso podem ser None)
+                # Inserir nova publicação (id_autor e id_curso podem ser None) e retornar id
                 cur.execute(
                     """INSERT INTO publicacao 
                        (titulo, data_publicacao, id_autor, id_curso, tipo, status, arquivo, nome_arquivo, assuntos_relacionados, data_autoria, id_orientador) 
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (titulo, datetime.now(), session.get('user_id'), curso_id, tipo or '', initial_status, 
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                       RETURNING id_publicacao""",
+                    (titulo, datetime.now(), session.get('user_id'), curso_id, tipo or '', initial_status,
                      filepath, novo_filename, None, None, orientador_id)
                 )
+                row = cur.fetchone()
+                id_pub = (row[0] if row else None)
                 conn.commit()
                 try:
                     pend_lbl = status_label('Pendente')
                 except Exception:
                     pend_lbl = 'Pendente'
+                # Disparo de notificações conforme status inicial
+                try:
+                    if id_pub:
+                        if _norm(initial_status) == _norm(pend_lbl):
+                            try:
+                                create_notification(int(orientador_id), 'Nova submissão para avaliação', f'Título: {titulo}', tipo='info', ref_tipo='publicacao', ref_id=id_pub)
+                            except Exception:
+                                pass
+                            try:
+                                notify_roles(['Administrador'], 'Submissão aguardando avaliação', f'Título: {titulo}', tipo='info', ref_tipo='publicacao', ref_id=id_pub)
+                            except Exception:
+                                pass
+                        else:
+                            try:
+                                notify_roles(['Administrador'], 'Publicação criada', f'Título: {titulo}', tipo='success', ref_tipo='publicacao', ref_id=id_pub)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
                 if is_ajax:
                     msg = 'Submissão criada e aguardando avaliação do orientador.' if _norm(initial_status) == _norm(pend_lbl) else 'Publicação criada e publicada.'
                     cur.close(); conn.close()
@@ -4244,7 +4391,7 @@ def avaliacao_decidir():
         if not conn:
             return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco'}), 500
         cur = conn.cursor(row_factory=dict_row)
-        cur.execute("SELECT id_orientador, status FROM publicacao WHERE id_publicacao=%s", (id_pub_int,))
+        cur.execute("SELECT id_orientador, status, id_autor, titulo FROM publicacao WHERE id_publicacao=%s", (id_pub_int,))
         row = cur.fetchone()
         if not row:
             cur.close(); conn.close()
@@ -4280,14 +4427,31 @@ def avaliacao_decidir():
             (id_pub_int, uid, None, comentario or None)
         )
         conn.commit()
+        # Notificações pós-decisão
+        try:
+            nlab = _norm(novo_status)
+            if 'public' in nlab:
+                ui_status = 'Publicada'
+                tipo_notif = 'success'
+            elif 'denunc' in nlab:
+                ui_status = 'Denunciado'
+                tipo_notif = 'info'
+            else:
+                ui_status = 'Indeferida'
+                tipo_notif = 'error'
+            try:
+                autor_id = int(row.get('id_autor') or 0)
+                if autor_id:
+                    create_notification(autor_id, 'Parecer do orientador', f'Sua publicação foi {ui_status.lower()}.', tipo=tipo_notif, ref_tipo='publicacao', ref_id=id_pub_int)
+            except Exception:
+                pass
+            try:
+                notify_roles(['Administrador'], 'Avaliação concluída', f"Publicação {ui_status}: {row.get('titulo') or ''}", tipo='info', ref_tipo='publicacao', ref_id=id_pub_int)
+            except Exception:
+                pass
+        except Exception:
+            pass
         cur2.close(); cur.close(); conn.close()
-        nlab = _norm(novo_status)
-        if 'public' in nlab:
-            ui_status = 'Publicada'
-        elif 'denunc' in nlab:
-            ui_status = 'Denunciado'
-        else:
-            ui_status = 'Indeferida'
         return jsonify({'ok': True, 'status': novo_status, 'status_label': ui_status})
     except Exception as e:
         try:
@@ -4427,6 +4591,156 @@ def api_usuarios_por_tipo(tipo):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     return jsonify(data)
+
+# APIs de notificações
+@app.route('/api/notificacoes/count', methods=['GET'])
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def api_notificacoes_count():
+    uid = session.get('user_id')
+    count = 0
+    try:
+        ensure_notificacoes_table()
+    except Exception:
+        pass
+    conn = get_db_connection()
+    if conn and uid:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM notificacao WHERE id_usuario_destinatario=%s AND lido=FALSE", (uid,))
+            row = cur.fetchone()
+            count = int(row[0]) if row else 0
+            cur.close(); conn.close()
+        except Exception:
+            try:
+                conn and conn.close()
+            except Exception:
+                pass
+    return jsonify({'count': count})
+
+@app.route('/api/notificacoes/list', methods=['GET'])
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def api_notificacoes_list():
+    uid = session.get('user_id')
+    limit_raw = request.args.get('limit')
+    try:
+        limit = max(1, min(50, int(limit_raw))) if limit_raw else 10
+    except Exception:
+        limit = 10
+    unread_only = str(request.args.get('unread') or '').strip() in {'1','true','True'}
+    items = []
+    try:
+        ensure_notificacoes_table()
+    except Exception:
+        pass
+    conn = get_db_connection()
+    if conn and uid:
+        try:
+            cur = conn.cursor(row_factory=dict_row)
+            if unread_only:
+                cur.execute(
+                    """
+                    SELECT id_notificacao, titulo, mensagem, tipo, ref_tipo, ref_id, lido, created_at
+                    FROM notificacao
+                    WHERE id_usuario_destinatario=%s AND lido=FALSE
+                    ORDER BY created_at DESC, id_notificacao DESC
+                    LIMIT %s
+                    """,
+                    (uid, limit)
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id_notificacao, titulo, mensagem, tipo, ref_tipo, ref_id, lido, created_at
+                    FROM notificacao
+                    WHERE id_usuario_destinatario=%s
+                    ORDER BY created_at DESC, id_notificacao DESC
+                    LIMIT %s
+                    """,
+                    (uid, limit)
+                )
+            rows = cur.fetchall() or []
+            for r in rows:
+                dt = r.get('created_at')
+                try:
+                    dt_str = dt.strftime('%d/%m/%Y %H:%M') if dt else ''
+                except Exception:
+                    dt_str = str(dt or '')
+                items.append({
+                    'id': r.get('id_notificacao'),
+                    'titulo': r.get('titulo') or '',
+                    'mensagem': r.get('mensagem') or '',
+                    'tipo': r.get('tipo') or 'info',
+                    'ref_tipo': r.get('ref_tipo'),
+                    'ref_id': r.get('ref_id'),
+                    'lido': bool(r.get('lido')),
+                    'created_at': dt_str
+                })
+            cur.close(); conn.close()
+        except Exception:
+            try:
+                conn and conn.close()
+            except Exception:
+                pass
+    return jsonify({'notifications': items})
+
+@app.route('/api/notificacoes/read', methods=['POST'])
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def api_notificacoes_read():
+    uid = session.get('user_id')
+    nid_raw = request.form.get('id') or (request.json and request.json.get('id'))
+    try:
+        nid = int(nid_raw)
+    except Exception:
+        nid = None
+    if not (uid and nid):
+        return jsonify({'ok': False, 'error': 'Dados inválidos'}), 400
+    try:
+        ensure_notificacoes_table()
+    except Exception:
+        pass
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco'}), 500
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE notificacao SET lido=TRUE WHERE id_notificacao=%s AND id_usuario_destinatario=%s", (nid, uid))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'ok': True})
+    except Exception as e:
+        try:
+            conn and conn.close()
+        except Exception:
+            pass
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/notificacoes/read_all', methods=['POST'])
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def api_notificacoes_read_all():
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'ok': False, 'error': 'Não autenticado'}), 401
+    try:
+        ensure_notificacoes_table()
+    except Exception:
+        pass
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco'}), 500
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE notificacao SET lido=TRUE WHERE id_usuario_destinatario=%s", (uid,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'ok': True})
+    except Exception as e:
+        try:
+            conn and conn.close()
+        except Exception:
+            pass
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 # Remover vínculo de curso do usuário
 @app.route('/vinculacao_curso/remover', methods=['POST'])

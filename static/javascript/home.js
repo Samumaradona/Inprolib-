@@ -393,6 +393,110 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
     }
   }
 
+  // ===== Notificações: busca e renderização =====
+  function updateNotifBadge(count){
+    try {
+      if(!notifBadge) return;
+      const n = parseInt(count, 10) || 0;
+      if(n > 0){
+        notifBadge.textContent = String(n);
+        notifBadge.style.display = '';
+        notifBadge.setAttribute('aria-hidden','false');
+      } else {
+        notifBadge.textContent = '';
+        notifBadge.style.display = 'none';
+        notifBadge.setAttribute('aria-hidden','true');
+      }
+    } catch(_){}
+  }
+
+  async function fetchNotifCount(){
+    try{
+      const r = await fetch('/api/notificacoes/count', { headers: { 'Accept':'application/json' } });
+      const j = await r.json();
+      updateNotifBadge(j && (j.count ?? j.total ?? 0));
+    }catch(_){ /* mantém estado atual */ }
+  }
+
+  function renderNotifList(items){
+    if(!notifDropdown) return;
+    const arr = Array.isArray(items) ? items : [];
+    if(!arr.length){
+      notifDropdown.innerHTML = '<div class="notif-empty">Você não tem novas notificações</div>';
+      return;
+    }
+    const html = [
+      '<div class="notif-menu-header">'
+      + '<span>Notificações</span>'
+      + '<button id="btnMarkAllRead" class="notif-mark-all">Marcar todas lidas</button>'
+      + '</div>'
+    ];
+    arr.forEach(n => {
+      const tipo = (n.tipo || 'info');
+      const title = (n.titulo || n.title || '');
+      const msg = (n.mensagem || n.message || '');
+      const ts = (n.ts || n.timestamp || n.created_at || '');
+      const read = !!(n.lida || n.read);
+      const id = (n.id || n.id_notificacao || '');
+      const icon = tipo === 'success' ? 'task_alt' : (tipo === 'error' ? 'error' : 'info');
+      html.push(
+        `<div class="notif-item" data-id="${id}" data-read="${read}">
+           <span class="material-symbols-outlined">${icon}</span>
+           <div>
+             <div class="notif-title">${title}</div>
+             <div class="notif-sub">${msg}</div>
+           </div>
+         </div>`
+      );
+    });
+    notifDropdown.innerHTML = html.join('');
+    // ação: marcar todas como lidas
+    const btnAll = document.getElementById('btnMarkAllRead');
+    if(btnAll){
+      btnAll.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        try{
+          const r = await fetch('/api/notificacoes/read_all', { method:'POST', headers: { 'Accept':'application/json' } });
+          await r.json().catch(() => ({}));
+          updateNotifBadge(0);
+          notifDropdown.innerHTML = '<div class="notif-empty">Você não tem novas notificações</div>';
+          try { window.showToast && window.showToast('Notificações marcadas como lidas.', 'success'); } catch(_){}
+        }catch(_){ try { window.showToast && window.showToast('Falha ao marcar notificações.', 'error'); } catch(__){} }
+      });
+    }
+    // ação: marcar individual como lida
+    notifDropdown.querySelectorAll('.notif-item[data-id]').forEach(el => {
+      el.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const id = el.getAttribute('data-id');
+        if(!id) return;
+        try{
+          const r = await fetch('/api/notificacoes/read', {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json', 'Accept':'application/json' },
+            body: JSON.stringify({ id })
+          });
+          await r.json().catch(() => ({}));
+          el.setAttribute('data-read','true');
+          // decrementa badge
+          const current = parseInt(notifBadge && notifBadge.textContent || '0', 10) || 0;
+          updateNotifBadge(Math.max(0, current - 1));
+        }catch(_){ /* ignora */ }
+      });
+    });
+  }
+
+  async function fetchAndRenderNotifList(){
+    try{
+      const r = await fetch('/api/notificacoes/list?limit=10&unread=1', { headers: { 'Accept':'application/json' } });
+      const j = await r.json();
+      const items = j && (j.notifications || j.notificacoes || j.items || j.data || []);
+      renderNotifList(items);
+    }catch(_){
+      renderNotifList([]);
+    }
+  }
+
   /**
    * loadAvatar()
    * - Carrega avatar do servidor (USER_PHOTO) se disponível
@@ -465,6 +569,10 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
       if(!open){
         notifDropdown.setAttribute('aria-hidden','false');
         btnNotifications.setAttribute('aria-expanded','true');
+        // busca e renderiza notificações quando abrir
+        fetchAndRenderNotifList();
+        // atualiza badge (caso tenha mudado em outra aba)
+        fetchNotifCount();
       }
       ev.stopPropagation(); // impede clique subir para document
     });
@@ -564,17 +672,9 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
         count = window.NOTIF_COUNT;
       }
     } catch(e){}
-    if(notifBadge){
-      if(count > 0){
-        notifBadge.textContent = String(count);
-        notifBadge.style.display = '';
-        notifBadge.setAttribute('aria-hidden','false');
-      } else {
-        notifBadge.textContent = '';
-        notifBadge.style.display = 'none';
-        notifBadge.setAttribute('aria-hidden','true');
-      }
-    }
+    updateNotifBadge(count);
+    // também tenta obter do backend
+    fetchNotifCount();
   }
   initNotifBadge();
 

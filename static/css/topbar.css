@@ -85,6 +85,7 @@ header.topbar .notif-btn {
   background: transparent;
   border-radius: 8px;
   cursor: pointer;
+  position: relative; /* para posicionar badge */
 }
 header.topbar .notif-btn:hover { background: #f4f6fb; }
 
@@ -94,6 +95,71 @@ header.topbar .dropdown-menu { position: absolute; top: calc(100% + 6px); z-inde
 header.topbar .profile-wrap > .dropdown-menu { left: 0; right: auto; }
 /* Notificações: alinhar à direita do botão */
 header.topbar .notif-wrap > .dropdown-menu { right: 0; left: auto; }
+
+/* ===== Notificações – design compacto moderno ===== */
+#notifBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #e11d48; /* rose-600 */
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 16px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(2,6,23,0.08);
+}
+
+header.topbar .dropdown-menu {
+  background: #ffffff;
+  border: 1px solid rgba(2,6,23,0.08);
+  box-shadow: 0 16px 32px rgba(2,6,23,0.12);
+  border-radius: 12px;
+  padding: 10px;
+  width: 300px;
+  max-width: 92vw;
+  display: none;
+}
+header.topbar .dropdown-menu[aria-hidden="false"] { display: block; }
+
+.notif-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.notif-mark-all {
+  border: 0;
+  background: var(--bs-primary, #0046E1);
+  color: #fff;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.notif-mark-all:hover { background: var(--bs-primary-dark-1, #003ABB); }
+
+.notif-item {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  align-items: start;
+  padding: 8px;
+  border-radius: 10px;
+}
+.notif-item:hover { background: #f8fafc; }
+.notif-item .material-symbols-outlined { font-size: 18px; color: #334155; }
+.notif-item .notif-title { font-size: 13px; font-weight: 700; color: #0f172a; }
+.notif-item .notif-sub { font-size: 12px; color: #64748b; }
+
+.notif-empty { padding: 10px; font-size: 13px; color: #334155; }
 
 /* Ajustes de acessibilidade básicos */
 header.topbar .notif-btn:focus,
