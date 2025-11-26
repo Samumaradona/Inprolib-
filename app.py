@@ -603,6 +603,36 @@ PUBLICACAO_CACHE = {
 # Flag para garantir índices em publicacao apenas uma vez
 PUBLICACAO_INDEXES_READY = False
 
+# Pool de conexões (reduz latência de páginas ao evitar reconexões a cada request)
+try:
+    from psycopg_pool import ConnectionPool
+except Exception:
+    ConnectionPool = None
+
+DB_POOL = None
+
+def _make_conninfo():
+    """Monta DSN/conninfo para o Postgres a partir de env/DB_CONFIG."""
+    db_url = os.getenv('DATABASE_URL')
+    if db_url:
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        return db_url
+    # Constrói DSN a partir de DB_CONFIG
+    cfg = {k: (str(v).strip() if isinstance(v, str) else v) for k, v in DB_CONFIG.items()}
+    host = cfg.get('host') or 'localhost'
+    port = cfg.get('port') or 5432
+    try:
+        port = int(str(port).strip())
+    except Exception:
+        pass
+    user = cfg.get('user') or 'postgres'
+    password = cfg.get('password') or ''
+    dbname = cfg.get('dbname') or 'postgres'
+    if password:
+        return f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+    return f"postgresql://{user}@{host}:{port}/{dbname}"
+
 def ensure_publicacao_indexes():
     """Cria índices úteis para filtros/ordenação de publicações.
     Executa rapidamente se já existirem (IF NOT EXISTS).
@@ -642,45 +672,23 @@ def ensure_publicacao_indexes():
         pass
 
 def get_db_connection():
-    """Cria uma conexão com o Postgres usando DATABASE_URL ou DB_CONFIG.
-    Em caso de erro, retorna None sem interromper o fluxo da aplicação.
+    """Obtém uma conexão do Postgres com pool quando disponível.
+    Fallback para conexão direta em casos de erro/ambiente sem psycopg_pool.
     """
+    db_schema = os.getenv('DB_SCHEMA', 'public').strip() or 'public'
+    # Tenta via pool (melhor desempenho em produção)
+    global DB_POOL
     try:
-        db_url = os.getenv('DATABASE_URL')
-        # Permite configurar schema via variável de ambiente (padrão: public)
-        db_schema = os.getenv('DB_SCHEMA', 'public').strip() or 'public'
-        if db_url:
-            if db_url.startswith("postgres://"):
-                db_url = db_url.replace("postgres://", "postgresql://", 1)
-            # Timeout curto para evitar travamentos quando o serviço está indisponível
-            conn = psycopg.connect(db_url, connect_timeout=5)
-            # Garante search_path correto para o schema informado
+        if ConnectionPool is not None:
+            if DB_POOL is None:
+                DB_POOL = ConnectionPool(_make_conninfo(), min_size=1, max_size=10, timeout=5)
+            conn = DB_POOL.connection()
             try:
                 with conn.cursor() as cur:
                     cur.execute(f'SET search_path TO "{db_schema}", public')
             except Exception:
                 pass
             return conn
-        # Sanitiza valores do DB_CONFIG (remove espaços e normaliza porta)
-        cfg = {k: (str(v).strip() if isinstance(v, str) else v) for k, v in DB_CONFIG.items()}
-        try:
-            # Porta deve ser int para algumas instalações
-            if 'port' in cfg:
-                try:
-                    cfg['port'] = int(str(cfg['port']).strip())
-                except Exception:
-                    # Fallback: mantém como string se conversão falhar
-                    pass
-        except Exception:
-            pass
-
-        conn = psycopg.connect(**cfg, connect_timeout=5)
-        try:
-            with conn.cursor() as cur:
-                cur.execute(f'SET search_path TO "{db_schema}", public')
-        except Exception:
-            pass
-        return conn
     except InvalidCatalogName:
         # Tenta criar o banco se não existir e reconecta
         try:
@@ -711,7 +719,64 @@ def get_db_connection():
             # Log detalhado para facilitar diagnóstico
             print(f"[DB] Falha ao criar/conectar banco: {e}")
             return None
-    except Exception as e:
+    except Exception:
+        # Se pool não estiver disponível ou falhar, usa conexão direta como antes
+        try:
+            db_url = os.getenv('DATABASE_URL')
+            if db_url and db_url.startswith("postgres://"):
+                db_url = db_url.replace("postgres://", "postgresql://", 1)
+            if db_url:
+                conn = psycopg.connect(db_url, connect_timeout=5)
+            else:
+                cfg = {k: (str(v).strip() if isinstance(v, str) else v) for k, v in DB_CONFIG.items()}
+                if 'port' in cfg:
+                    try:
+                        cfg['port'] = int(str(cfg['port']).strip())
+                    except Exception:
+                        pass
+                conn = psycopg.connect(**cfg, connect_timeout=5)
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(f'SET search_path TO "{db_schema}", public')
+            except Exception:
+                pass
+            return conn
+        except Exception as e:
+            # Se o erro indicar banco inexistente, tenta criar automaticamente (fluxo antigo)
+            msg = str(e).lower()
+            if (
+                'does not exist' in msg or
+                'não existe' in msg or
+                'n�o existe' in msg or
+                'invalidcatalogname' in msg
+            ):
+                try:
+                    tmp = {k: (str(v).strip() if isinstance(v, str) else v) for k, v in DB_CONFIG.items()}
+                    dbname = tmp.pop('dbname', None)
+                    if 'port' in tmp:
+                        try:
+                            tmp['port'] = int(str(tmp['port']).strip())
+                        except Exception:
+                            pass
+                    admin = psycopg.connect(**{**tmp, 'dbname': 'postgres'}, connect_timeout=5)
+                    with admin.cursor() as cur:
+                        if dbname:
+                            cur.execute(f'CREATE DATABASE "{dbname}"')
+                            admin.commit()
+                    admin.close()
+                    conn = psycopg.connect(**DB_CONFIG, connect_timeout=5)
+                    try:
+                        with conn.cursor() as cur2:
+                            _schema = os.getenv("DB_SCHEMA", "public").strip() or "public"
+                            cur2.execute(f'SET search_path TO "{_schema}", public')
+                    except Exception:
+                        pass
+                    return conn
+                except Exception as e2:
+                    print(f"[DB] Tentativa de criação do banco falhou: {e2}")
+                    return None
+            print(f"[DB] Erro ao conectar ao banco de dados: {e}")
+            return None
         # Se o erro indicar banco inexistente, tenta criar automaticamente
         msg = str(e).lower()
         # Cobrir casos de encoding quebrado: 'não existe' pode aparecer como 'n�o existe' em alguns logs
@@ -4848,7 +4913,7 @@ def api_notificacoes_stream():
         while True:
             # Keepalive rápido para evitar detecção de inatividade por proxies
             try:
-                yield "retry: 15000\n\n"  # sugere reconexão automática em 15s se cair
+                yield "retry: 10000\n\n"  # reconexão automática em ~10s se cair
                 yield ": ping\n\n"
             except Exception:
                 pass
@@ -4883,7 +4948,7 @@ def api_notificacoes_stream():
             yield f"data: {payload}\n\n"
             # Intervalo de atualização
             try:
-                time.sleep(15)
+                time.sleep(10)
             except Exception:
                 pass
 
