@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Cadastro de usuário no INPROLIB com validações e segurança." />
   <title>INPROLIB - Cadastro de usuário</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/cadastro_alunos.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/cadastro_alunos.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}?v={{ asset_version }}">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}">
-  <script src="{{ url_for('static', filename='javascript/theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}?v={{ asset_version }}">
+  <script src="{{ url_for('static', filename='javascript/theme.js') }}?v={{ asset_version }}"></script>
 </head>
 <body>
   <div id="app">
@@ -338,13 +338,13 @@ data-id="{{ u.id_usuario }}">
   {% endif %}
 
   <script>window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";</script>
-  <script src="{{ url_for('static', filename='javascript/notifications.js') }}"></script>
-  <script src="{{ url_for('static', filename='javascript/password-toggle.js') }}"></script>
+<script src="{{ url_for('static', filename='javascript/notifications.js') }}?v={{ asset_version }}"></script>
+<script src="{{ url_for('static', filename='javascript/password-toggle.js') }}?v={{ asset_version }}"></script>
   <!-- Define USER_PHOTO para o módulo de avatar em home.js não sobrescrever o src correto -->
   <script>
 window.USER_PHOTO = "{{ avatar_url }}";
   </script>
-  <script src="{{ url_for('static', filename='javascript/home.js') }}"></script>
+<script src="{{ url_for('static', filename='javascript/home.js') }}?v={{ asset_version }}"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
   <script>
     // Validação em tempo real de CPF e email; indicador de força de senha

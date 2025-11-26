@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Nova senha</title>
   <!-- Removido Google Fonts para evitar erros de carregamento em ambientes restritos -->
-  <link rel="stylesheet" href="theme-dark.css">
-  <script src="theme.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}?v={{ asset_version }}">
+  <script src="{{ url_for('static', filename='javascript/theme.js') }}?v={{ asset_version }}"></script>
   <style>
     /* Ícone de mostrar/ocultar senha — escopo desta página */
     .password-wrapper{ position:relative; display:flex; align-items:center; }
@@ -117,8 +117,8 @@
     </div>
   </div>
 
- <script src="{{ url_for('serve_js', script_name='notifications') }}?v=1"></script>
+ <script src="{{ url_for('serve_js', script_name='notifications') }}?v={{ asset_version }}"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
-  <script src="password-toggle.js"></script>
+  <script src="{{ url_for('static', filename='javascript/password-toggle.js') }}?v={{ asset_version }}"></script>
 </body>
 </html>

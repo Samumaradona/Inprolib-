@@ -4,14 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>INPROLIB - Suporte</title>
-  <link rel="stylesheet" href="suporte.css">
-  <link rel="stylesheet" href="topbar.css">
-  <link rel="stylesheet" href="notifications.css?v=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/suporte.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}?v={{ asset_version }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
-  <link rel="stylesheet" href="theme-dark.css">
-  <script src="theme.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}?v={{ asset_version }}">
+  <script src="{{ url_for('static', filename='javascript/theme.js') }}?v={{ asset_version }}"></script>
 </head>
 <body>
   <div id="app">
@@ -139,8 +139,8 @@
 window.USER_PHOTO = "{{ avatar_url }}";
 window.USER_ID = "{{ session.get('user_id', '') }}";
   </script>
- <script src="{{ url_for('serve_js', script_name='notifications') }}?v=1"></script>
- <script src="{{ url_for('serve_js', script_name='home') }}?v=aval-fix-1"></script>
+ <script src="{{ url_for('serve_js', script_name='notifications') }}?v={{ asset_version }}"></script>
+ <script src="{{ url_for('serve_js', script_name='home') }}?v={{ asset_version }}"></script>
   <script>
     (function(){
       const ta = document.getElementById('mensagem');

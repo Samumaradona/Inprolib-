@@ -93,6 +93,18 @@ def inject_avatar_url():
     except Exception:
         return {'avatar_url': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqf7MJNlh6GfxfrjCep_dnXOBm0EwGc0X12A&s'}
 
+# Versão de assets para forçar atualização de CSS/JS após deploy
+@app.context_processor
+def inject_asset_version():
+    try:
+        v = (os.getenv('ASSET_VERSION') or '').strip()
+        if not v:
+            # fallback simples com carimbo de data curto
+            v = time.strftime('%Y%m%d')
+        return {'asset_version': v}
+    except Exception:
+        return {'asset_version': '1'}
+
 # Rate limiting simples em memória: chave por IP+rota
 RATE_LIMIT = {}
 
@@ -4911,7 +4923,8 @@ def api_notificacoes_stream():
 
     resp = Response(stream_with_context(generate_inner()), mimetype='text/event-stream')
     try:
-        resp.headers['Cache-Control'] = 'no-cache'
+        # Evita cache/bufferização em proxies e garante streaming contínuo
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         resp.headers['X-Accel-Buffering'] = 'no'
         resp.headers['Connection'] = 'keep-alive'
         resp.headers['Content-Type'] = 'text/event-stream; charset=utf-8'

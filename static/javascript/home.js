@@ -528,10 +528,14 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
         if(item) item.remove();
         const current = parseInt(notifBadge && (notifBadge.textContent||'0'), 10) || 0;
         updateNotifBadge(Math.max(0, current - 1));
+        // Sincroniza imediatamente com o backend para evitar divergências em múltiplas abas
+        try { await fetchNotifCount(); } catch(_){ }
         closeNotifModal();
         try { window.showToast && window.showToast('Notificação marcada como lida.', 'success'); } catch(_){}
         if(!notifDropdown.querySelector('.notif-item')){
           notifDropdown.innerHTML = '<div class="notif-empty">Você não tem novas notificações</div>';
+          // Garante que o badge reflita o estado real do backend
+          try { await fetchNotifCount(); } catch(_){ }
         }
       }catch(_){ try { window.showToast && window.showToast('Falha ao marcar como lida.', 'error'); } catch(__){} }
     });
@@ -662,6 +666,8 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
           await r.json().catch(() => ({}));
           updateNotifBadge(0);
           notifDropdown.innerHTML = '<div class="notif-empty">Você não tem novas notificações</div>';
+          // Sincroniza o badge com o backend após marcar todas como lidas
+          try { await fetchNotifCount(); } catch(_){ }
           try { window.showToast && window.showToast('Notificações marcadas como lidas.', 'success'); } catch(_){}
         }catch(_){ try { window.showToast && window.showToast('Falha ao marcar notificações.', 'error'); } catch(__){} }
       });
@@ -705,9 +711,13 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
           // Atualiza badge decrementando 1
           const current = parseInt(notifBadge && (notifBadge.textContent||'0'), 10) || 0;
           updateNotifBadge(Math.max(0, current - 1));
+          // Sincroniza imediatamente com o backend para refletir a contagem real
+          try { await fetchNotifCount(); } catch(_){ }
           // Se não houver mais itens, mostra vazio
           if(!notifDropdown.querySelector('.notif-item')){
             notifDropdown.innerHTML = '<div class="notif-empty">Você não tem novas notificações</div>';
+            // Ajusta o badge consultando o backend
+            try { await fetchNotifCount(); } catch(_){ }
           }
           try { window.showToast && window.showToast('Notificação marcada como lida.', 'success'); } catch(_){}
         }catch(_){ try { window.showToast && window.showToast('Falha ao marcar como lida.', 'error'); } catch(__){} }

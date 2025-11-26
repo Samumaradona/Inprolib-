@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Login - INPROLIB</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/cadastro_login.css') }}?v=5" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}?v=1" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}" />
-  <script src="{{ url_for('static', filename='javascript/theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/cadastro_login.css') }}?v={{ asset_version }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}?v={{ asset_version }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}?v={{ asset_version }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}?v={{ asset_version }}" />
+  <script src="{{ url_for('static', filename='javascript/theme.js') }}?v={{ asset_version }}"></script>
   <!-- Sem overrides: manter estilo do ícone de senha padrão -->
 </head>
 <body>
@@ -174,9 +174,9 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='javascript/notifications.js') }}"></script>
+  <script src="{{ url_for('static', filename='javascript/notifications.js') }}?v={{ asset_version }}"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
-  <script src="{{ url_for('static', filename='javascript/password-toggle.js') }}"></script>
-  <script src="{{ url_for('static', filename='javascript/login.js') }}"></script>
+  <script src="{{ url_for('static', filename='javascript/password-toggle.js') }}?v={{ asset_version }}"></script>
+  <script src="{{ url_for('static', filename='javascript/login.js') }}?v={{ asset_version }}"></script>
 </body>
 </html>

@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Publicação de conteúdo no INPROLIB com validações e segurança." />
   <title>INPROLIB - Publicação de Conteúdo</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/publicacao.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/publicacao.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}?v={{ asset_version }}">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}">
-  <script src="{{ url_for('static', filename='javascript/theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}?v={{ asset_version }}">
+  <script src="{{ url_for('static', filename='javascript/theme.js') }}?v={{ asset_version }}"></script>
 </head>
 <body>
   <div id="app">
@@ -297,9 +297,9 @@
 window.USER_PHOTO = "{{ avatar_url }}";
 window.USER_ID = "{{ session.get('user_id', '') }}";
   </script>
-  <script src="{{ url_for('serve_js', script_name='notifications') }}?v=1"></script>
-  <script src="{{ url_for('serve_js', script_name='home') }}?v=aval-fix-1"></script>
-  <script src="{{ url_for('serve_js', script_name='publicacao') }}?v=pub-ui-2"></script>
+  <script src="{{ url_for('serve_js', script_name='notifications') }}?v={{ asset_version }}"></script>
+  <script src="{{ url_for('serve_js', script_name='home') }}?v={{ asset_version }}"></script>
+  <script src="{{ url_for('serve_js', script_name='publicacao') }}?v={{ asset_version }}"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
 </body>
 </html>

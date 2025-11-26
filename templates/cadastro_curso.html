@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Cadastro de cursos no INPROLIB com validações e lista em modal." />
   <title>INPROLIB - Cadastro de Cursos</title>
-  <link rel="stylesheet" href="/topbar.css">
-  <link rel="stylesheet" href="/cadastro_curso.css">
-  <link rel="stylesheet" href="/notifications.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/cadastro_curso.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}?v={{ asset_version }}">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
-  <link rel="stylesheet" href="/theme-dark.css">
-  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}?v={{ asset_version }}">
+  <script src="{{ url_for('static', filename='javascript/theme.js') }}?v={{ asset_version }}"></script>
 </head>
 <body>
   <div id="app">
@@ -239,6 +239,20 @@
           </div>
         </div>
 
+        <!-- Modal de referência da notificação (replicado da Home) -->
+        <div id="notifModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="notifModalTitle">
+          <div class="modal-content">
+            <button id="notifModalClose" class="modal-close" aria-label="Fechar">✕</button>
+            <h3 id="notifModalTitle" style="margin:0 0 6px 0">Notificação</h3>
+            <div id="notifModalMessage" class="notif-modal-message" style="font-size:13px;color:#334155;margin-bottom:6px"></div>
+            <small id="notifModalMeta" class="notif-modal-meta" style="font-size:12px;color:#64748b"></small>
+            <div id="notifModalPreview" style="min-height:220px;border:1px solid #e5e7eb;border-radius:8px;background:#f8fafc;margin-top:10px"></div>
+            <div class="btn-group" style="margin-top:10px">
+              <button id="notifModalMarkRead" class="button is-sm">Marcar lida</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Removido: Modal de cursos cadastrados (agora a lista Ã© inicial) -->
       </main>
     </div>
@@ -247,8 +261,8 @@
 window.USER_PHOTO = "{{ avatar_url }}";
 window.USER_ID = "{{ session.get('user_id', '') }}";
     </script>
- <script src="{{ url_for('serve_js', script_name='notifications') }}?v=1"></script>
- <script src="{{ url_for('serve_js', script_name='home') }}?v=aval-fix-1"></script>
+ <script src="{{ url_for('serve_js', script_name='notifications') }}?v={{ asset_version }}"></script>
+ <script src="{{ url_for('serve_js', script_name='home') }}?v={{ asset_version }}"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
     <script>
       (function(){
