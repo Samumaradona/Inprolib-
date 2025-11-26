@@ -219,7 +219,7 @@ python app.py
 # Acesso: http://127.0.0.1:5000
 ```
 
-### Produção (Render/Heroku)
+### Produção (Render)
 ```yaml
 # render.yaml
 services:
@@ -227,12 +227,17 @@ services:
     name: inprolib
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --worker-class gthread --workers 2 --threads 20 --timeout 0 --graceful-timeout 60 --keep-alive 75"
     disk:
       name: uploads
       mountPath: /opt/render/project/src/static/uploads
       sizeGB: 1
 ```
+
+Notas:
+- `worker-class gthread` + `threads` garante concorrência adequada para SSE de notificações sem bloquear workers.
+- `timeout 0` evita abortar streams longos; `keep-alive 75` mantém conexões HTTP ativas por mais tempo.
+- O `mountPath` deve ser absoluto conforme a estrutura do Render.
 
 ## 🔧 Funcionalidades Avançadas
 

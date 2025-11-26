@@ -3,13 +3,7 @@ services:
     name: inprolib-web
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT 
-      --worker-class gthread 
-      --workers 2 
-      --threads 20 
-      --timeout 0 
-      --graceful-timeout 60 
-      --keep-alive 75
+    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --worker-class gthread --workers 2 --threads 20 --timeout 0 --graceful-timeout 60 --keep-alive 75"
     autoDeploy: true
     envVars:
       - key: SECRET_KEY
@@ -47,5 +41,5 @@ services:
     # Removido segundo startCommand duplicado; acima está a configuração única de execução
     disk:
       name: uploads
-      mountPath: static/uploads
+      mountPath: /opt/render/project/src/static/uploads
       sizeGB: 1
