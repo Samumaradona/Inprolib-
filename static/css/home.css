@@ -1053,6 +1053,8 @@ body {
   max-width: 640px;
   margin: 0 auto;
 }
+#notifModal .modal-content{ max-width: 520px; margin: 0 auto; }
+#notifModal .btn-group{ display:flex; gap:8px; }
 .modal[aria-hidden="false"], .modal.open{
   display:flex !important;
 }

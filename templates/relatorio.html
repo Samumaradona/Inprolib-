@@ -208,8 +208,8 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
   </div>
 
   <script src="{{ url_for('static', filename='javascript/calendar-ptbr.js') }}"></script>
-  <script src="notifications.js?v=1"></script>
-  <script src="home.js?v=aval-fix-1"></script>
+ <script src="{{ url_for('serve_js', script_name='notifications') }}?v=1"></script>
+ <script src="{{ url_for('serve_js', script_name='home') }}?v=aval-fix-1"></script>
   <script>
     window.initFlashToasts && window.initFlashToasts();
 

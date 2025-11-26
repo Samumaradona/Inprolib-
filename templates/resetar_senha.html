@@ -117,7 +117,7 @@
     </div>
   </div>
 
-  <script src="notifications.js?v=1"></script>
+ <script src="{{ url_for('serve_js', script_name='notifications') }}?v=1"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
   <script src="password-toggle.js"></script>
 </body>

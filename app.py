@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory, make_response, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory, make_response, send_file, Response
 import psycopg
 from psycopg.rows import dict_row
 from psycopg.errors import InvalidCatalogName
@@ -4741,6 +4741,83 @@ def api_notificacoes_read_all():
         except Exception:
             pass
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+# SSE: stream de notificações (count + últimos itens não lidos)
+@app.route('/api/notificacoes/stream')
+@login_required
+@roles_required(['Administrador','Docente','Aluno'])
+def api_notificacoes_stream():
+    uid = session.get('user_id')
+    if not uid:
+        # Para SSE, retornar 401 como evento simples
+        return Response("data: {\"error\": \"Nao autenticado\"}\n\n", mimetype='text/event-stream')
+
+    def to_item(r):
+        dt = r.get('created_at')
+        try:
+            dt_str = dt.strftime('%d/%m/%Y %H:%M') if dt else ''
+        except Exception:
+            dt_str = str(dt or '')
+        return {
+            'id': r.get('id_notificacao'),
+            'titulo': r.get('titulo') or '',
+            'mensagem': r.get('mensagem') or '',
+            'tipo': r.get('tipo') or 'info',
+            'ref_tipo': r.get('ref_tipo'),
+            'ref_id': r.get('ref_id'),
+            'lido': bool(r.get('lido')),
+            'created_at': dt_str
+        }
+
+    def generate():
+        try:
+            ensure_notificacoes_table()
+        except Exception:
+            pass
+        # Envia imediatamente um snapshot atual e depois atualiza periodicamente
+        while True:
+            count = 0
+            items = []
+            conn = get_db_connection()
+            if conn and uid:
+                try:
+                    cur = conn.cursor(row_factory=dict_row)
+                    cur.execute("SELECT COUNT(*) FROM notificacao WHERE id_usuario_destinatario=%s AND lido=FALSE", (uid,))
+                    row = cur.fetchone()
+                    count = int(row[0]) if row else 0
+                    cur.execute(
+                        """
+                        SELECT id_notificacao, titulo, mensagem, tipo, ref_tipo, ref_id, lido, created_at
+                        FROM notificacao
+                        WHERE id_usuario_destinatario=%s AND lido=FALSE
+                        ORDER BY created_at DESC, id_notificacao DESC
+                        LIMIT 10
+                        """,
+                        (uid,)
+                    )
+                    rows = cur.fetchall() or []
+                    items = [to_item(r) for r in rows]
+                    cur.close(); conn.close()
+                except Exception:
+                    try:
+                        conn and conn.close()
+                    except Exception:
+                        pass
+            payload = json.dumps({'count': count, 'items': items})
+            yield f"data: {payload}\n\n"
+            # Intervalo de atualização
+            try:
+                time.sleep(15)
+            except Exception:
+                pass
+
+    resp = Response(generate(), mimetype='text/event-stream')
+    try:
+        resp.headers['Cache-Control'] = 'no-cache'
+        resp.headers['X-Accel-Buffering'] = 'no'
+    except Exception:
+        pass
+    return resp
 
 # Remover vínculo de curso do usuário
 @app.route('/vinculacao_curso/remover', methods=['POST'])

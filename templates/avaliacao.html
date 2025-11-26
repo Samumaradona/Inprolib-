@@ -48,9 +48,19 @@
       </div>
     </div>
     <div class="right">
-      <button class="notif-btn" aria-label="Notificações" title="Notificações">
+      <button id="btnNotifications" class="notif-btn" aria-haspopup="true" aria-expanded="false" aria-label="Notificações" title="Notificações">
         <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+        <span id="notifBadge" class="notif-badge" aria-hidden="true" style="display:none"></span>
       </button>
+      <div id="notificationsDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
+        <div class="dropdown-header">
+          <strong>Notificações</strong>
+          <div class="dropdown-actions">
+            <button id="markAllRead">Marcar todas como lidas</button>
+          </div>
+        </div>
+        <div id="notifList" class="notif-list" role="listbox"></div>
+      </div>
     </div>
   </div>
 </header>
@@ -161,8 +171,8 @@
 window.USER_PHOTO = "{{ avatar_url }}";
     window.USER_ID = "{{ session.get('user_id', '') }}";
   </script>
-  <script src="notifications.js?v=1"></script>
-  <script src="home.js?v=aval-fix-1"></script>
+ <script src="{{ url_for('serve_js', script_name='notifications') }}?v=1"></script>
+ <script src="{{ url_for('serve_js', script_name='home') }}?v=aval-fix-1"></script>
   <script src="avaliacao.js?v=1"></script>
   <script>
     window.initFlashToasts && window.initFlashToasts();
