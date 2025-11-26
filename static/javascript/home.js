@@ -737,7 +737,7 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
       if(notifDropdown && notifDropdown.getAttribute('aria-hidden') === 'false'){
         fetchAndRenderNotifList();
       }
-    }, 15000);
+    }, 10000);
   }
   function setupNotifRealtime(){
     try{

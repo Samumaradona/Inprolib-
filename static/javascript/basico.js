@@ -239,8 +239,11 @@ function setCurrentRoute(path){
  * - Sugestão: substituir console.log por history.pushState(...) / router.navigate(...)
  */
 function navigateTo(path){
-  console.log('Navegar para', path);
-  // TODO: integrar com history.pushState ou mecanismo de roteamento do app
+  if (!path) return;
+  // Atualiza histórico (não carrega conteúdo SPA; apenas registra navegação)
+  try { history.pushState({ path }, '', path); } catch(e) { /* ambientes sem suporte */ }
+  // Navegação real para a rota do servidor (full page reload)
+  window.location.assign(path);
   closeMenu();
 }
 

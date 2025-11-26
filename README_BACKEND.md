@@ -12,6 +12,7 @@ Sistema de gerenciamento de repositório institucional desenvolvido em Flask com
 ### Banco de Dados
 - **PostgreSQL** - Sistema de gerenciamento de banco
 - **psycopg[binary] 3.2.10** - Driver PostgreSQL com suporte a tipos nativos
+- **psycopg_pool 3.2.4** - Pool de conexões (auto detectado, recomendado em produção)
 - **Suporte a ENUMs** - `tipo_usuario`, `status_publicacao`
 
 ### Processamento de Arquivos
@@ -54,6 +55,14 @@ SMTP_PASSWORD=sua_senha_app
 SMTP_FROM=seu_email@gmail.com
 SMTP_USE_SSL=0
 ```
+
+#### Conexão e Pooling
+- A aplicação detecta automaticamente `psycopg_pool`. Quando disponível, usa `ConnectionPool` para reduzir overhead de conexão por requisição.
+- O pool não requer configuração adicional; é habilitado automaticamente nas rotas que usam `get_db_connection()`.
+- Em produção (Render/Cloud), prefira definir `DATABASE_URL` (sobrescreve `DB_*`). Exemplo:
+  - `DATABASE_URL=postgresql://usuario:senha@host:5432/inprolib_schema`
+- O schema deve permanecer `public` (`DB_SCHEMA=public`).
+
 
 ### Estrutura de Diretórios
 ```
@@ -238,6 +247,7 @@ Notas:
 - `worker-class gthread` + `threads` garante concorrência adequada para SSE de notificações sem bloquear workers.
 - `timeout 0` evita abortar streams longos; `keep-alive 75` mantém conexões HTTP ativas por mais tempo.
 - O `mountPath` deve ser absoluto conforme a estrutura do Render.
+- Defina `DATABASE_URL` no serviço para conectar ao Postgres gerenciado; o app usará automaticamente o pool de conexões quando disponível.
 
 ## 🔧 Funcionalidades Avançadas
 
