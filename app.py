@@ -4837,7 +4837,9 @@ def api_notificacoes_stream():
             'created_at': dt_str
         }
 
-    def generate():
+    from flask import stream_with_context
+
+    def generate_inner():
         try:
             ensure_notificacoes_table()
         except Exception:
@@ -4846,6 +4848,7 @@ def api_notificacoes_stream():
         while True:
             # Keepalive rápido para evitar detecção de inatividade por proxies
             try:
+                yield "retry: 15000\n\n"  # sugere reconexão automática em 15s se cair
                 yield ": ping\n\n"
             except Exception:
                 pass
@@ -4884,10 +4887,12 @@ def api_notificacoes_stream():
             except Exception:
                 pass
 
-    resp = Response(generate(), mimetype='text/event-stream')
+    resp = Response(stream_with_context(generate_inner()), mimetype='text/event-stream')
     try:
         resp.headers['Cache-Control'] = 'no-cache'
         resp.headers['X-Accel-Buffering'] = 'no'
+        resp.headers['Connection'] = 'keep-alive'
+        resp.headers['Content-Type'] = 'text/event-stream; charset=utf-8'
     except Exception:
         pass
     return resp
@@ -6109,6 +6114,9 @@ def relatorio_abnt_doc():
 
 if __name__ == '__main__':
     # Executa a validação quando chamado com --validate; migração com --hash-migrate; caso contrário, sobe o servidor.
+    debug_env = os.getenv('FLASK_DEBUG', '0').lower() in {'1','true','yes'}
+    host = os.getenv('FLASK_HOST','0.0.0.0')
+    port = int(os.getenv('FLASK_PORT','5000'))
     if len(sys.argv) > 1:
         arg = sys.argv[1]
         if arg in ('--validate', 'validate'):
@@ -6118,6 +6126,6 @@ if __name__ == '__main__':
         elif arg in ('--seed-admins', 'seed-admins'):
             run_seed_admins()
         else:
-            app.run(host=os.getenv('FLASK_HOST','0.0.0.0'), port=int(os.getenv('FLASK_PORT','5000')), debug=True)
+            app.run(host=host, port=port, debug=debug_env, use_reloader=False, threaded=True)
     else:
-        app.run(host=os.getenv('FLASK_HOST','0.0.0.0'), port=int(os.getenv('FLASK_PORT','5000')), debug=True)
+        app.run(host=host, port=port, debug=debug_env, use_reloader=False, threaded=True)
