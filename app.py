@@ -4868,9 +4868,21 @@ def api_notificacoes_stream():
             if conn and uid:
                 try:
                     cur = conn.cursor(row_factory=dict_row)
-                    cur.execute("SELECT COUNT(*) FROM notificacao WHERE id_usuario_destinatario=%s AND lido=FALSE", (uid,))
+                    # Usa alias 'count' para funcionar com row_factory=dict_row
+                    cur.execute(
+                        "SELECT COUNT(*) AS count FROM notificacao WHERE id_usuario_destinatario=%s AND lido=FALSE",
+                        (uid,)
+                    )
                     row = cur.fetchone()
-                    count = int(row[0]) if row else 0
+                    try:
+                        # dict_row retorna um dict; acessa pela chave
+                        count = int(row.get('count')) if row else 0
+                    except Exception:
+                        # fallback para cursor padrão (tupla)
+                        try:
+                            count = int(row[0]) if row else 0
+                        except Exception:
+                            count = 0
                     cur.execute(
                         """
                         SELECT id_notificacao, titulo, mensagem, tipo, ref_tipo, ref_id, lido, created_at
