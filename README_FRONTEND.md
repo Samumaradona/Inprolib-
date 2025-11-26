@@ -50,7 +50,10 @@ static/
 ├── img/                  # Assets visuais
 │   ├── logo.png         # Logotipo principal
 │   ├── INPROLIB_em_azul.png
-│   └── Repositoriofisico.png
+│   ├── Repositoriofisico.png
+│   ├── der-conceitual.png / der-conceitual.svg
+│   ├── der-logico-plantuml.png / der-logico-plantuml.svg
+│   └── der-logico.png / der-logico.svg
 └── previews/            # Cache de PDFs gerados
 ```
 
@@ -255,6 +258,16 @@ function emailValido(email) {
 }
 ```
 
+## 📐 Documentação DER
+
+- Documentos consolidados:
+  - `docs/DER-Inprolib.pdf`
+  - `docs/DER-Inprolib.docx`
+- Dica de link no Frontend:
+  - Exemplo de âncora para o PDF: `href="/docs/DER-Inprolib.pdf" target="_blank"`.
+- Regeneração dos assets:
+  - `python scripts/generate_der_assets.py` para imagens.
+  - `python scripts/build_der_document.py` para PDF/DOCX.
 ### Componentes Adaptativos
 - **Menu lateral**: Overlay em mobile, sidebar em desktop
 - **Tabelas**: Scroll horizontal em telas pequenas

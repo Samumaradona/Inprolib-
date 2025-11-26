@@ -248,6 +248,26 @@ services:
 ### Validações
 - **CPF**: Algoritmo completo de validação
 - **E-mail**: Formato e unicidade
+
+## 📐 DER — Diagramas e Documentos
+
+- Assets dos diagramas em `static/img`:
+  - `der-conceitual.png` / `der-conceitual.svg`
+  - `der-logico-plantuml.png` / `der-logico-plantuml.svg`
+  - `der-logico.png` / `der-logico.svg`
+- Documentos consolidados:
+  - `docs/DER-Inprolib.pdf`
+  - `docs/DER-Inprolib.docx`
+- Scripts disponíveis:
+  - `python scripts/generate_der_assets.py` — Regenera PNG/SVG a partir dos arquivos fonte e serviços remotos.
+  - `python scripts/build_der_document.py` — Constrói PDF e DOCX com capa, sumário, cabeçalho/rodapé e legendas.
+- Comportamentos implementados:
+  - Validação de `Content-Type` para respostas do PlantUML (evita arquivos inválidos).
+  - Fallback inteligente: re-renderização via **Kroki** (Mermaid/PlantUML) quando o PNG está ausente ou corrompido.
+  - Ajuste de tamanho das imagens no PDF para evitar `LayoutError`.
+  - Se o Word estiver com o arquivo aberto, o DOCX é salvo como `DER-Inprolib-fixed.docx`.
+- Pré-requisitos:
+  - `pip install -r requirements.txt` (inclui `requests`, `reportlab`, `python-docx`, `Pillow`).
 - **Arquivos**: Tipo MIME e tamanho
 - **Captcha**: Sistema simples matemático
 

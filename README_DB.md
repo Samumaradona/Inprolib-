@@ -231,17 +231,24 @@ DB_POOL_SIZE=10
 
 Observação: se houver necessidade futura de múltiplos schemas, isso deve ser tratado como projeto de migração separado, com revisão de `banco.sql`, queries, constraints e políticas de acesso.
 
-### Scripts de Automação
+### Diagramas DER e Documentação
 
-#### Criação do Banco
-```bash
-python scripts/create_db.py
-```
-
-#### Aplicação do Schema
-```bash
-python scripts/apply_sql.py
-```
+- Imagens atualizadas (PNG/SVG) em `static/img`:
+  - `der-conceitual.png` / `der-conceitual.svg`
+  - `der-logico-plantuml.png` / `der-logico-plantuml.svg`
+  - `der-logico.png` / `der-logico.svg`
+- Documentos gerados:
+  - `docs/DER-Inprolib.pdf`
+  - `docs/DER-Inprolib.docx`
+- Como regenerar os assets dos DERs:
+  - Instale dependências: `pip install -r requirements.txt`
+  - Gere imagens: `python scripts/generate_der_assets.py`
+  - Construa PDF/DOCX: `python scripts/build_der_document.py`
+- Comportamentos adicionados:
+  - Validação de `Content-Type` ao baixar imagens do PlantUML.
+  - Fallback de re-renderização via Kroki (Mermaid/PlantUML) se PNG estiver ausente/corrompido.
+  - Ajuste automático de tamanho das imagens no PDF para evitar erros de layout.
+  - Se o `.docx` estiver aberto, o script salva como `DER-Inprolib-fixed.docx`.
 
 ### Inicialização Automática
 O sistema possui **auto-criação** do banco de dados:
