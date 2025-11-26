@@ -591,6 +591,56 @@ def password_policy_ok(pwd: str) -> bool:
 # Usa psycopg (v3) e cria o banco automaticamente se ele não existir
 SCHEMA_READY = False
 
+# Cache leve com TTL para listas usadas na página de publicação
+# Evita reconsultas no banco a cada carregamento e reduz latência
+PUBLICACAO_CACHE = {
+    'cursos': [],
+    'tipos': [],
+    'professores': [],
+    'expires_at': None  # datetime
+}
+
+# Flag para garantir índices em publicacao apenas uma vez
+PUBLICACAO_INDEXES_READY = False
+
+def ensure_publicacao_indexes():
+    """Cria índices úteis para filtros/ordenação de publicações.
+    Executa rapidamente se já existirem (IF NOT EXISTS).
+    """
+    global PUBLICACAO_INDEXES_READY
+    if PUBLICACAO_INDEXES_READY:
+        return
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        # Índice por status para filtro de Publicado/Pendente/Indeferido
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_publicacao_status
+            ON publicacao (status)
+        """)
+        # Índice combinado (autor,status) usado na visão de aluno
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_publicacao_autor_status
+            ON publicacao (id_autor, status)
+        """)
+        # Índice por data para ordenação recente
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_publicacao_data
+            ON publicacao (data_publicacao DESC)
+        """)
+        conn.commit()
+        cur.close(); conn.close()
+        PUBLICACAO_INDEXES_READY = True
+    except Exception:
+        try:
+            conn and conn.close()
+        except Exception:
+            pass
+        # Silencioso: se não conseguir criar, segue sem bloquear requisições
+        pass
+
 def get_db_connection():
     """Cria uma conexão com o Postgres usando DATABASE_URL ou DB_CONFIG.
     Em caso de erro, retorna None sem interromper o fluxo da aplicação.
@@ -3198,14 +3248,23 @@ def publicacao():
         return redirect(url_for('publicacao'))
 
     # Buscar cursos e tipos de publicação para o formulário e listar últimas publicações
-    cursos = []
-    tipos = []
-    professores = []
+    # Usa cache com TTL curto (120s) para reduzir consultas repetidas
+    ttl_seconds = 120
+    now = datetime.now()
+    use_cache = (PUBLICACAO_CACHE.get('expires_at') and PUBLICACAO_CACHE['expires_at'] > now)
+    cursos = PUBLICACAO_CACHE['cursos'] if use_cache else []
+    tipos = PUBLICACAO_CACHE['tipos'] if use_cache else []
+    professores = PUBLICACAO_CACHE['professores'] if use_cache else []
     publicacoes = []
     conn = get_db_connection()
     if conn:
         try:
             cur = conn.cursor(row_factory=dict_row)
+            # Garante índices (barato e executado apenas uma vez)
+            try:
+                ensure_publicacao_indexes()
+            except Exception:
+                pass
             # Corrige publicações sem avaliação marcadas como Publicada
             # Executa em conexão isolada para evitar abortar a transação usada nas consultas abaixo
             try:
@@ -3237,30 +3296,33 @@ def publicacao():
                 ensure_curso_ativo_column()
             except Exception:
                 pass
-            cur.execute("""
-                SELECT id_curso, nome_curso
-                FROM curso
-                WHERE COALESCE(ativo, TRUE) = TRUE
-                ORDER BY nome_curso
-            """)
-            cursos = cur.fetchall()
+            if not use_cache:
+                cur.execute("""
+                    SELECT id_curso, nome_curso
+                    FROM curso
+                    WHERE COALESCE(ativo, TRUE) = TRUE
+                    ORDER BY nome_curso
+                """)
+                cursos = cur.fetchall()
             
-            cur.execute("SELECT * FROM tipos_de_publicacao ORDER BY nome_tipo")
-            tipos = cur.fetchall()
+            if not use_cache:
+                cur.execute("SELECT * FROM tipos_de_publicacao ORDER BY nome_tipo")
+                tipos = cur.fetchall()
 
             # Filtra orientadores/professores ativos
             try:
                 ensure_usuario_ativo_column()
             except Exception:
                 pass
-            cur.execute("""
-                SELECT id_usuario, nome
-                FROM usuario
-                WHERE tipo::text IN ('Professor','Docente')
-                  AND COALESCE(ativo, TRUE) = TRUE
-                ORDER BY nome
-            """)
-            professores = cur.fetchall()
+            if not use_cache:
+                cur.execute("""
+                    SELECT id_usuario, nome
+                    FROM usuario
+                    WHERE tipo::text IN ('Professor','Docente')
+                      AND COALESCE(ativo, TRUE) = TRUE
+                    ORDER BY nome
+                """)
+                professores = cur.fetchall()
 
             # Filtragem de "Últimas publicações" conforme perfil
             user_role = (session.get('user_tipo') or session.get('role') or '').strip()
@@ -3329,6 +3391,12 @@ def publicacao():
             
             cur.close()
             conn.close()
+            # Atualiza cache com TTL se recarregou os dados
+            if not use_cache:
+                PUBLICACAO_CACHE['cursos'] = cursos
+                PUBLICACAO_CACHE['tipos'] = tipos
+                PUBLICACAO_CACHE['professores'] = professores
+                PUBLICACAO_CACHE['expires_at'] = now + timedelta(seconds=ttl_seconds)
         except Exception as e:
             # Não exibir erros na tela durante o carregamento inicial (GET)
             # Registrar em log para diagnóstico sem interromper a experiência do usuário
@@ -4776,6 +4844,11 @@ def api_notificacoes_stream():
             pass
         # Envia imediatamente um snapshot atual e depois atualiza periodicamente
         while True:
+            # Keepalive rápido para evitar detecção de inatividade por proxies
+            try:
+                yield ": ping\n\n"
+            except Exception:
+                pass
             count = 0
             items = []
             conn = get_db_connection()

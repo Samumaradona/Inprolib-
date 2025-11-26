@@ -3,7 +3,7 @@ services:
     name: inprolib-web
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 180 --graceful-timeout 60 --keep-alive 75 --workers 3 --threads 8
     autoDeploy: true
     envVars:
       - key: SECRET_KEY
@@ -38,7 +38,7 @@ services:
         value: 0
       - key: SUPPORT_EMAIL
         value: suporteinprolib@gmail.com
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2 --threads 4
+    # Removido segundo startCommand duplicado; acima está a configuração única de execução
     disk:
       name: uploads
       mountPath: static/uploads
