@@ -1077,6 +1077,28 @@ def ensure_notificacoes_table():
                 """
             )
             conn.commit()
+        # Índices para acelerar consultas frequentes (contagem e últimos não lidos)
+        try:
+            # Parcial: somente não lidos por usuário (acelera COUNT e listagem)
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_notif_user_unread
+                ON notificacao (id_usuario_destinatario)
+                WHERE lido = FALSE
+                """
+            )
+            # Parcial com ordenação por created_at (melhora ORDER BY / LIMIT)
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_notif_user_unread_created
+                ON notificacao (id_usuario_destinatario, created_at DESC)
+                WHERE lido = FALSE
+                """
+            )
+            conn.commit()
+        except Exception:
+            # Índices são otimizações — não bloquear execução se falhar
+            pass
         cur.close(); conn.close()
     except Exception as e:
         try:
@@ -4868,10 +4890,11 @@ def api_notificacoes_stream():
             pass
         # Envia imediatamente um snapshot atual e depois atualiza periodicamente
         while True:
-            # Keepalive rápido para evitar detecção de inatividade por proxies
+            # Keepalive rápido para evitar detecção de inatividade por proxies e workers
             try:
                 yield "retry: 10000\n\n"  # reconexão automática em ~10s se cair
-                yield ": ping\n\n"
+                keepalive = json.dumps({"type": "ping", "ts": int(time.time()*1000)})
+                yield f"event: ping\ndata: {keepalive}\n\n"
             except Exception:
                 pass
             count = 0
@@ -4895,18 +4918,20 @@ def api_notificacoes_stream():
                             count = int(row[0]) if row else 0
                         except Exception:
                             count = 0
-                    cur.execute(
-                        """
-                        SELECT id_notificacao, titulo, mensagem, tipo, ref_tipo, ref_id, lido, created_at
-                        FROM notificacao
-                        WHERE id_usuario_destinatario=%s AND lido=FALSE
-                        ORDER BY created_at DESC, id_notificacao DESC
-                        LIMIT 10
-                        """,
-                        (uid,)
-                    )
-                    rows = cur.fetchall() or []
-                    items = [to_item(r) for r in rows]
+                    # Só busca itens quando há não lidas; evita I/O desnecessário
+                    if count > 0:
+                        cur.execute(
+                            """
+                            SELECT id_notificacao, titulo, mensagem, tipo, ref_tipo, ref_id, lido, created_at
+                            FROM notificacao
+                            WHERE id_usuario_destinatario=%s AND lido=FALSE
+                            ORDER BY created_at DESC, id_notificacao DESC
+                            LIMIT 10
+                            """,
+                            (uid,)
+                        )
+                        rows = cur.fetchall() or []
+                        items = [to_item(r) for r in rows]
                     cur.close(); conn.close()
                 except Exception:
                     try:
@@ -4917,7 +4942,7 @@ def api_notificacoes_stream():
             yield f"data: {payload}\n\n"
             # Intervalo de atualização
             try:
-                time.sleep(10)
+                time.sleep(8)  # < timeout padrão de muitos proxies/servidores
             except Exception:
                 pass
 
