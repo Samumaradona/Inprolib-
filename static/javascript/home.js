@@ -551,7 +551,12 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
     btnNotifications.setAttribute('aria-expanded','true');
     // estado de carregamento enquanto busca dados
     try {
-      notifDropdown.innerHTML = '<div class="notif-loading">Carregando notificações...</div>';
+      const listEl = document.getElementById('notifList');
+      if(listEl){
+        listEl.innerHTML = '<div class="notif-loading">Carregando notificações...</div>';
+      } else {
+        notifDropdown.innerHTML = '<div class="notif-loading">Carregando notificações...</div>';
+      }
     } catch(_){ }
     // busca e renderiza notificações ao abrir
     fetchAndRenderNotifList();
@@ -559,7 +564,8 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
     fetchNotifCount();
     // foca o primeiro item (acessibilidade)
     setTimeout(() => {
-      const first = notifDropdown.querySelector('.notif-item');
+      const container = document.getElementById('notifList') || notifDropdown;
+      const first = container.querySelector('.notif-item');
       if(first) first.focus();
     }, 0);
   }
@@ -572,6 +578,13 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
       const j = await r.json();
       const c = j && (j.count ?? j.total ?? 0);
       updateNotifBadge(c);
+      // Autoabrir uma única vez se houver não lidas e a opção estiver habilitada
+      try{
+        if (autoOpenIfHas && !notifAutoOpenDone && c > 0){
+          openNotifDropdown();
+          notifAutoOpenDone = true;
+        }
+      }catch(_){ }
       
     }catch(_){ /* mantém estado atual */ }
   }
@@ -622,45 +635,75 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
     }
 
     const arr = Array.isArray(items) ? items : [];
-    if(!arr.length){
-      notifDropdown.innerHTML = '<div class="notif-empty">Você não tem novas notificações</div>';
-      return;
-    }
-    const html = [
-      '<div class="notif-menu-header">'
-      + '<span>Notificações</span>'
-      + '<button id="btnMarkAllRead" class="notif-mark-all">Marcar todas lidas</button>'
-      + '</div>'
-    ];
-    arr.forEach(n => {
-      const tipo = (n.tipo || 'info');
-      const title = (n.titulo || n.title || '');
-      const msg = (n.mensagem || n.message || '');
-      const ts = (n.ts || n.timestamp || n.created_at || '');
-      // servidor usa 'lido'; também aceitamos variações por compatibilidade
-      const read = !!(n.lido || n.lida || n.read);
-      const id = (n.id || n.id_notificacao || '');
-      const refTipo = (n.ref_tipo || n.refType || '');
-      const refId = (n.ref_id || n.refId || '');
-      // URL relacionada (mantendo estrutura existente): publicacao -> /publicacao; fallback -> /home
-      let href = '/home';
-      if(String(refTipo).toLowerCase().includes('publicacao')){
-        href = '/publicacao';
+    const listEl = document.getElementById('notifList');
+    if(listEl){
+      if(!arr.length){
+        listEl.innerHTML = '<div class="notif-empty">Você não tem novas notificações</div>';
+      } else {
+        const htmlItems = [];
+        arr.forEach(n => {
+          const tipo = (n.tipo || 'info');
+          const title = (n.titulo || n.title || '');
+          const msg = (n.mensagem || n.message || '');
+          const ts = (n.ts || n.timestamp || n.created_at || '');
+          const read = !!(n.lido || n.lida || n.read);
+          const id = (n.id || n.id_notificacao || '');
+          const refTipo = (n.ref_tipo || n.refType || '');
+          const refId = (n.ref_id || n.refId || '');
+          let href = '/home';
+          if(String(refTipo).toLowerCase().includes('publicacao')){ href = '/publicacao'; }
+          const icon = tipo === 'success' ? 'task_alt' : (tipo === 'error' ? 'error' : 'info');
+          const rel = timeAgo(ts);
+          htmlItems.push(
+            `<div class="notif-item" data-id="${id}" data-read="${read}" data-ref-tipo="${String(refTipo||'')}" data-ref-id="${String(refId||'')}" data-href="${href}" data-ts="${String(ts)}">
+               <span class="material-symbols-outlined">${icon}</span>
+               <div>
+                 <div class="notif-title">${title}</div>
+                 <div class="notif-sub">${msg}${rel ? ` • <span class="notif-time">${rel}</span>` : ''}</div>
+                 <button class="notif-mark-read" data-id="${id}">Marcar lida</button>
+               </div>
+             </div>`
+          );
+        });
+        listEl.innerHTML = htmlItems.join('');
       }
-      const icon = tipo === 'success' ? 'task_alt' : (tipo === 'error' ? 'error' : 'info');
-      const rel = timeAgo(ts);
-      html.push(
-        `<div class="notif-item" data-id="${id}" data-read="${read}" data-ref-tipo="${String(refTipo||'')}" data-ref-id="${String(refId||'')}" data-href="${href}" data-ts="${String(ts)}">
-           <span class="material-symbols-outlined">${icon}</span>
-           <div>
-             <div class="notif-title">${title}</div>
-             <div class="notif-sub">${msg}${rel ? ` • <span class="notif-time">${rel}</span>` : ''}</div>
-             <button class="notif-mark-read" data-id="${id}">Marcar lida</button>
-           </div>
-         </div>`
-      );
-    });
-    notifDropdown.innerHTML = html.join('');
+    } else {
+      if(!arr.length){
+        notifDropdown.innerHTML = '<div class="notif-empty">Você não tem novas notificações</div>';
+        return;
+      }
+      const html = [
+        '<div class="notif-menu-header">'
+        + '<span>Notificações</span>'
+        + '<button id="btnMarkAllRead" class="notif-mark-all">Marcar todas lidas</button>'
+        + '</div>'
+      ];
+      arr.forEach(n => {
+        const tipo = (n.tipo || 'info');
+        const title = (n.titulo || n.title || '');
+        const msg = (n.mensagem || n.message || '');
+        const ts = (n.ts || n.timestamp || n.created_at || '');
+        const read = !!(n.lido || n.lida || n.read);
+        const id = (n.id || n.id_notificacao || '');
+        const refTipo = (n.ref_tipo || n.refType || '');
+        const refId = (n.ref_id || n.refId || '');
+        let href = '/home';
+        if(String(refTipo).toLowerCase().includes('publicacao')){ href = '/publicacao'; }
+        const icon = tipo === 'success' ? 'task_alt' : (tipo === 'error' ? 'error' : 'info');
+        const rel = timeAgo(ts);
+        html.push(
+          `<div class="notif-item" data-id="${id}" data-read="${read}" data-ref-tipo="${String(refTipo||'')}" data-ref-id="${String(refId||'')}" data-href="${href}" data-ts="${String(ts)}">
+             <span class="material-symbols-outlined">${icon}</span>
+             <div>
+               <div class="notif-title">${title}</div>
+               <div class="notif-sub">${msg}${rel ? ` • <span class="notif-time">${rel}</span>` : ''}</div>
+               <button class="notif-mark-read" data-id="${id}">Marcar lida</button>
+             </div>
+           </div>`
+        );
+      });
+      notifDropdown.innerHTML = html.join('');
+    }
     // ação: marcar todas como lidas
     const btnAll = document.getElementById('btnMarkAllRead');
     if(btnAll){
@@ -783,7 +826,47 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
       es.onerror = ()=>{ try{ es.close(); }catch(_){}; startPollingFallback(); };
     }catch(_){ startPollingFallback(); }
   }
-  setupNotifRealtime();
+  // Inicialização de notificações com fallback robusto
+  function setupNotifRealtimeEnhanced(){
+    try{
+      if(setupNotifRealtimeEnhanced._started) return;
+      setupNotifRealtimeEnhanced._started = true;
+      if(!USER_ID){ startPollingFallback(); return; }
+      if(typeof EventSource === 'undefined'){ startPollingFallback(); return; }
+      const controller = ('AbortController' in window) ? new AbortController() : null;
+      const timer = setTimeout(()=>{ try{ controller && controller.abort(); }catch(_){ } }, 2500);
+      fetch('/api/notificacoes/count', { headers: { 'Accept':'application/json' }, signal: controller ? controller.signal : undefined })
+        .then(r => { try{ clearTimeout(timer); }catch(_){ } return r.ok ? r.json() : Promise.reject(new Error('count failed')); })
+        .then(() => {
+          const es = new EventSource('/api/notificacoes/stream');
+          es.onmessage = (e)=>{
+            try{
+              const data = JSON.parse(e.data || '{}');
+              if(typeof data.count === 'number'){
+                const prev = parseInt(notifBadge && (notifBadge.textContent||'0'), 10) || 0;
+                updateNotifBadge(data.count);
+                if (notifDropdown && notifDropdown.getAttribute('aria-hidden') === 'false'){
+                  const hasItems = !!notifDropdown.querySelector('.notif-item');
+                  if (!hasItems && data.count > 0){
+                    try { notifDropdown.innerHTML = '<div class="notif-loading">Carregando notificações...</div>'; } catch(_){ }
+                    fetchAndRenderNotifList();
+                  }
+                }
+              }
+              const items = data.items;
+              if(items && notifDropdown && notifDropdown.getAttribute('aria-hidden') === 'false'){
+                renderNotifList(items);
+              }
+            }catch(_){ /* ignora */ }
+          };
+          es.onerror = ()=>{ try{ es.close(); }catch(_){ } ; startPollingFallback(); };
+        })
+        .catch(() => { startPollingFallback(); });
+    }catch(_){ startPollingFallback(); }
+  }
+  setupNotifRealtimeEnhanced();
+  // Consulta inicial com autoabertura condicional (apenas uma vez)
+  try{ fetchNotifCount({ autoOpenIfHas: true }); }catch(_){}
 
   /**
    * loadAvatar()
@@ -865,6 +948,31 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
       ev.stopPropagation(); // impede clique subir para document
     });
   }
+
+  // Fallback: botão estático existente em alguns templates (ex.: avaliacao.html)
+  // Garante funcionalidade mesmo antes do conteúdo dinâmico ser renderizado
+  (function bindLegacyMarkAll(){
+    try{
+      const legacyBtn = document.getElementById('markAllRead');
+      if(!legacyBtn) return;
+      legacyBtn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        try{
+          const r = await fetch('/api/notificacoes/read_all', { method:'POST', headers: { 'Accept':'application/json' } });
+          await r.json().catch(() => ({}));
+          updateNotifBadge(0);
+          if(notifDropdown){
+            notifDropdown.innerHTML = '<div class=\"notif-empty\">Você não tem novas notificações</div>';
+          }
+          // Reconsulta o backend para sincronizar contagem real
+          try { await fetchNotifCount(); } catch(_){ }
+          try { window.showToast && window.showToast('Notificações marcadas como lidas.', 'success'); } catch(_){}
+        }catch(_){
+          try { window.showToast && window.showToast('Falha ao marcar notificações.', 'error'); } catch(__){}
+        }
+      });
+    }catch(_){ }
+  })();
 
   /* Toggle dropdown do perfil (abre/fecha) */
   if(btnProfile && profileDropdown){
