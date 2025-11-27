@@ -3992,6 +3992,58 @@ def preview_pdf_publicacao(id_publicacao):
                 doc.build([Paragraph('Arquivo da publicação não encontrado.', getSampleStyleSheet()['Normal'])])
                 return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
         ext = os.path.splitext(stored_name)[1].lower()
+        # Suporte direto a PDF: exibe inline no iframe
+        if ext == '.pdf':
+            try:
+                return send_file(full_path, mimetype='application/pdf', as_attachment=False)
+            except Exception:
+                # Se falhar o envio direto, tenta cache de preview
+                preview_dir = ensure_previews_dir()
+                preview_name = f'preview_pub_{id_publicacao}.pdf'
+                preview_path = os.path.join(preview_dir, preview_name)
+                try:
+                    make_error_pdf(preview_path, 'Falha ao exibir PDF', f'Não foi possível abrir o arquivo PDF da publicação (id {id_publicacao}).')
+                    return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+                except Exception:
+                    return make_response('<div style="padding:12px;color:#dc2626;">Não foi possível exibir o PDF.</div>', 500)
+
+        # Imagem → PDF
+        if ext in ('.png', '.jpg', '.jpeg', '.webp', '.gif'):
+            try:
+                image_to_pdf_reportlab(full_path, preview_path)
+                return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+            except Exception:
+                try:
+                    make_error_pdf(preview_path, 'Conversão não disponível', f'Falha ao converter imagem {stored_name} para PDF.')
+                    return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+                except Exception:
+                    return make_response('<div style="padding:12px;color:#dc2626;">Falha na conversão de imagem para PDF.</div>', 500)
+
+        # TXT → PDF
+        if ext == '.txt':
+            try:
+                text_to_pdf_reportlab(full_path, preview_path)
+                return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+            except Exception:
+                try:
+                    make_error_pdf(preview_path, 'Conversão não disponível', f'Falha ao converter texto {stored_name} para PDF.')
+                    return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+                except Exception:
+                    return make_response('<div style="padding:12px;color:#dc2626;">Falha na conversão de TXT para PDF.</div>', 500)
+
+        # CSV → PDF
+        if ext == '.csv':
+            try:
+                csv_to_pdf_reportlab(full_path, preview_path)
+                return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+            except Exception:
+                try:
+                    make_error_pdf(preview_path, 'Conversão não disponível', f'Falha ao converter CSV {stored_name} para PDF.')
+                    return send_from_directory(preview_dir, preview_name, mimetype='application/pdf', as_attachment=False)
+                except Exception:
+                    return make_response('<div style="padding:12px;color:#dc2626;">Falha na conversão de CSV para PDF.</div>', 500)
+
+        # Somente Office requer conversão automática via LibreOffice/fallbacks
         if ext not in ('.doc', '.docx', '.xls', '.xlsx'):
             return make_response('<div style="padding:12px;color:#6b7280;">Formato não suportado para conversão automática.</div>', 400)
 

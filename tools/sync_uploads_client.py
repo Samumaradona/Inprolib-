@@ -27,7 +27,41 @@ import zipfile
 import requests
 
 
-def build_zip_from_missing(src_dir: str, missing: list[dict]) -> bytes:
+def _looks_timestamp_prefix(token: str) -> bool:
+    # Ex.: 20251126154746 (>=12 dígitos)
+    return token.isdigit() and 12 <= len(token) <= 16
+
+
+def _find_local_file(src_dir: str, expected_name: str, enable_fuzzy: bool) -> tuple[str | None, str]:
+    """Tenta localizar o arquivo local. Retorna (path, reason).
+    Se enable_fuzzy=True, tenta casar por nome sem o prefixo de timestamp e busca recursiva.
+    """
+    direct = os.path.join(src_dir, expected_name)
+    if os.path.exists(direct):
+        return direct, 'exact'
+
+    if not enable_fuzzy:
+        return None, 'not_found'
+
+    # Tentar fuzzy: remover prefixo de timestamp antes do primeiro '_'
+    base = expected_name
+    if '_' in expected_name:
+        prefix, rest = expected_name.split('_', 1)
+        if _looks_timestamp_prefix(prefix):
+            base = rest
+
+    # Busca recursiva por nome exatamente igual ao base (case-insensitive)
+    base_lower = base.lower()
+    for root, _dirs, files in os.walk(src_dir):
+        for f in files:
+            # Casa por sufixo: permite que arquivos locais tenham prefixo (ex.: timestamp)
+            if f.lower().endswith(base_lower):
+                return os.path.join(root, f), 'fuzzy'
+
+    return None, 'not_found'
+
+
+def build_zip_from_missing(src_dir: str, missing: list[dict], enable_fuzzy: bool = True) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
         added = 0
@@ -35,12 +69,15 @@ def build_zip_from_missing(src_dir: str, missing: list[dict]) -> bytes:
             fname = (item.get('nome_arquivo') or '').strip()
             if not fname:
                 continue
-            local_path = os.path.join(src_dir, fname)
-            if os.path.exists(local_path):
+            local_path, reason = _find_local_file(src_dir, fname, enable_fuzzy)
+            if local_path:
+                # arcname=fname garante que o servidor gravará com o nome esperado
                 zf.write(local_path, arcname=fname)
                 added += 1
+                if reason == 'fuzzy':
+                    print(f"[info] Fuzzy match: {os.path.basename(local_path)} -> {fname}")
             else:
-                print(f"[warn] Arquivo local não encontrado: {local_path}")
+                print(f"[warn] Arquivo local não encontrado para: {fname}")
     buf.seek(0)
     if buf.tell() == 0:
         # Em alguns ambientes, tell retorna 0 mesmo com dados; força leitura para contagem
@@ -56,6 +93,7 @@ def main():
     parser.add_argument('--limit', type=int, default=500, help='Limite de itens faltantes a processar')
     parser.add_argument('--overwrite', action='store_true', help='Sobrescrever arquivos existentes no servidor')
     parser.add_argument('--dry-run', action='store_true', help='Apenas listar, não enviar')
+    parser.add_argument('--no-fuzzy', action='store_true', help='Desativa casamento por nome sem timestamp')
     args = parser.parse_args()
 
     server = args.server.rstrip('/')
@@ -92,7 +130,7 @@ def main():
 
     # 2) Montar ZIP
     src_dir = os.path.abspath(args.src)
-    zip_bytes = build_zip_from_missing(src_dir, missing)
+    zip_bytes = build_zip_from_missing(src_dir, missing, enable_fuzzy=(not args.no_fuzzy))
     if not zip_bytes:
         print('[error] Nenhum arquivo local correspondente encontrado em', src_dir)
         sys.exit(5)

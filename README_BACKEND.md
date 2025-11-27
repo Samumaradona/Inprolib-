@@ -139,6 +139,13 @@ TelaTest ADM/
 - **Office**: `.docx`, `.xlsx`, `.xls` → conversão para PDF
 - **Texto**: `.txt`, `.csv` → exibição formatada
 
+#### Notas de Conversão (TXT/CSV/Imagens)
+- As pré-visualizações são servidas como PDF inline no modal, garantindo compatibilidade ampla.
+- Imagens são encaixadas automaticamente na página, preservando proporções.
+- TXT é renderizado com cabeçalho, monoespaçado e quebra de linha simples.
+- CSV é convertido em tabela com cabeçalho; arquivos muito extensos podem ser truncados para manter desempenho.
+- Para Office, se o LibreOffice estiver disponível no servidor, é usado preferencialmente; do contrário, aplica-se um fallback simplificado.
+
 ## 🛣️ Rotas e Endpoints
 
 ### Autenticação
