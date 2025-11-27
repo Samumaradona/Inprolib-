@@ -90,12 +90,16 @@
     preview.innerHTML = '';
     // Sempre usa a rota de preview em PDF quando há id
     if(id){
+      const src = `${location.origin}/preview_pdf_publicacao/${id}#zoom=page-width`;
       const frame = document.createElement('iframe');
-      frame.src = `/preview_pdf_publicacao/${id}`;
+      frame.src = src;
       frame.title = titulo || 'Pré-visualização PDF';
       frame.style.width = '100%';
       frame.style.height = '520px';
       frame.style.border = '0';
+      frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-downloads');
+      frame.setAttribute('referrerpolicy','no-referrer');
+      frame.setAttribute('loading','lazy');
       preview.appendChild(frame);
     } else if(url){
       // Fallback sem id: usa URL direta conforme tipo
@@ -106,6 +110,9 @@
         img.alt = titulo || 'Conteúdo da publicação';
         img.style.maxWidth = '100%';
         img.style.borderRadius = '8px';
+        img.setAttribute('loading','lazy');
+        img.setAttribute('referrerpolicy','no-referrer');
+        img.setAttribute('decoding','async');
         preview.appendChild(img);
       }else if(ext === '.pdf'){
         const frame = document.createElement('iframe');
@@ -114,13 +121,34 @@
         frame.style.width = '100%';
         frame.style.height = '520px';
         frame.style.border = '0';
+        // Ampliamos permissões para melhor compatibilidade do visualizador PDF
+        frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-downloads allow-popups');
+        frame.setAttribute('referrerpolicy','no-referrer');
+        frame.setAttribute('loading','lazy');
         preview.appendChild(frame);
+        // Fallback útil: abrir em nova aba e baixar
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.gap = '8px';
+        actions.style.alignItems = 'center';
+        actions.style.marginTop = '8px';
+        const openLink = document.createElement('a');
+        openLink.href = url;
+        openLink.target = '_blank';
+        openLink.rel = 'noopener';
+        openLink.textContent = 'Abrir em nova aba';
+        const dlLink = document.createElement('a');
+        dlLink.href = url.replace('/preview_pdf_publicacao/','/download_pdf_publicacao/');
+        dlLink.textContent = 'Baixar PDF';
+        actions.appendChild(openLink);
+        actions.appendChild(dlLink);
+        preview.appendChild(actions);
       }else if(ext === '.txt' || ext === '.csv'){
         const msg = document.createElement('div');
         msg.textContent = 'Carregando pré-visualização...';
         msg.style.color = '#334155';
         preview.appendChild(msg);
-        fetch(url).then(r=>r.text()).then(text=>{
+        fetch(url, { referrerPolicy: 'no-referrer' }).then(r=>r.text()).then(text=>{
           preview.innerHTML = '';
           const pre = document.createElement('pre');
           pre.textContent = text;

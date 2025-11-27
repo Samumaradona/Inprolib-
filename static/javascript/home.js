@@ -452,44 +452,46 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
     }catch(_){ return ''; }
   }
 
-  function openNotifModal(data){
-    if(!notifModal) return;
-    const { id, title, msg, ts, refTipo, refId } = (data || {});
-    if(notifModalTitle) notifModalTitle.textContent = title || 'Notificação';
-    if(notifModalMessage) notifModalMessage.textContent = msg || '';
-    if(notifModalMeta) notifModalMeta.textContent = ts ? notifTimeAgo(ts) : '';
-    if(notifModalMarkRead) notifModalMarkRead.setAttribute('data-id', id || '');
+  // Determina a URL alvo para a notificação
+  function getNotifTargetURL(refTipo, refId){
+    const t = String(refTipo||'').toLowerCase();
+    if(refId && (t.includes('publicacao') || t.includes('avaliacao'))){
+      return `${location.origin}/preview_pdf_publicacao/${encodeURIComponent(refId)}`;
+    }
+    return `${location.origin}/home`;
+  }
 
-    // Esconde o dropdown de notificações enquanto o modal estiver aberto
-    try{
-      notifDropdownWasOpenOnModal = (notifDropdown && notifDropdown.getAttribute('aria-hidden') === 'false');
-      if(notifDropdown){ notifDropdown.setAttribute('aria-hidden','true'); }
-      if(btnNotifications){ btnNotifications.setAttribute('aria-expanded','false'); }
-      notifModalActive = true;
-    }catch(_){ }
-    try{
-      if(notifModalPreview){
-        notifModalPreview.innerHTML = '';
-        const tipo = String(refTipo || '').toLowerCase();
-        if(refId && tipo.includes('publicacao')){
-          const iframe = document.createElement('iframe');
-          iframe.src = `/preview_pdf_publicacao/${encodeURIComponent(refId)}#zoom=page-width`;
-          iframe.style.width = '100%';
-          iframe.style.height = '360px';
-          iframe.style.border = '0';
-          iframe.setAttribute('title','Pré-visualização do documento');
-          notifModalPreview.appendChild(iframe);
-        } else {
-          const info = document.createElement('div');
-          info.style.padding = '12px';
-          info.style.color = '#334155';
-          info.textContent = 'Sem documento associado. Veja a mensagem acima.';
-          notifModalPreview.appendChild(info);
-        }
+  // Abre em nova aba e marca a notificação como lida; não usa modal
+  async function openNotifInNewTabAndMarkRead({ id, refTipo, refId } = {}){
+    const target = getNotifTargetURL(refTipo, refId);
+    try{ window.open(target, '_blank', 'noopener'); }catch(_){ location.href = target; }
+    if(id){
+      try{
+        const r = await fetch('/api/notificacoes/read', {
+          method:'POST', headers:{ 'Content-Type':'application/json', 'Accept':'application/json' },
+          body: JSON.stringify({ id })
+        });
+        await r.json().catch(()=>({}));
+      }catch(_){ }
+      // Atualiza UI: remove item e sincroniza badge
+      try{
+        const item = notifDropdown && notifDropdown.querySelector(`.notif-item[data-id="${id}"]`);
+        if(item){ item.remove(); }
+      }catch(_){ }
+      const current = parseInt(notifBadge && (notifBadge.textContent||'0'), 10) || 0;
+      updateNotifBadge(Math.max(0, current - 1));
+      try { await fetchNotifCount(); } catch(_){ }
+      if(notifDropdown && !notifDropdown.querySelector('.notif-item')){
+        notifDropdown.innerHTML = '<div class="notif-empty">Você não tem novas notificações</div>';
+        try { await fetchNotifCount(); } catch(_){ }
       }
-    }catch(_){ }
-    notifModal.setAttribute('aria-hidden','false');
-    notifModal.classList.add('open');
+    }
+  }
+
+  // Mantém assinatura antiga: qualquer chamada ao modal agora delega para nova aba
+  function openNotifModal(data){
+    const payload = data || {};
+    openNotifInNewTabAndMarkRead({ id: payload.id, refTipo: payload.refTipo, refId: payload.refId });
   }
 
   function closeNotifModal(){
@@ -720,24 +722,23 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
         }catch(_){ try { window.showToast && window.showToast('Falha ao marcar notificações.', 'error'); } catch(__){} }
       });
     }
-    // ação: abrir modal de referência ao clicar na notificação
+    // ação: ao clicar na notificação, abrir em nova aba e marcar como lida
     notifDropdown.querySelectorAll('.notif-item[data-id]').forEach(el => {
       // destaque visual para não lidas
       try { if(el.getAttribute('data-read') === 'false') el.classList.add('is-unread'); } catch(_){}
-      el.addEventListener('click', async (ev) => {
-        ev.stopPropagation();
+
+      function handleOpen(){
         const id = el.getAttribute('data-id');
-        const ts = el.getAttribute('data-ts') || '';
         const refTipo = el.getAttribute('data-ref-tipo') || '';
         const refId = el.getAttribute('data-ref-id') || '';
-        const title = (el.querySelector('.notif-title') && el.querySelector('.notif-title').textContent) || 'Notificação';
-        const msg = (el.querySelector('.notif-sub') && el.querySelector('.notif-sub').textContent) || '';
-        openNotifModal({ id, title, msg, ts, refTipo, refId });
-      });
+        openNotifInNewTabAndMarkRead({ id, refTipo, refId });
+      }
+
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); handleOpen(); });
       // acessível via teclado
       el.setAttribute('tabindex','0');
       el.setAttribute('role','button');
-      el.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); const id = el.getAttribute('data-id'); const ts = el.getAttribute('data-ts') || ''; const refTipo = el.getAttribute('data-ref-tipo') || ''; const refId = el.getAttribute('data-ref-id') || ''; const title = (el.querySelector('.notif-title') && el.querySelector('.notif-title').textContent) || 'Notificação'; const msg = (el.querySelector('.notif-sub') && el.querySelector('.notif-sub').textContent) || ''; openNotifModal({ id, title, msg, ts, refTipo, refId }); } });
+      el.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); handleOpen(); } });
     });
 
     // ação: marcar individual como lida via botão dedicado
