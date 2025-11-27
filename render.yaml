@@ -3,7 +3,9 @@ services:
     name: inprolib-web
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --worker-class gthread --workers 2 --threads 20 --timeout 0 --graceful-timeout 60 --keep-alive 75"
+    # Ajuste para conexões SSE estáveis (evita CRITICAL WORKER TIMEOUT)
+    # timeout 120s é mais robusto em alguns ambientes do que 0 (ilimitado)
+    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --worker-class gthread --workers 2 --threads 20 --timeout 120 --graceful-timeout 60 --keep-alive 75"
     autoDeploy: true
     envVars:
       - key: SECRET_KEY
