@@ -25,6 +25,7 @@ import requests
 import socket
 import ssl
 import requests
+import zipfile
 
 # Carrega .env de forma robusta (procura subindo diretórios)
 try:
@@ -61,6 +62,8 @@ ADMIN_SETUP_TOKEN = os.getenv('ADMIN_SETUP_TOKEN', 'setup_admin_2024')
 ADMIN_TEMP_PASSWORD = os.getenv('ADMIN_TEMP_PASSWORD', 'Adm@2025!')
 # Expiração do token de recuperação em segundos (padrão: 60 segundos)
 RESET_TOKEN_EXP_SECONDS = int(os.getenv('RESET_TOKEN_EXP_SECONDS', '60'))
+# Token para rotas de sincronização de uploads (fallback para ADMIN_SETUP_TOKEN)
+UPLOAD_SYNC_TOKEN = os.getenv('UPLOAD_SYNC_TOKEN', ADMIN_SETUP_TOKEN)
 
 # Configuração do banco de dados PostgreSQL (via variáveis de ambiente)
 DB_CONFIG = {
@@ -4372,6 +4375,188 @@ def reupload_publicacao(id_publicacao):
         except Exception:
             pass
         return jsonify({'ok': True, 'filename': new_name})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+# Lista arquivos de publicação ausentes no diretório de uploads
+@app.route('/sync_list_missing', methods=['GET'])
+def sync_list_missing():
+    try:
+        # Autorização por token (cabeçalho, bearer ou query param)
+        token = (
+            (request.headers.get('X-Upload-Sync-Token') or '').strip()
+            or (request.headers.get('Authorization') or '').replace('Bearer', '').strip()
+            or (request.args.get('token') or '').strip()
+        )
+        expected = (UPLOAD_SYNC_TOKEN or '').strip()
+        if not expected or not token or not secrets.compare_digest(token, expected):
+            return jsonify({'ok': False, 'error': 'Não autorizado'}), 403
+
+        # Rate limit básico
+        key = f"{request.remote_addr}:sync_list_missing"
+        if not check_rate_limit(key, limit=30, window=60):
+            return jsonify({'ok': False, 'error': 'Muitas requisições. Tente mais tarde.'}), 429
+
+        # Limite de resultados
+        limit_raw = request.args.get('limit')
+        try:
+            limit = max(1, min(1000, int(limit_raw))) if limit_raw else 200
+        except Exception:
+            limit = 200
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco'}), 500
+        try:
+            cur = conn.cursor(row_factory=dict_row)
+            cur.execute(
+                """
+                SELECT id_publicacao, nome_arquivo, titulo
+                FROM publicacao
+                WHERE nome_arquivo IS NOT NULL AND nome_arquivo <> ''
+                ORDER BY id_publicacao DESC
+                """
+            )
+            rows = cur.fetchall()
+            cur.close(); conn.close()
+            upload_dir = app.config['UPLOAD_FOLDER']
+            missing = []
+            for r in rows:
+                fname = (r.get('nome_arquivo') or '').strip()
+                if not fname:
+                    continue
+                full = os.path.join(upload_dir, fname)
+                if not os.path.exists(full):
+                    try:
+                        pub_id = int(r.get('id_publicacao') or 0)
+                    except Exception:
+                        pub_id = 0
+                    missing.append({
+                        'id_publicacao': pub_id,
+                        'nome_arquivo': fname,
+                        'titulo': r.get('titulo')
+                    })
+                if len(missing) >= limit:
+                    break
+            return jsonify({'ok': True, 'count': len(missing), 'missing': missing})
+        except Exception as e:
+            try:
+                conn and conn.close()
+            except Exception:
+                pass
+            return jsonify({'ok': False, 'error': str(e)}), 500
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+# Recebe arquivos (individuais, múltiplos ou zip) e grava em static/uploads
+@app.route('/sync_uploads', methods=['POST'])
+def sync_uploads():
+    try:
+        # Autorização por token
+        token = (
+            (request.headers.get('X-Upload-Sync-Token') or '').strip()
+            or (request.headers.get('Authorization') or '').replace('Bearer', '').strip()
+            or (request.form.get('token') or request.args.get('token') or '').strip()
+        )
+        expected = (UPLOAD_SYNC_TOKEN or '').strip()
+        if not expected or not token or not secrets.compare_digest(token, expected):
+            return jsonify({'ok': False, 'error': 'Não autorizado'}), 403
+
+        # Rate limit básico
+        key = f"{request.remote_addr}:sync_uploads"
+        if not check_rate_limit(key, limit=30, window=60):
+            return jsonify({'ok': False, 'error': 'Muitas requisições. Tente mais tarde.'}), 429
+
+        overwrite = str((request.form.get('overwrite') or request.args.get('overwrite') or '')).strip().lower() in {'1','true','yes','on'}
+        upload_dir = app.config['UPLOAD_FOLDER']
+        os.makedirs(upload_dir, exist_ok=True)
+        allow = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt', '.png', '.jpg', '.jpeg', '.webp'}
+        results = []
+
+        # Caso 1: upload direto para uma publicação específica
+        id_publicacao = (request.form.get('id_publicacao') or request.args.get('id_publicacao') or '').strip()
+        file_single = request.files.get('file') or request.files.get('conteudo')
+        if id_publicacao and file_single and file_single.filename:
+            try:
+                id_pub = int(id_publicacao)
+            except Exception:
+                return jsonify({'ok': False, 'error': 'id_publicacao inválido'}), 400
+            ext = os.path.splitext(file_single.filename)[1].lower()
+            if ext not in allow:
+                return jsonify({'ok': False, 'error': 'Tipo de arquivo não permitido'}), 400
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco'}), 500
+            try:
+                cur = conn.cursor(row_factory=dict_row)
+                cur.execute("SELECT nome_arquivo FROM publicacao WHERE id_publicacao=%s", (id_pub,))
+                row = cur.fetchone()
+                cur.close(); conn.close()
+                if not row or not row.get('nome_arquivo'):
+                    return jsonify({'ok': False, 'error': 'Publicação não encontrada ou sem nome_arquivo'}), 404
+                target = os.path.join(upload_dir, row['nome_arquivo'])
+                if os.path.exists(target) and not overwrite:
+                    results.append({'filename': row['nome_arquivo'], 'written': False, 'skipped': True, 'reason': 'exists'})
+                else:
+                    file_single.save(target)
+                    # limpa preview cache dessa publicação
+                    preview_dir = ensure_previews_dir()
+                    preview_path = os.path.join(preview_dir, f'preview_pub_{id_pub}.pdf')
+                    try:
+                        if os.path.exists(preview_path):
+                            os.remove(preview_path)
+                    except Exception:
+                        pass
+                    results.append({'filename': row['nome_arquivo'], 'written': True})
+                return jsonify({'ok': True, 'results': results})
+            except Exception as e:
+                try:
+                    conn and conn.close()
+                except Exception:
+                    pass
+                return jsonify({'ok': False, 'error': str(e)}), 500
+
+        # Caso 2: pacote ZIP com arquivos já nomeados como nome_arquivo
+        zip_file = request.files.get('zip')
+        if zip_file and zip_file.filename:
+            try:
+                with zipfile.ZipFile(zip_file.stream) as zf:
+                    for n in zf.namelist():
+                        base = secure_filename(os.path.basename(n))
+                        ext = os.path.splitext(base)[1].lower()
+                        if not base or ext not in allow:
+                            continue
+                        target = os.path.join(upload_dir, base)
+                        if os.path.exists(target) and not overwrite:
+                            results.append({'filename': base, 'written': False, 'skipped': True, 'reason': 'exists'})
+                            continue
+                        with zf.open(n) as src, open(target, 'wb') as dst:
+                            dst.write(src.read())
+                        results.append({'filename': base, 'written': True})
+                return jsonify({'ok': True, 'results': results})
+            except Exception as e:
+                return jsonify({'ok': False, 'error': str(e)}), 500
+
+        # Caso 3: múltiplos arquivos enviados em "files"
+        files_list = request.files.getlist('files') or []
+        if files_list:
+            for f in files_list:
+                if not f or not f.filename:
+                    continue
+                base = secure_filename(os.path.basename(f.filename))
+                ext = os.path.splitext(base)[1].lower()
+                if ext not in allow:
+                    results.append({'filename': base, 'written': False, 'error': 'ext_not_allowed'})
+                    continue
+                target = os.path.join(upload_dir, base)
+                if os.path.exists(target) and not overwrite:
+                    results.append({'filename': base, 'written': False, 'skipped': True, 'reason': 'exists'})
+                    continue
+                f.save(target)
+                results.append({'filename': base, 'written': True})
+            return jsonify({'ok': True, 'results': results})
+
+        return jsonify({'ok': False, 'error': 'Nenhum arquivo enviado'}), 400
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

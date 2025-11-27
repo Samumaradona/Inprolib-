@@ -264,6 +264,27 @@ Notas:
 - **CPF**: Algoritmo completo de validação
 - **E-mail**: Formato e unicidade
 
+### Sincronização de Uploads
+- **Objetivo**: Garantir que os arquivos de publicações existam em `static/uploads` no servidor.
+- **Segurança**: Proteção por token via `UPLOAD_SYNC_TOKEN` (fallback `ADMIN_SETUP_TOKEN`).
+- **Rotas**:
+  - `GET /sync_list_missing` — Lista publicações cujo `nome_arquivo` não existe em `static/uploads`.
+    - Cabeçalho: `X-Upload-Sync-Token: <seu_token>`
+    - Query: `limit=<int>` para limitar resultados.
+  - `POST /sync_uploads` — Recebe arquivos para gravar em `static/uploads`.
+    - Cabeçalho: `X-Upload-Sync-Token: <seu_token>`
+    - Form-data:
+      - `file` (múltiplos) ou `zip` (um ZIP com os arquivos)
+      - `overwrite=1|0` para permitir sobrescrita
+- **Cliente**: `tools/sync_uploads_client.py`
+  - Lista faltantes, monta um ZIP a partir do diretório local e envia para o servidor.
+  - Requer `requests` (já incluído em `requirements.txt`).
+  - Uso (Windows):
+    - Dry-run: `python tools\sync_uploads_client.py --server https://SEU_DOMINIO --token SEU_TOKEN --dry-run`
+    - Enviar: `python tools\sync_uploads_client.py --server https://SEU_DOMINIO --token SEU_TOKEN --src .\static\uploads`
+    - Sobrescrever: `python tools\sync_uploads_client.py --server https://SEU_DOMINIO --token SEU_TOKEN --src .\static\uploads --overwrite`
+
+
 ## 📐 DER — Diagramas e Documentos
 
 - Assets dos diagramas em `static/img`:

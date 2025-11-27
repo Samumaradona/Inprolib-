@@ -10,6 +10,8 @@ services:
         sync: false
       - key: ADMIN_SETUP_TOKEN
         sync: false
+      - key: UPLOAD_SYNC_TOKEN
+        sync: false
       - key: ADMIN_TEMP_PASSWORD
         sync: false
       - key: RESET_TOKEN_EXP_SECONDS
