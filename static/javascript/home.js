@@ -61,29 +61,29 @@ const allowedSet = ALLOWED_BY_ROLE[USER_ROLE] || new Set(['/home']);
     });
   } catch(_) { /* noop */ }
 })();
-let ROUTES = ALL_ROUTES.filter(r => allowedSet.has(r.path));
+let MENU_ROUTES = ALL_ROUTES.filter(r => allowedSet.has(r.path));
 
 // Garantia: para Admin/Docente, força inclusão de Avaliação caso falte
 if (USER_ROLE === 'Administrador' || USER_ROLE === 'Docente') {
-  const hasAval = ROUTES.some(r => r.path === '/avaliacao');
+  const hasAval = MENU_ROUTES.some(r => r.path === '/avaliacao');
   if (!hasAval) {
     const avalRoute = ALL_ROUTES.find(r => r.path === '/avaliacao');
-    if (avalRoute) ROUTES.splice(4, 0, avalRoute); // após Publicação
+    if (avalRoute) MENU_ROUTES.splice(4, 0, avalRoute); // após Publicação
   }
 }
 
 // Ordena rotas em uma sequência desejada para melhor UX
 const ORDER = ['/home','/cadastro_curso','/cadastro_alunos','/publicacao','/avaliacao','/relatorio','/vinculacao_curso','/configuracao','/suporte'];
-ROUTES = ROUTES.sort((a,b) => ORDER.indexOf(a.path) - ORDER.indexOf(b.path));
+MENU_ROUTES = MENU_ROUTES.sort((a,b) => ORDER.indexOf(a.path) - ORDER.indexOf(b.path));
 
 // Define rota padrão por perfil (Admin começa em Cadastro de Cursos)
 const DEFAULT_ROUTE = (USER_ROLE === 'Administrador') ? '/cadastro_curso' : '/home';
 
 /* chave usada no localStorage para guardar qual rota está ativa */
-const ROUTE_STORAGE_KEY = 'meuapp_current_route';
+const HOME_ROUTE_STORAGE_KEY = 'meuapp_current_route_home';
 
 /* lê a rota atual preferindo a rota do navegador, com fallback para storage/default */
-let currentRoute = (function(){
+let homeCurrentRoute = (function(){
   // rota atual do navegador
   let pathFromLocation = '';
   try {
@@ -93,17 +93,17 @@ let currentRoute = (function(){
   } catch(e) { /* noop */ }
 
   // se a rota atual existe na lista, usa ela para marcar ativo
-  const hasPathInRoutes = ROUTES && Array.isArray(ROUTES) && ROUTES.some(r => r && r.path === pathFromLocation);
+  const hasPathInRoutes = MENU_ROUTES && Array.isArray(MENU_ROUTES) && MENU_ROUTES.some(r => r && r.path === pathFromLocation);
   if (pathFromLocation && hasPathInRoutes) {
-    try { localStorage.setItem(ROUTE_STORAGE_KEY, pathFromLocation); } catch(e) { /* noop */ }
+    try { localStorage.setItem(HOME_ROUTE_STORAGE_KEY, pathFromLocation); } catch(e) { /* noop */ }
     return pathFromLocation;
   }
 
   // caso contrário, usa valor persistido ou rota padrão
   try {
-    return localStorage.getItem(ROUTE_STORAGE_KEY) || DEFAULT_ROUTE || (ROUTES[0] && ROUTES[0].path) || '/';
+    return localStorage.getItem(HOME_ROUTE_STORAGE_KEY) || DEFAULT_ROUTE || (MENU_ROUTES[0] && MENU_ROUTES[0].path) || '/';
   } catch(e) {
-    return DEFAULT_ROUTE || (ROUTES[0] && ROUTES[0].path) || '/';
+    return DEFAULT_ROUTE || (MENU_ROUTES[0] && MENU_ROUTES[0].path) || '/';
   }
 })();
 
@@ -120,12 +120,12 @@ let currentRoute = (function(){
  * - Define id 'firstRoute' no primeiro botão para foco inicial
  */
 function renderRoutes(){
-  if(!routesList) { console.warn('routesList não encontrado.'); return; }
+  if(!homeRoutesList) { console.warn('routesList não encontrado.'); return; }
 
   // limpa antes de renderizar
-  routesList.innerHTML = '';
+  homeRoutesList.innerHTML = '';
 
-  ROUTES.forEach((r, idx) => {
+  MENU_ROUTES.forEach((r, idx) => {
     const btn = document.createElement('button');
     btn.className = 'route';
     btn.type = 'button';
@@ -160,7 +160,7 @@ function renderRoutes(){
     btn.appendChild(label);
 
     // se esta rota for a rota ativa -> marca visualmente e para leitores de tela
-    if (r.path === currentRoute) {
+    if (r.path === homeCurrentRoute) {
       btn.classList.add('active');
       btn.setAttribute('aria-current', 'page');
     }
@@ -169,7 +169,7 @@ function renderRoutes(){
     if(idx === 0) btn.id = 'firstRoute';
 
     // adiciona ao container
-    routesList.appendChild(btn);
+    homeRoutesList.appendChild(btn);
   });
 }
 
@@ -184,11 +184,11 @@ function renderRoutes(){
  * - Não re-renderiza tudo; apenas atualiza as classes para performance
  */
 function setCurrentRoute(path){
-  currentRoute = path;
-  try { localStorage.setItem(ROUTE_STORAGE_KEY, path); } catch(e){ /* ignore se storage bloqueado */ }
+  homeCurrentRoute = path;
+  try { localStorage.setItem(HOME_ROUTE_STORAGE_KEY, path); } catch(e){ /* ignore se storage bloqueado */ }
 
-  if(!routesList) return;
-  routesList.querySelectorAll('.route').forEach(btn => {
+  if(!homeRoutesList) return;
+  homeRoutesList.querySelectorAll('.route').forEach(btn => {
     const p = btn.getAttribute('data-path');
     if (p === path) {
       btn.classList.add('active');
@@ -209,45 +209,45 @@ function setCurrentRoute(path){
 function navigateTo(path){
   try {
     if (typeof window !== 'undefined' && window.location && window.location.pathname === path) {
-      closeMenu();
+      homeCloseMenu();
       return;
     }
     window.location.assign(path);
   } catch(e){
     window.location.href = path;
   }
-  closeMenu();
+  homeCloseMenu();
 }
 
 /* =====================
    Menu controls
    ===================== */
 
-const btnHamburger = document.getElementById('btnHamburger');
-const sideMenu = document.getElementById('sideMenu');
-const backdrop = document.getElementById('backdrop');
+const homeBtnHamburger = document.getElementById('btnHamburger');
+const homeSideMenu = document.getElementById('sideMenu');
+const homeBackdrop = document.getElementById('backdrop');
 const menuCloseBtn = document.getElementById('btnClose');
-const routesList = document.getElementById('routesList');
-const logoutBtn = document.getElementById('logoutBtn');
-const btnBack = document.getElementById('btnBack');
-let lastFocused = null;
+const homeRoutesList = document.getElementById('routesList');
+const homeLogoutBtn = document.getElementById('logoutBtn');
+const homeBtnBack = document.getElementById('btnBack');
+let homeLastFocused = null;
 
-function openMenu(){
-  lastFocused = document.activeElement;
-  if (sideMenu) sideMenu.classList.add('open');
-  if (backdrop) backdrop.classList.add('visible');
+function homeOpenMenu(){
+  homeLastFocused = document.activeElement;
+  if (homeSideMenu) homeSideMenu.classList.add('open');
+  if (homeBackdrop) homeBackdrop.classList.add('visible');
 
-  if (sideMenu) sideMenu.setAttribute('aria-hidden','false');
-  if (btnHamburger) btnHamburger.setAttribute('aria-expanded','true');
-  if (backdrop) backdrop.setAttribute('aria-hidden','false');
+  if (homeSideMenu) homeSideMenu.setAttribute('aria-hidden','false');
+  if (homeBtnHamburger) homeBtnHamburger.setAttribute('aria-expanded','true');
+  if (homeBackdrop) homeBackdrop.setAttribute('aria-hidden','false');
 
   if (document && document.body) document.body.style.overflow = 'hidden';
 
   // Foca a rota atualmente ativa; se não houver, foca a primeira
   let activeBtn = null;
   try {
-    if (routesList) {
-      activeBtn = routesList.querySelector('.route.active,[aria-current="page"]');
+    if (homeRoutesList) {
+      activeBtn = homeRoutesList.querySelector('.route.active,[aria-current="page"]');
     }
   } catch(e) { /* noop */ }
 
@@ -258,35 +258,35 @@ function openMenu(){
     if(first) { try { first.focus(); } catch(e){} }
   }
 
-  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('keydown', homeOnKeyDown);
 }
 
-function closeMenu(){
-  if (sideMenu) sideMenu.classList.remove('open');
-  if (backdrop) backdrop.classList.remove('visible');
+function homeCloseMenu(){
+  if (homeSideMenu) homeSideMenu.classList.remove('open');
+  if (homeBackdrop) homeBackdrop.classList.remove('visible');
 
-  if (sideMenu) sideMenu.setAttribute('aria-hidden','true');
-  if (btnHamburger) btnHamburger.setAttribute('aria-expanded','false');
-  if (backdrop) backdrop.setAttribute('aria-hidden','true');
+  if (homeSideMenu) homeSideMenu.setAttribute('aria-hidden','true');
+  if (homeBtnHamburger) homeBtnHamburger.setAttribute('aria-expanded','false');
+  if (homeBackdrop) homeBackdrop.setAttribute('aria-hidden','true');
 
   if (document && document.body) document.body.style.overflow = '';
-  document.removeEventListener('keydown', onKeyDown);
+  document.removeEventListener('keydown', homeOnKeyDown);
 
-  if(lastFocused) { try { lastFocused.focus(); } catch(e){} }
+  if(homeLastFocused) { try { homeLastFocused.focus(); } catch(e){} }
 }
 
-function toggleMenu(){
-  if (sideMenu && sideMenu.classList.contains('open')) {
-    closeMenu();
+function homeToggleMenu(){
+  if (homeSideMenu && homeSideMenu.classList.contains('open')) {
+    homeCloseMenu();
   } else {
-    openMenu();
+    homeOpenMenu();
   }
 }
 
-function onKeyDown(e){
+function homeOnKeyDown(e){
   if(e.key === 'Escape') closeMenu();
 
-  const focusable = sideMenu ? sideMenu.querySelectorAll('button, a') : [];
+  const focusable = homeSideMenu ? homeSideMenu.querySelectorAll('button, a') : [];
   if(!focusable.length) return;
 
   const first = focusable[0];
@@ -307,11 +307,28 @@ function onKeyDown(e){
    Event listeners (guards)
    ===================== */
 
-/* Adiciona listeners somente se os elementos existirem (proteção) */
-if (btnHamburger) btnHamburger.addEventListener('click', toggleMenu);
-if (menuCloseBtn) menuCloseBtn.addEventListener('click', closeMenu);
-if (backdrop) backdrop.addEventListener('click', closeMenu);
-if (logoutBtn) logoutBtn.addEventListener('click', (ev) => {
+/* Controlador único do menu: evita handlers duplicados quando basico.js também está presente
+   Reforço: se já estiver marcado como 'home', este script mantém o controle. */
+const HOME_MENU_MGR_KEY = '__menu_controller__';
+const homeCanManageMenu = (function(){
+  try {
+    const current = (typeof window !== 'undefined') ? window[HOME_MENU_MGR_KEY] : undefined;
+    if (!current || current === 'home') {
+      if (typeof window !== 'undefined') window[HOME_MENU_MGR_KEY] = 'home';
+      return true;
+    }
+    return false;
+  } catch(e) {
+    try { if (typeof window !== 'undefined') window[HOME_MENU_MGR_KEY] = 'home'; } catch(_){}
+    return true;
+  }
+})();
+
+/* Adiciona listeners somente se os elementos existirem e se este script for o controlador */
+if (homeCanManageMenu && homeBtnHamburger) homeBtnHamburger.addEventListener('click', homeToggleMenu);
+if (homeCanManageMenu && menuCloseBtn) menuCloseBtn.addEventListener('click', homeCloseMenu);
+if (homeCanManageMenu && homeBackdrop) homeBackdrop.addEventListener('click', homeCloseMenu);
+if (homeLogoutBtn) homeLogoutBtn.addEventListener('click', (ev) => {
   // evita navegação dupla do <a href="/logout"> e nossa navegação programática
   try {
     ev.preventDefault();
@@ -321,9 +338,9 @@ if (logoutBtn) logoutBtn.addEventListener('click', (ev) => {
   } catch(e) {
     window.location.href = '/logout';
   }
-  closeMenu();
+  homeCloseMenu();
 });
-if (btnBack) btnBack.addEventListener('click', () => {
+if (homeBtnBack) homeBtnBack.addEventListener('click', () => {
   try {
     navigateTo('/home');
   } catch(e){
@@ -332,23 +349,57 @@ if (btnBack) btnBack.addEventListener('click', () => {
 });
 
 /* Liga os links da nav horizontal (se houver) — atualiza rota e navega */
-document.querySelectorAll('nav.primary a').forEach(a => {
-  a.addEventListener('click', (ev) => {
-    ev.preventDefault();
-    const path = a.getAttribute('data-path');
-    if(path) {
-      setCurrentRoute(path);
-      navigateTo(path);
-    }
+if (homeCanManageMenu) {
+  document.querySelectorAll('nav.primary a').forEach(a => {
+    a.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const path = a.getAttribute('data-path');
+      if(path) {
+        setCurrentRoute(path);
+        navigateTo(path);
+      }
+    });
   });
-});
+}
 
 /* =====================
    Inicialização
    ===================== */
 
 /* Renderiza menu lateral (rotas) na inicialização */
-renderRoutes();
+if (homeCanManageMenu) { renderRoutes(); }
+
+/* API leve para forçar a reconstrução do menu a partir de outras páginas/templates
+   - Define o controlador como 'home' e re-renderiza as rotas
+   - Útil quando há conflito com outros scripts ou após navegação
+*/
+try {
+  if (typeof window !== 'undefined') {
+    window.forceHomeMenu = function(){
+      try { window[HOME_MENU_MGR_KEY] = 'home'; } catch(_) {}
+      try { renderRoutes(); } catch(_) {}
+    };
+    // Força renderização do menu completo (ignora filtros por perfil)
+    window.forceFullHomeMenu = function(){
+      try { window[HOME_MENU_MGR_KEY] = 'home'; } catch(_) {}
+      try {
+        MENU_ROUTES = ALL_ROUTES.slice().sort((a,b) => ORDER.indexOf(a.path) - ORDER.indexOf(b.path));
+        renderRoutes();
+      } catch(_) {}
+    };
+    document.addEventListener('home_force_menu', function(){
+      try { window[HOME_MENU_MGR_KEY] = 'home'; } catch(_) {}
+      try { renderRoutes(); } catch(_) {}
+    });
+    document.addEventListener('home_force_full_menu', function(){
+      try { window[HOME_MENU_MGR_KEY] = 'home'; } catch(_) {}
+      try {
+        MENU_ROUTES = ALL_ROUTES.slice().sort((a,b) => ORDER.indexOf(a.path) - ORDER.indexOf(b.path));
+        renderRoutes();
+      } catch(_) {}
+    });
+  }
+} catch(_) {}
 
 /* =====================
    Profile + Notifications (módulo auto-executável)
@@ -814,6 +865,8 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
     }, 10000);
   }
   function setupNotifRealtime(){
+    // Hard stop: respeita flag global de desativação de SSE
+    if (typeof window !== 'undefined' && window.DISABLE_NOTIF_SSE === true) { startPollingFallback(); return; }
     try{
       const es = new EventSource('/api/notificacoes/stream');
       es.onmessage = (e)=>{
@@ -844,6 +897,8 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
   }
   // Inicialização de notificações com fallback robusto
   function setupNotifRealtimeEnhanced(){
+    // Hard stop: respeita flag global de desativação de SSE
+    if (typeof window !== 'undefined' && window.DISABLE_NOTIF_SSE === true) { startPollingFallback(); return; }
     try{
       if(setupNotifRealtimeEnhanced._started) return;
       setupNotifRealtimeEnhanced._started = true;
@@ -880,7 +935,12 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
         .catch(() => { startPollingFallback(); });
     }catch(_){ startPollingFallback(); }
   }
-  setupNotifRealtimeEnhanced();
+  // Permite desabilitar SSE via flag global para evitar erros visuais em páginas específicas
+  if (typeof window !== 'undefined' && window.DISABLE_NOTIF_SSE === true) {
+    try { startPollingFallback(); } catch(_) {}
+  } else {
+    setupNotifRealtimeEnhanced();
+  }
   // Consulta inicial com autoabertura condicional (apenas uma vez)
   try{ fetchNotifCount({ autoOpenIfHas: true }); }catch(_){}
 

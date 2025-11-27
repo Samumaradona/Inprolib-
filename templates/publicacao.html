@@ -309,9 +309,24 @@
 window.USER_PHOTO = "{{ avatar_url }}";
 window.USER_ID = "{{ session.get('user_id', '') }}";
   </script>
+  <script>
+    // Garante que o controlador do menu seja o home.js nesta página
+    // para exibir todas as opções no menu lateral.
+    window.__menu_controller__ = 'home';
+    // Desativa SSE de notificações nesta página para evitar erros visuais de conexão
+    window.DISABLE_NOTIF_SSE = true;
+  </script>
   <script src="{{ url_for('serve_js', script_name='notifications') }}?v={{ asset_version }}"></script>
-  <script src="{{ url_for('serve_js', script_name='basico') }}?v={{ asset_version }}"></script>
   <script src="{{ url_for('serve_js', script_name='home') }}?v={{ asset_version }}"></script>
+  <script>
+    // Força reconstrução do menu pelo home.js nesta página
+    document.dispatchEvent(new Event('home_force_menu'));
+    // E força o menu completo, ignorando filtros por perfil
+    document.dispatchEvent(new Event('home_force_full_menu'));
+    // Alternativamente, caso o evento não seja processado, usa a função exposta
+    if (window.forceHomeMenu) { try { window.forceHomeMenu(); } catch(_) {} }
+    if (window.forceFullHomeMenu) { try { window.forceFullHomeMenu(); } catch(_) {} }
+  </script>
   <script src="{{ url_for('serve_js', script_name='publicacao') }}?v={{ asset_version }}"></script>
   <script>window.initFlashToasts && window.initFlashToasts();</script>
 </body>

@@ -17,7 +17,7 @@
 */
 const ROUTES = [
   { name: 'Publicar Conteúdo', path: '/publicacao', icon: 'publish' },
-  { name: 'Vincular Curso', path: '/vincular_curso', icon: 'merge_type' },
+  { name: 'Vincular Curso', path: '/vinculacao_curso', icon: 'merge_type' },
   { name: 'Avaliação', path: '/avaliacao', icon: 'rate_review' },
   { name: 'Suporte', path: '/suporte', icon: 'support_agent' },
 ];
@@ -27,12 +27,19 @@ const ROUTES = [
 const btnHamburger = document.getElementById('btnHamburger');
 const sideMenu = document.getElementById('sideMenu');
 const backdrop = document.getElementById('backdrop');
-const btnClose = document.getElementById('btnClose');
+const menuBtnClose = document.getElementById('btnClose');
 const routesList = document.getElementById('routesList');
 const logoutBtn = document.getElementById('logoutBtn');
 
 /* variável usada para restaurar foco quando o menu for fechado */
 let lastFocused = null;
+
+/* Controlador único do menu entre múltiplos scripts
+   - Garante que apenas um arquivo registre os listeners do menu
+   - Evita que cliques abram e imediatamente fechem o menu por handlers duplicados */
+const MENU_MGR_KEY = '__menu_controller__';
+const canManageMenu = (typeof window !== 'undefined') && !window[MENU_MGR_KEY];
+if (canManageMenu) { window[MENU_MGR_KEY] = 'basico'; }
 
 /* =====================
    Controle do slide-over
@@ -251,30 +258,32 @@ function navigateTo(path){
    Event listeners (guards)
    ===================== */
 
-/* Adiciona listeners somente se os elementos existirem (proteção) */
-if (btnHamburger) btnHamburger.addEventListener('click', toggleMenu);
-if (btnClose) btnClose.addEventListener('click', closeMenu);
-if (backdrop) backdrop.addEventListener('click', closeMenu);
+/* Adiciona listeners somente se este script for o controlador do menu */
+if (canManageMenu && btnHamburger) btnHamburger.addEventListener('click', toggleMenu);
+if (canManageMenu && menuBtnClose) menuBtnClose.addEventListener('click', closeMenu);
+if (canManageMenu && backdrop) backdrop.addEventListener('click', closeMenu);
 if (logoutBtn) logoutBtn.addEventListener('click', () => { console.log('logout'); closeMenu(); });
 
 /* Liga os links da nav horizontal (se houver) — atualiza rota e navega */
-document.querySelectorAll('nav.primary a').forEach(a => {
-  a.addEventListener('click', (ev) => {
-    ev.preventDefault();
-    const path = a.getAttribute('data-path');
-    if(path) {
-      setCurrentRoute(path);
-      navigateTo(path);
-    }
+if (canManageMenu) {
+  document.querySelectorAll('nav.primary a').forEach(a => {
+    a.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const path = a.getAttribute('data-path');
+      if(path) {
+        setCurrentRoute(path);
+        navigateTo(path);
+      }
+    });
   });
-});
+}
 
 /* =====================
    Inicialização
    ===================== */
 
 /* Renderiza menu lateral (rotas) na inicialização */
-renderRoutes();
+if (canManageMenu) { renderRoutes(); }
 
 /* =====================
    Profile + Notifications (módulo auto-executável)

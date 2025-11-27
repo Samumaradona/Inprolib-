@@ -185,9 +185,21 @@ window.USER_PHOTO = "{{ avatar_url }}";
     </div>
   </div>
 
+ <script>
+   // Garante que o controlador do menu seja o home.js nesta página
+   window.__menu_controller__ = 'home';
+   // Evita erros visuais de SSE nesta tela
+   window.DISABLE_NOTIF_SSE = true;
+ </script>
  <script src="{{ url_for('serve_js', script_name='notifications') }}?v={{ asset_version }}"></script>
- <script src="{{ url_for('serve_js', script_name='basico') }}?v={{ asset_version }}"></script>
  <script src="{{ url_for('serve_js', script_name='home') }}?v={{ asset_version }}"></script>
+ <script>
+   // Força reconstrução do menu e o menu completo (ignora filtros por perfil)
+   document.dispatchEvent(new Event('home_force_menu'));
+   document.dispatchEvent(new Event('home_force_full_menu'));
+   if (window.forceHomeMenu) { try { window.forceHomeMenu(); } catch(_) {} }
+   if (window.forceFullHomeMenu) { try { window.forceFullHomeMenu(); } catch(_) {} }
+  </script>
   <script src="avaliacao.js?v={{ asset_version }}"></script>
   <script>
     window.initFlashToasts && window.initFlashToasts();
