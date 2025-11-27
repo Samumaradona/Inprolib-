@@ -56,9 +56,6 @@
         <div id="notificationsDropdown" class="dropdown-menu" role="menu" aria-hidden="true">
           <div class="dropdown-header">
             <strong>Notificações</strong>
-            <div class="dropdown-actions">
-              <button id="markAllRead">Marcar todas como lidas</button>
-            </div>
           </div>
           <div id="notifList" class="notif-list" role="listbox"></div>
         </div>
@@ -168,7 +165,7 @@
   </div>
   </div>
 
-  <script>
+ <script>
     window.USER_ROLE = "{{ (session.get('role') or session.get('user_tipo') or '') }}";
 window.USER_PHOTO = "{{ avatar_url }}";
     window.USER_ID = "{{ session.get('user_id', '') }}";
@@ -189,6 +186,7 @@ window.USER_PHOTO = "{{ avatar_url }}";
   </div>
 
  <script src="{{ url_for('serve_js', script_name='notifications') }}?v={{ asset_version }}"></script>
+ <script src="{{ url_for('serve_js', script_name='basico') }}?v={{ asset_version }}"></script>
  <script src="{{ url_for('serve_js', script_name='home') }}?v={{ asset_version }}"></script>
   <script src="avaliacao.js?v={{ asset_version }}"></script>
   <script>
@@ -238,10 +236,14 @@ window.USER_PHOTO = "{{ avatar_url }}";
       if(!current.id || !current.acao) return;
       btnSubmit.setAttribute('aria-busy','true'); btnSubmit.disabled = true;
       try{
-        const resp = await fetch('/avaliacao/decidir', {
+        let req = fetch('/avaliacao/decidir', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id_publicacao: current.id, acao: current.acao, comentario: comentario.value || '' })
         });
+        if (window.ProgressOverlay) {
+          req = window.ProgressOverlay.attachToPromise(req, { msg: 'Registrando decisão...' });
+        }
+        const resp = await req;
         const data = await resp.json();
         if(!resp.ok || !data.ok){ throw new Error(data && data.error || 'Falha ao registrar decisão'); }
         window.showToast && window.showToast('Decisão registrada com sucesso.', 'success');

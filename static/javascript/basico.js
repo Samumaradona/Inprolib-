@@ -587,3 +587,113 @@ renderRoutes();
   populateCarousel(SAMPLE_DOCS);
 
 })();
+
+/* ---------- Global Progress Overlay (upload/save/download) ---------- */
+(function(){
+  if (window.ProgressOverlay) return;
+  function ensure(){
+    let box = document.getElementById('globalProgressOverlay');
+    if (box) return box;
+    box = document.createElement('div');
+    box.id = 'globalProgressOverlay';
+    box.style.position = 'fixed';
+    box.style.inset = '0';
+    box.style.background = 'rgba(2, 6, 23, 0.35)';
+    box.style.backdropFilter = 'saturate(1.2) blur(2px)';
+    box.style.display = 'none';
+    box.style.alignItems = 'center';
+    box.style.justifyContent = 'center';
+    box.style.zIndex = '9999';
+
+    const panel = document.createElement('div');
+    panel.className = 'gp-panel';
+    panel.style.background = '#ffffff';
+    panel.style.minWidth = '280px';
+    panel.style.maxWidth = '420px';
+    panel.style.padding = '16px 18px';
+    panel.style.borderRadius = '12px';
+    panel.style.boxShadow = '0 10px 30px rgba(0,0,0,.25)';
+    panel.style.display = 'flex';
+    panel.style.flexDirection = 'column';
+    panel.style.gap = '12px';
+
+    const label = document.createElement('div');
+    label.className = 'gp-label';
+    label.style.color = '#0f172a';
+    label.style.fontSize = '14px';
+    label.textContent = 'Processando...';
+
+    const bar = document.createElement('div');
+    bar.className = 'gp-bar';
+    bar.style.height = '8px';
+    bar.style.background = '#e2e8f0';
+    bar.style.borderRadius = '999px';
+    bar.style.overflow = 'hidden';
+
+    const fill = document.createElement('div');
+    fill.className = 'gp-fill';
+    fill.style.height = '100%';
+    fill.style.width = '0%';
+    fill.style.background = '#0ea5e9';
+    fill.style.borderRadius = '999px';
+    fill.style.animation = 'gpIndet 1.2s ease-in-out infinite';
+
+    bar.appendChild(fill);
+    panel.appendChild(label);
+    panel.appendChild(bar);
+    box.appendChild(panel);
+    document.body.appendChild(box);
+
+    // styles (keyframes) via <style>
+    if (!document.getElementById('gp-styles')){
+      const style = document.createElement('style');
+      style.id = 'gp-styles';
+      style.textContent = '@keyframes gpIndet { 0% { transform: translateX(-100%); width: 30%; } 50% { transform: translateX(20%); width: 50%; } 100% { transform: translateX(120%); width: 30%; } }';
+      document.head.appendChild(style);
+    }
+    return box;
+  }
+
+  let current = { box: null, fill: null, label: null };
+  function show(msg){
+    const box = ensure();
+    const label = box.querySelector('.gp-label');
+    const fill = box.querySelector('.gp-fill');
+    if (msg) label.textContent = String(msg);
+    fill.style.animation = 'gpIndet 1.2s ease-in-out infinite';
+    fill.style.width = '0%';
+    box.style.display = 'flex';
+    current.box = box;
+    current.fill = fill;
+    current.label = label;
+  }
+  function set(p){
+    const fill = current.fill; if(!fill) return;
+    const val = Math.max(0, Math.min(100, Math.round(p)));
+    fill.style.animation = 'none';
+    fill.style.width = val + '%';
+    const label = current.label; if(label) label.textContent = 'Processando... ' + val + '%';
+  }
+  function hide(){
+    const box = current.box; if(!box) return;
+    box.style.display = 'none';
+  }
+  function attachToPromise(promise, opts){
+    const msg = (opts && opts.msg) || 'Processando...';
+    show(msg);
+    try{
+      return Promise.resolve(promise).finally(hide);
+    }catch(_){ hide(); return promise; }
+  }
+  window.ProgressOverlay = { show, set, hide, attachToPromise };
+
+  // Hook global: qualquer submit de form com input[type=file]
+  document.addEventListener('submit', (ev) => {
+    const form = ev.target;
+    if (!form || String(form.tagName).toUpperCase() !== 'FORM') return;
+    const hasFileInput = !!form.querySelector('input[type="file"]');
+    if (!hasFileInput) return;
+    try { window.ProgressOverlay && window.ProgressOverlay.show('Enviando arquivo...'); } catch(_){}
+    // Será ocultado pela navegação ou manualmente onde houver AJAX
+  }, true);
+})();

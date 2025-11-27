@@ -455,8 +455,22 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
   // Determina a URL alvo para a notificação
   function getNotifTargetURL(refTipo, refId){
     const t = String(refTipo||'').toLowerCase();
-    if(refId && (t.includes('publicacao') || t.includes('avaliacao'))){
-      return `${location.origin}/preview_pdf_publicacao/${encodeURIComponent(refId)}`;
+    const role = (typeof USER_ROLE !== 'undefined' ? USER_ROLE : '').trim();
+    // Fluxo correto:
+    // - Docente/Admin: ir para tela de avaliação quando a notificação se refere a publicação/avaliação
+    // - Aluno: ir para publicações; se houver id, pode abrir preview direto
+    if (t.includes('publicacao')) {
+      if (role === 'Docente' || role === 'Administrador') {
+        return `${location.origin}/avaliacao`;
+      }
+      return refId ? `${location.origin}/preview_pdf_publicacao/${encodeURIComponent(refId)}`
+                   : `${location.origin}/publicacao`;
+    }
+    if (t.includes('avaliacao')) {
+      if (role === 'Docente' || role === 'Administrador') {
+        return `${location.origin}/avaliacao`;
+      }
+      return `${location.origin}/publicacao`;
     }
     return `${location.origin}/home`;
   }
@@ -674,10 +688,11 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
         notifDropdown.innerHTML = '<div class="notif-empty">Você não tem novas notificações</div>';
         return;
       }
+      const isAvalPage = (typeof window !== 'undefined' && String(window.location.pathname || '').startsWith('/avaliacao'));
       const html = [
         '<div class="notif-menu-header">'
         + '<span>Notificações</span>'
-        + '<button id="btnMarkAllRead" class="notif-mark-all">Marcar todas lidas</button>'
+        + (isAvalPage ? '' : '<button id="btnMarkAllRead" class="notif-mark-all">Marcar todas lidas</button>')
         + '</div>'
       ];
       arr.forEach(n => {
@@ -918,8 +933,12 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
       reader.readAsDataURL(f);
     }catch(_){ }
 
-    fetch('/upload_avatar', { method: 'POST', body: fd })
-      .then(r => r.json())
+    {
+      let req = fetch('/upload_avatar', { method: 'POST', body: fd });
+      if (window.ProgressOverlay) {
+        req = window.ProgressOverlay.attachToPromise(req, { msg: 'Enviando foto...' });
+      }
+      req.then(r => r.json())
       .then(json => {
         if(json && json.ok && json.photo_url){
           if (avatarImg) avatarImg.src = json.photo_url;
@@ -931,6 +950,7 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
         }
       })
       .catch(() => { try { window.showToast && window.showToast('Erro de conexão ao enviar foto.', 'error'); } catch(_){} });
+    }
   }
 
   /* Toggle dropdown de notificações (abre/fecha) */
@@ -950,12 +970,18 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
     });
   }
 
-  // Fallback: botão estático existente em alguns templates (ex.: avaliacao.html)
-  // Garante funcionalidade mesmo antes do conteúdo dinâmico ser renderizado
+  // Fallback: botão estático existente em alguns templates — removido da Avaliação
+  // Em outras telas, mantém funcionalidade
   (function bindLegacyMarkAll(){
     try{
+      const isAvalPage = (typeof window !== 'undefined' && String(window.location.pathname || '').startsWith('/avaliacao'));
       const legacyBtn = document.getElementById('markAllRead');
       if(!legacyBtn) return;
+      if(isAvalPage){
+        // Não exibir na Avaliação do Docente
+        try { legacyBtn.remove(); } catch(_){}
+        return;
+      }
       legacyBtn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
         try{
@@ -1383,7 +1409,11 @@ function formatDate(v){
         }
         try { window.showToast && window.showToast('Enviando sua denúncia...', 'info'); } catch(_) {}
 
-        const resp = await fetch('/publicacao/denuncia', { method: 'POST', body: fd, redirect: 'follow' });
+        let req = fetch('/publicacao/denuncia', { method: 'POST', body: fd, redirect: 'follow' });
+        if (window.ProgressOverlay) {
+          req = window.ProgressOverlay.attachToPromise(req, { msg: 'Enviando sua denúncia...' });
+        }
+        const resp = await req;
         const ok = resp && resp.ok;
         let payload = null;
         try { payload = await resp.json(); } catch(_) { payload = null; }
@@ -1916,12 +1946,16 @@ function formatDate(v){
       // submissão AJAX para não limpar a tela em caso de erro
       try{
         const fd = new FormData(publicacaoForm);
-        const resp = await fetch('/publicacao', {
+        let req = fetch('/publicacao', {
           method: 'POST',
           body: fd,
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
+        if (window.ProgressOverlay) {
+          req = window.ProgressOverlay.attachToPromise(req, { msg: 'Enviando publicação...' });
+        }
+        const resp = await req;
         const ct = resp.headers.get('Content-Type')||'';
         let data = null;
         if(ct.includes('application/json')){
