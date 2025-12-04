@@ -177,16 +177,19 @@
 
           <div class="btn-group" style="margin-top:12px">
             <input type="file" name="conteudo" id="conteudo" hidden>
-            <label for="conteudo" class="button">
-              Anexar Conteúdo
+            <label for="conteudo" class="button" id="lblConteudo" data-base="Anexar Conteúdo (até 150 MB)" title="Tamanho máximo permitido: 150 MB">
+              Anexar Conteúdo (até 150 MB)
             </label>
 
             <input type="file" name="termo" id="termo" hidden>
-            <label for="termo" class="button">
-              Anexar Termo de Autorização
+            <label for="termo" class="button" id="lblTermo" data-base="Anexar Termo de Autorização (até 50 MB)" title="Tamanho máximo permitido: 50 MB">
+              Anexar Termo de Autorização (até 50 MB)
             </label>
 
-            <button type="submit">Salvar</button>
+            <button type="submit" id="btnSalvar">Salvar</button>
+          </div>
+          <div id="uploadLimitsInfo" style="margin-top:8px;color:#64748b;font-size:12px">
+            Limites: Conteúdo até 150 MB • Termo até 50 MB
           </div>
         </form>
       </div>

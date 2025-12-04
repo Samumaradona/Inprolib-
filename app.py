@@ -26,6 +26,7 @@ import socket
 import ssl
 import requests
 import zipfile
+from werkzeug.exceptions import RequestEntityTooLarge
 
 # Carrega .env de forma robusta (procura subindo diretórios)
 try:
@@ -57,7 +58,9 @@ app.secret_key = os.getenv('SECRET_KEY', 'inprolib_secret_key_2024')
 # Sessões permanentes quando "Lembrar-me" marcado: 30 dias
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
+# Limite total de upload (conteúdo 150MB + termo 50MB + margem)
+# Define 220MB para cobrir os dois arquivos e cabeçalhos do multipart
+app.config['MAX_CONTENT_LENGTH'] = 220 * 1024 * 1024  # 220MB max upload
 ADMIN_SETUP_TOKEN = os.getenv('ADMIN_SETUP_TOKEN', 'setup_admin_2024')
 ADMIN_TEMP_PASSWORD = os.getenv('ADMIN_TEMP_PASSWORD', 'Adm@2025!')
 # Expiração do token de recuperação em segundos (padrão: 60 segundos)
@@ -77,6 +80,54 @@ DB_CONFIG = {
 # Garantir que a pasta de uploads exista
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs'), exist_ok=True)
+
+# Utilitário simples para formatar bytes em MB
+def _fmt_mb(num_bytes: int | float | None) -> str:
+    try:
+        if not num_bytes:
+            return 'desconhecido'
+        return f"{int(round(float(num_bytes) / (1024 * 1024)))} MB"
+    except Exception:
+        return 'MB'
+
+# Obtém tamanho do arquivo de maneira segura, sem ler todo o conteúdo
+def _get_filesize(fs) -> int | None:
+    try:
+        # Primeiro tenta usar content_length informado pelo cliente
+        size = getattr(fs, 'content_length', None)
+        if size:
+            return int(size)
+        # Fallback: tenta medir via stream sem consumir
+        if hasattr(fs, 'stream') and fs.stream:
+            try:
+                cur = fs.stream.tell()
+            except Exception:
+                cur = None
+            try:
+                fs.stream.seek(0, os.SEEK_END)
+                end = fs.stream.tell()
+                if cur is not None:
+                    fs.stream.seek(cur, os.SEEK_SET)
+                else:
+                    fs.stream.seek(0)
+                return int(end)
+            except Exception:
+                pass
+        return None
+    except Exception:
+        return None
+
+# Tratamento amigável para uploads que excedem o limite total do servidor
+@app.errorhandler(RequestEntityTooLarge)
+def handle_request_entity_too_large(e):
+    max_str = _fmt_mb(app.config.get('MAX_CONTENT_LENGTH'))
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'ok': False, 'message': f'Tamanho total do upload excede o limite do servidor (máx {max_str}).'}), 413
+    flash(f'Tamanho total do upload excede o limite do servidor (máx {max_str}).', 'error')
+    try:
+        return redirect(url_for('publicacao'))
+    except Exception:
+        return make_response(f'Tamanho total do upload excede o limite do servidor (máx {max_str}).', 413)
 
 # Injeta avatar_url em todos os templates (valor já resolvido por request)
 @app.context_processor
@@ -3294,6 +3345,27 @@ def publicacao():
                 return jsonify({'ok': False, 'message': 'Anexe o termo de autorização.', 'field': 'termo'}), 400
             flash('Anexe o termo de autorização.', 'error')
             return redirect(url_for('publicacao'))
+        # Validação de tamanho por arquivo (reforço de backend)
+        try:
+            max_conteudo = 150 * 1024 * 1024
+            max_termo = 50 * 1024 * 1024
+            size_conteudo = _get_filesize(arquivo)
+            size_termo = _get_filesize(termo_file)
+            if size_conteudo and size_conteudo > max_conteudo:
+                msg = f'Arquivo de conteúdo excede o limite de 150 MB (tamanho: {_fmt_mb(size_conteudo)}).'
+                if is_ajax:
+                    return jsonify({'ok': False, 'message': msg, 'field': 'conteudo'}), 400
+                flash(msg, 'error')
+                return redirect(url_for('publicacao'))
+            if size_termo and size_termo > max_termo:
+                msg = f'Termo de autorização excede o limite de 50 MB (tamanho: {_fmt_mb(size_termo)}).'
+                if is_ajax:
+                    return jsonify({'ok': False, 'message': msg, 'field': 'termo'}), 400
+                flash(msg, 'error')
+                return redirect(url_for('publicacao'))
+        except Exception:
+            # Em caso de falha ao obter tamanho, segue fluxo normal
+            pass
         # Validação de tipos de arquivo
         ALLOW_EXT = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt', '.png', '.jpg', '.jpeg', '.webp'}
         ext = os.path.splitext(arquivo.filename)[1].lower()

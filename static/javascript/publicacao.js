@@ -555,13 +555,170 @@
 
   // Sem filtros na lista: apenas vincula ações de cada linha
   bindRowActions();
-  // Toast de sucesso ao anexar arquivo "conteudo"
+  // Limites de tamanho para anexos
+  const MAX_CONTENT_SIZE = 150 * 1024 * 1024; // 150 MB
+  const MAX_TERMO_SIZE = 50 * 1024 * 1024;    // 50 MB
+
+  function bytesToMB(bytes){ return (bytes / (1024*1024)).toFixed(1); }
+
+  // UI de progresso para anexos (visual simples)
+  function ensureAttachProgressUI(kind){
+    const group = document.querySelector('#pubFormContainer .btn-group');
+    let wrapId = kind === 'conteudo' ? 'conteudoProgressWrap' : 'termoProgressWrap';
+    let wrap = document.getElementById(wrapId);
+    if(!wrap){
+      wrap = document.createElement('div');
+      wrap.id = wrapId;
+      wrap.style.display = 'none';
+      wrap.style.gap = '8px';
+      wrap.style.alignItems = 'center';
+      wrap.style.background = '#F1F5F9';
+      wrap.style.borderRadius = '6px';
+      wrap.style.padding = '8px';
+      const bar = document.createElement('progress');
+      bar.max = 100; bar.value = 0; bar.style.width = '220px';
+      const label = document.createElement('span');
+      label.textContent = 'Preparando arquivo...';
+      wrap.appendChild(bar); wrap.appendChild(label);
+      group && group.appendChild(wrap);
+    }
+    const bar = wrap.querySelector('progress');
+    const label = wrap.querySelector('span');
+    return {
+      show(){ wrap.style.display='flex'; bar.value = 50; label.textContent = 'Preparando arquivo...'; },
+      done(name, sizeMb){ bar.value = 100; label.textContent = name ? `Selecionado: ${name}${sizeMb?` (${sizeMb} MB)`:''}` : 'Arquivo selecionado'; wrap.style.display='flex'; },
+      fail(msg){ bar.value = 0; label.textContent = msg || 'Falha ao anexar arquivo'; wrap.style.display='flex'; }
+    };
+  }
+
+  // UI de progresso para envio do formulário
+  function ensureFormProgressUI(){
+    const group = document.querySelector('#pubFormContainer .btn-group');
+    let wrap = document.getElementById('formProgressWrap');
+    if(!wrap){
+      wrap = document.createElement('div');
+      wrap.id = 'formProgressWrap';
+      wrap.style.display = 'none';
+      wrap.style.gap = '8px';
+      wrap.style.alignItems = 'center';
+      wrap.style.background = '#F1F5F9';
+      wrap.style.borderRadius = '6px';
+      wrap.style.padding = '8px';
+      const bar = document.createElement('progress');
+      bar.max = 100; bar.value = 0; bar.style.width = '220px';
+      const label = document.createElement('span');
+      label.textContent = 'Aguardando download... 0%';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.textContent = 'Cancelar';
+      cancelBtn.style.marginLeft = '8px';
+      cancelBtn.style.background = '#e2e8f0';
+      cancelBtn.style.color = '#0f172a';
+      cancelBtn.style.border = '0';
+      cancelBtn.style.padding = '6px 10px';
+      cancelBtn.style.borderRadius = '6px';
+      cancelBtn.style.cursor = 'pointer';
+      wrap.appendChild(bar); wrap.appendChild(label); wrap.appendChild(cancelBtn);
+      group && group.appendChild(wrap);
+      wrap._cancelBtn = cancelBtn;
+    }
+    const bar = wrap.querySelector('progress');
+    const label = wrap.querySelector('span');
+    return {
+      bindAbort(abortFn){ wrap._cancelBtn.onclick = ()=>{ try{ abortFn && abortFn(); }catch(_){ } label.textContent='Operação cancelada'; wrap.style.display='flex'; }; },
+      show(){ wrap.style.display='flex'; bar.value = 0; label.textContent = 'Aguardando download... 0%'; },
+      update(p){ const v = Math.max(0, Math.min(100, Math.round(p))); bar.value = v; label.textContent = `Aguardando download... ${v}%`; },
+      done(){ bar.value = 100; label.textContent = 'Concluído'; wrap.style.display='flex'; },
+      fail(){ label.textContent = 'Falha ao salvar'; wrap.style.display='flex'; }
+    };
+  }
+
+  // Validação e feedback para anexar conteúdo
   const conteudoInput = document.getElementById('conteudo');
+  const termoInput = document.getElementById('termo');
+  const lblConteudo = document.getElementById('lblConteudo') || document.querySelector('label[for="conteudo"]');
+  const lblTermo = document.getElementById('lblTermo') || document.querySelector('label[for="termo"]');
+
   if(conteudoInput){
     conteudoInput.addEventListener('change', ()=>{
-      try {
-        window.showToast && window.showToast('Conteúdo anexado com sucesso!', 'success');
-      } catch(e) {}
+      const prog = ensureAttachProgressUI('conteudo');
+      const f = conteudoInput.files && conteudoInput.files[0];
+      if(!f){ prog.fail('Nenhum arquivo selecionado'); return; }
+      const sizeMb = bytesToMB(f.size);
+      if(f.size > MAX_CONTENT_SIZE){
+        try{ window.showToast && window.showToast('Arquivo muito grande. Máximo permitido: 150 MB.', 'error'); }catch(_){}
+        conteudoInput.value = '';
+        if(lblConteudo){ const base = lblConteudo.getAttribute('data-base') || 'Anexar Conteúdo (até 150 MB)'; lblConteudo.textContent = base; }
+        prog.fail('Tamanho excede 150 MB');
+        return;
+      }
+      prog.show();
+      // Feedback e atualização de label
+      try{ window.showToast && window.showToast('Conteúdo anexado com sucesso!', 'success'); }catch(_){}
+      if(lblConteudo){ lblConteudo.textContent = `Selecionado: ${f.name}`; }
+      prog.done(f.name, sizeMb);
+    });
+  }
+
+  if(termoInput){
+    termoInput.addEventListener('change', ()=>{
+      const prog = ensureAttachProgressUI('termo');
+      const f = termoInput.files && termoInput.files[0];
+      if(!f){ prog.fail('Nenhum arquivo selecionado'); return; }
+      const sizeMb = bytesToMB(f.size);
+      if(f.size > MAX_TERMO_SIZE){
+        try{ window.showToast && window.showToast('Arquivo muito grande. Máximo permitido: 50 MB.', 'error'); }catch(_){}
+        termoInput.value = '';
+        if(lblTermo){ const base = lblTermo.getAttribute('data-base') || 'Anexar Termo de Autorização (até 50 MB)'; lblTermo.textContent = base; }
+        prog.fail('Tamanho excede 50 MB');
+        return;
+      }
+      prog.show();
+      try{ window.showToast && window.showToast('Termo anexado com sucesso!', 'success'); }catch(_){}
+      if(lblTermo){ lblTermo.textContent = `Selecionado: ${f.name}`; }
+      prog.done(f.name, sizeMb);
+    });
+  }
+
+  // Intercepta envio do formulário para exibir barra de progresso
+  const pubForm = document.getElementById('pubFormContainer');
+  const btnSalvar = document.getElementById('btnSalvar');
+  if(pubForm){
+    pubForm.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      const fd = new FormData(pubForm);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', pubForm.action || '/publicacao', true);
+      xhr.responseType = 'json';
+      const ui = ensureFormProgressUI();
+      let aborted = false;
+      ui.bindAbort(()=>{ try{ xhr.abort(); aborted = true; }catch(_){} });
+      if(btnSalvar){ btnSalvar.disabled = true; btnSalvar.textContent = 'Salvando...'; }
+      xhr.upload.onprogress = function(e){
+        try{
+          if(e.lengthComputable){ ui.show(); ui.update((e.loaded / e.total) * 100); }
+          else { ui.show(); }
+        }catch(_){}
+      };
+      xhr.onload = function(){
+        if(aborted) return;
+        if(btnSalvar){ btnSalvar.disabled = false; btnSalvar.textContent = 'Salvar'; }
+        if(xhr.status >= 200 && xhr.status < 400){
+          ui.done();
+          try{ window.showToast && window.showToast('Publicação salva com sucesso!', 'success'); }catch(_){}
+          setTimeout(()=>{ try{ location.reload(); }catch(_){} }, 600);
+        } else {
+          ui.fail();
+          try{ window.showToast && window.showToast('Falha ao salvar publicação.', 'error'); }catch(_){}
+        }
+      };
+      xhr.onerror = function(){
+        if(aborted) return;
+        if(btnSalvar){ btnSalvar.disabled = false; btnSalvar.textContent = 'Salvar'; }
+        ui.fail();
+        try{ window.showToast && window.showToast('Erro de rede ao salvar.', 'error'); }catch(_){}
+      };
+      xhr.send(fd);
     });
   }
 
