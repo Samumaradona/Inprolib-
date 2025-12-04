@@ -35,7 +35,16 @@ html.theme-dark body {
 html.theme-dark header.topbar {
   background-color: var(--card-bg);
   border-bottom-color: rgba(148,163,184,0.12);
+  color: var(--bs-body-color);
 }
+
+/* Melhor contraste da topbar no modo escuro */
+html.theme-dark #username { color: var(--bs-body-color) !important; }
+html.theme-dark header.topbar .hamburger .material-symbols-outlined,
+html.theme-dark header.topbar .notif-btn .material-symbols-outlined { color: var(--bs-body-color) !important; }
+html.theme-dark header.topbar .hamburger:hover,
+html.theme-dark header.topbar .notif-btn:hover,
+html.theme-dark header.topbar .profile-btn:hover { background: rgba(148,163,184,0.12) !important; }
 
 /* Cartões / containers */
 html.theme-dark .card,

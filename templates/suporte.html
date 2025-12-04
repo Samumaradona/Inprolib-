@@ -123,11 +123,11 @@
       <div id="msgHint" style="margin-top:6px;font-size:12px;color:#64748b">Máx. 3200 caracteres. <span id="msgCount">0</span>/3200</div>
                     <!-- Botão centralizado -->
                     <div class="btn-group">
-                        <input type="file" name="imagem" id="imagem" hidden>
-                        <label for="imagem" class="button is-success">
-                          Anexar Imagem
+                        <input type="file" name="imagem" id="imagem" accept="image/*" hidden>
+                        <label for="imagem" class="button is-success" title="Máx. 2 MB">
+                          Anexar Imagem (máx. 2 MB)
                         </label>
-                        <button type="submit" class="button">Salvar</button>
+                        <button type="submit" class="button">Enviar</button>
                     </div>
                 </div>
             </form>
@@ -172,11 +172,17 @@ window.USER_ID = "{{ session.get('user_id', '') }}";
     (function(){
       const imgInput = document.getElementById('imagem');
       if(imgInput){
+        const MAX_MB = 2;
+        const MAX_BYTES = MAX_MB * 1024 * 1024;
         imgInput.addEventListener('change', (e)=>{
-          const hasFile = e.target && e.target.files && e.target.files.length > 0;
-          if(hasFile){
-            try{ window.showToast && window.showToast('Imagem anexada com sucesso!', 'success'); }catch(_){ }
+          const f = e.target && e.target.files && e.target.files[0];
+          if(!f) return;
+          if(f.size > MAX_BYTES){
+            e.target.value = '';
+            try{ window.showToast && window.showToast(`Imagem muito grande. Limite: ${MAX_MB} MB.`, 'error'); }catch(_){ }
+            return;
           }
+          try{ window.showToast && window.showToast('Imagem anexada com sucesso!', 'success'); }catch(_){ }
         });
       }
     })();

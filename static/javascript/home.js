@@ -941,8 +941,19 @@ const AVATAR_KEY = USER_ID ? `avatar_${USER_ID}` : 'avatar_default';
   } else {
     setupNotifRealtimeEnhanced();
   }
-  // Consulta inicial com autoabertura condicional (apenas uma vez)
-  try{ fetchNotifCount({ autoOpenIfHas: true }); }catch(_){}
+  // Consulta inicial: auto-abre somente ao chegar em Home após login, uma vez por sessão
+  try{
+    const p = (typeof window !== 'undefined' && window.location && window.location.pathname) ? window.location.pathname : '';
+    const isHomeLanding = (p === '/' || p === '/home');
+    const onceKey = 'notif_auto_open_done';
+    const already = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem(onceKey) : null;
+    if (isHomeLanding && !already) {
+      fetchNotifCount({ autoOpenIfHas: true });
+      try { if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(onceKey, '1'); } catch(_){}
+    } else {
+      fetchNotifCount({ autoOpenIfHas: false });
+    }
+  }catch(_){}
 
   /**
    * loadAvatar()
