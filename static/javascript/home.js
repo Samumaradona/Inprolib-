@@ -383,7 +383,13 @@ try {
     window.forceFullHomeMenu = function(){
       try { window[HOME_MENU_MGR_KEY] = 'home'; } catch(_) {}
       try {
-        MENU_ROUTES = ALL_ROUTES.slice().sort((a,b) => ORDER.indexOf(a.path) - ORDER.indexOf(b.path));
+        // Mantém menu completo apenas para Administrador; demais perfis usam filtro
+        if (USER_ROLE === 'Administrador') {
+          MENU_ROUTES = ALL_ROUTES.slice();
+        } else {
+          MENU_ROUTES = ALL_ROUTES.filter(r => allowedSet.has(r.path));
+        }
+        MENU_ROUTES = MENU_ROUTES.sort((a,b) => ORDER.indexOf(a.path) - ORDER.indexOf(b.path));
         renderRoutes();
       } catch(_) {}
     };
@@ -394,7 +400,13 @@ try {
     document.addEventListener('home_force_full_menu', function(){
       try { window[HOME_MENU_MGR_KEY] = 'home'; } catch(_) {}
       try {
-        MENU_ROUTES = ALL_ROUTES.slice().sort((a,b) => ORDER.indexOf(a.path) - ORDER.indexOf(b.path));
+        // Mantém menu completo apenas para Administrador; demais perfis usam filtro
+        if (USER_ROLE === 'Administrador') {
+          MENU_ROUTES = ALL_ROUTES.slice();
+        } else {
+          MENU_ROUTES = ALL_ROUTES.filter(r => allowedSet.has(r.path));
+        }
+        MENU_ROUTES = MENU_ROUTES.sort((a,b) => ORDER.indexOf(a.path) - ORDER.indexOf(b.path));
         renderRoutes();
       } catch(_) {}
     });

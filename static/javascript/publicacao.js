@@ -97,9 +97,19 @@
       frame.style.width = '100%';
       frame.style.height = '520px';
       frame.style.border = '0';
-      frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-downloads');
+      // Para conteúdo same-origin (preview_pdf_publicacao) removemos sandbox
+      // pois o viewer de PDF embutido em alguns navegadores não renderiza dentro de iframes sandboxed.
+      // Mantemos políticas leves apenas de carregamento.
       frame.setAttribute('referrerpolicy','no-referrer');
       frame.setAttribute('loading','lazy');
+      // Fallback de erro: se não carregar, orienta o usuário a usar o download
+      frame.addEventListener('error', ()=>{
+        const fail = document.createElement('div');
+        fail.textContent = 'Falha ao carregar a pré-visualização. Use o botão Fazer download.';
+        fail.style.color = '#334155';
+        preview.innerHTML = '';
+        preview.appendChild(fail);
+      });
       preview.appendChild(frame);
     } else if(url){
       // Fallback sem id: usa URL direta conforme tipo
