@@ -1052,6 +1052,136 @@ def ensure_avaliacao_table():
             pass
         print(f"Falha ao garantir tabela avaliacao: {e}")
 
+# Helper para garantir existência da tabela de armazenamento de arquivos da publicação
+def ensure_publicacao_arquivo_table():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        # Verifica a existência da tabela no search_path atual
+        cur.execute("SELECT to_regclass('publicacao_arquivo')")
+        reg = cur.fetchone()
+        exists = reg and reg[0] is not None
+        if not exists:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS publicacao_arquivo (
+                    id_publicacao INTEGER PRIMARY KEY REFERENCES publicacao(id_publicacao) ON DELETE CASCADE,
+                    filename VARCHAR(255) NOT NULL,
+                    content BYTEA NOT NULL,
+                    content_type VARCHAR(128),
+                    size_bytes INTEGER,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.commit()
+        cur.close(); conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao garantir tabela publicacao_arquivo: {e}")
+
+# Utilitários de armazenamento/recuperação de arquivo em banco
+def save_publicacao_file_bytes(id_publicacao: int, filename: str, content_bytes: bytes, content_type: str | None = None):
+    try:
+        ensure_publicacao_arquivo_table()
+    except Exception:
+        pass
+    conn = get_db_connection()
+    if not conn:
+        return False
+    try:
+        cur = conn.cursor()
+        size_bytes = len(content_bytes or b"")
+        # UPSERT simples: atualiza se já existir
+        cur.execute(
+            """
+            INSERT INTO publicacao_arquivo (id_publicacao, filename, content, content_type, size_bytes)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (id_publicacao) DO UPDATE SET
+              filename = EXCLUDED.filename,
+              content = EXCLUDED.content,
+              content_type = EXCLUDED.content_type,
+              size_bytes = EXCLUDED.size_bytes,
+              created_at = CURRENT_TIMESTAMP
+            """,
+            (int(id_publicacao), filename, psycopg.Binary(content_bytes), content_type, size_bytes)
+        )
+        conn.commit()
+        cur.close(); conn.close()
+        return True
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao salvar bytes do arquivo da publicação {id_publicacao}: {e}")
+        return False
+
+def load_publicacao_file_bytes(id_publicacao: int):
+    try:
+        ensure_publicacao_arquivo_table()
+    except Exception:
+        pass
+    conn = get_db_connection()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute("SELECT filename, content, content_type FROM publicacao_arquivo WHERE id_publicacao=%s", (int(id_publicacao),))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        return row if row else None
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"Falha ao carregar bytes do arquivo da publicação {id_publicacao}: {e}")
+        return None
+
+def restore_file_from_db(id_publicacao: int, desired_filename: str | None, upload_dir: str) -> str | None:
+    """Se existir conteúdo em banco, restaura para disco e retorna caminho."""
+    try:
+        data = load_publicacao_file_bytes(id_publicacao)
+        if not data:
+            return None
+        os.makedirs(upload_dir, exist_ok=True)
+        filename = desired_filename or (data.get('filename') or '').strip() or f"pub_{id_publicacao}"
+        target = os.path.join(upload_dir, secure_filename(filename))
+        with open(target, 'wb') as f:
+            f.write(data['content'] or b"")
+        return target
+    except Exception:
+        return None
+
+def strip_ts_prefix(name: str) -> str:
+    try:
+        base = os.path.basename(name or '')
+        # Remove prefixo YYYYmmddHHMMSS_
+        import re
+        m = re.match(r"^\d{14}_(.+)$", base)
+        return m.group(1) if m else base
+    except Exception:
+        return name or ''
+
+def find_file_by_suffix(upload_dir: str, stored_name: str) -> str | None:
+    try:
+        suffix = strip_ts_prefix(stored_name).lower()
+        for fname in os.listdir(upload_dir):
+            try:
+                if fname.lower().endswith(suffix):
+                    return os.path.join(upload_dir, fname)
+            except Exception:
+                continue
+        return None
+    except Exception:
+        return None
+
 # Helper para garantir existência da tabela 'notificacao'
 def ensure_notificacoes_table():
     conn = get_db_connection()
@@ -3493,6 +3623,33 @@ def download_publicacao(id_publicacao):
         # Verifica se o arquivo existe fisicamente
         full_path = os.path.join(upload_dir, stored_name)
         if not os.path.exists(full_path):
+            # Fallback 1: tenta localizar por sufixo (ignora prefixo de timestamp)
+            alt_by_suffix = find_file_by_suffix(upload_dir, stored_name)
+            if alt_by_suffix and os.path.exists(alt_by_suffix):
+                full_path = alt_by_suffix
+                stored_name = os.path.basename(alt_by_suffix)
+                # Atualiza nome_arquivo para o nome encontrado
+                try:
+                    conn2 = get_db_connection()
+                    cur2 = conn2.cursor()
+                    cur2.execute("UPDATE publicacao SET nome_arquivo=%s, arquivo=%s WHERE id_publicacao=%s", (stored_name, full_path, id_publicacao))
+                    conn2.commit(); cur2.close(); conn2.close()
+                except Exception:
+                    pass
+        if not os.path.exists(full_path):
+            # Fallback 2: tenta restaurar a partir do banco
+            restored = restore_file_from_db(id_publicacao, stored_name, upload_dir)
+            if restored and os.path.exists(restored):
+                full_path = restored
+                stored_name = os.path.basename(restored)
+                try:
+                    conn2 = get_db_connection()
+                    cur2 = conn2.cursor()
+                    cur2.execute("UPDATE publicacao SET nome_arquivo=%s, arquivo=%s WHERE id_publicacao=%s", (stored_name, full_path, id_publicacao))
+                    conn2.commit(); cur2.close(); conn2.close()
+                except Exception:
+                    pass
+        if not os.path.exists(full_path):
             # Arquivo ausente: sempre retorna um PDF explicando o problema
             preview_dir = ensure_previews_dir()
             preview_name = f'preview_pub_{id_publicacao}.pdf'
@@ -3580,6 +3737,30 @@ def preview_publicacao(id_publicacao):
         stored_name = row['nome_arquivo']
         upload_dir = app.config['UPLOAD_FOLDER']
         full_path = os.path.join(upload_dir, stored_name)
+        if not os.path.exists(full_path):
+            # Fallback 1: localizar por sufixo (ignora prefixo de timestamp)
+            alt_by_suffix = find_file_by_suffix(upload_dir, stored_name)
+            if alt_by_suffix and os.path.exists(alt_by_suffix):
+                full_path = alt_by_suffix
+                stored_name = os.path.basename(alt_by_suffix)
+                try:
+                    conn2 = get_db_connection(); cur2 = conn2.cursor()
+                    cur2.execute("UPDATE publicacao SET nome_arquivo=%s, arquivo=%s WHERE id_publicacao=%s", (stored_name, full_path, id_publicacao))
+                    conn2.commit(); cur2.close(); conn2.close()
+                except Exception:
+                    pass
+        if not os.path.exists(full_path):
+            # Fallback 2: restaurar a partir do banco e atualizar nome_arquivo
+            restored = restore_file_from_db(id_publicacao, stored_name, upload_dir)
+            if restored and os.path.exists(restored):
+                full_path = restored
+                stored_name = os.path.basename(restored)
+                try:
+                    conn2 = get_db_connection(); cur2 = conn2.cursor()
+                    cur2.execute("UPDATE publicacao SET nome_arquivo=%s, arquivo=%s WHERE id_publicacao=%s", (stored_name, full_path, id_publicacao))
+                    conn2.commit(); cur2.close(); conn2.close()
+                except Exception:
+                    pass
         if not os.path.exists(full_path):
             return make_response('<div style="padding:12px;color:#dc2626;">Arquivo não encontrado no servidor.</div>', 404)
         ext = os.path.splitext(stored_name)[1].lower()
@@ -3955,6 +4136,30 @@ def preview_pdf_publicacao(id_publicacao):
                             break
                 except Exception:
                     pass
+            # Fallback 1: busca por sufixo (ignora timestamp)
+            if (not full_path) or (full_path and not os.path.exists(full_path)):
+                alt_by_suffix = find_file_by_suffix(upload_dir, stored_name)
+                if alt_by_suffix and os.path.exists(alt_by_suffix):
+                    full_path = alt_by_suffix
+                    stored_name = os.path.basename(alt_by_suffix)
+                    try:
+                        conn2 = get_db_connection(); cur2 = conn2.cursor()
+                        cur2.execute("UPDATE publicacao SET nome_arquivo=%s, arquivo=%s WHERE id_publicacao=%s", (stored_name, full_path, id_publicacao))
+                        conn2.commit(); cur2.close(); conn2.close()
+                    except Exception:
+                        pass
+            # Fallback 2: restaura a partir do banco
+            if (not full_path) or (full_path and not os.path.exists(full_path)):
+                restored = restore_file_from_db(id_publicacao, stored_name, upload_dir)
+                if restored and os.path.exists(restored):
+                    full_path = restored
+                    stored_name = os.path.basename(restored)
+                    try:
+                        conn2 = get_db_connection(); cur2 = conn2.cursor()
+                        cur2.execute("UPDATE publicacao SET nome_arquivo=%s, arquivo=%s WHERE id_publicacao=%s", (stored_name, full_path, id_publicacao))
+                        conn2.commit(); cur2.close(); conn2.close()
+                    except Exception:
+                        pass
         # Se ainda não encontrado, deixamos seguir para cache/erro
 
         # Sempre tenta servir um PDF em cache se já existir
@@ -4127,6 +4332,30 @@ def download_pdf_publicacao(id_publicacao):
                             break
                 except Exception:
                     pass
+            # Fallback 1: busca por sufixo ignorando timestamp
+            if (not full_path) or (full_path and not os.path.exists(full_path)):
+                alt_by_suffix = find_file_by_suffix(upload_dir, stored_name)
+                if alt_by_suffix and os.path.exists(alt_by_suffix):
+                    full_path = alt_by_suffix
+                    stored_name = os.path.basename(alt_by_suffix)
+                    try:
+                        conn2 = get_db_connection(); cur2 = conn2.cursor()
+                        cur2.execute("UPDATE publicacao SET nome_arquivo=%s, arquivo=%s WHERE id_publicacao=%s", (stored_name, full_path, id_publicacao))
+                        conn2.commit(); cur2.close(); conn2.close()
+                    except Exception:
+                        pass
+            # Fallback 2: restaura a partir do banco
+            if (not full_path) or (full_path and not os.path.exists(full_path)):
+                restored = restore_file_from_db(id_publicacao, stored_name, upload_dir)
+                if restored and os.path.exists(restored):
+                    full_path = restored
+                    stored_name = os.path.basename(restored)
+                    try:
+                        conn2 = get_db_connection(); cur2 = conn2.cursor()
+                        cur2.execute("UPDATE publicacao SET nome_arquivo=%s, arquivo=%s WHERE id_publicacao=%s", (stored_name, full_path, id_publicacao))
+                        conn2.commit(); cur2.close(); conn2.close()
+                    except Exception:
+                        pass
         if not os.path.exists(full_path):
             # Arquivo ausente: usa cache de preview se existir; caso contrário, gera PDF de erro
             preview_dir = ensure_previews_dir()
@@ -4417,6 +4646,13 @@ def reupload_publicacao(id_publicacao):
         cur.execute("UPDATE publicacao SET arquivo=%s, nome_arquivo=%s WHERE id_publicacao=%s", (full, new_name, id_publicacao))
         conn.commit()
         cur.close(); conn.close()
+        # salva bytes no banco para tolerar reinicializações do servidor
+        try:
+            with open(full, 'rb') as f:
+                content_bytes = f.read()
+            save_publicacao_file_bytes(int(id_publicacao), new_name, content_bytes, content_type=mimetypes.guess_type(full)[0])
+        except Exception:
+            pass
         # limpa cache de preview
         preview_dir = ensure_previews_dir()
         preview_name = f'preview_pub_{id_publicacao}.pdf'
@@ -4500,6 +4736,80 @@ def sync_list_missing():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+# Repara arquivos ausentes restaurando a partir do banco, quando disponível
+@app.route('/repair_missing_files', methods=['POST'])
+def repair_missing_files():
+    try:
+        token = (
+            (request.headers.get('X-Upload-Sync-Token') or '').strip()
+            or (request.headers.get('Authorization') or '').replace('Bearer', '').strip()
+            or (request.form.get('token') or request.args.get('token') or '').strip()
+        )
+        expected = (UPLOAD_SYNC_TOKEN or '').strip()
+        if not expected or not token or not secrets.compare_digest(token, expected):
+            return jsonify({'ok': False, 'error': 'Não autorizado'}), 403
+
+        # Limite simples
+        limit_raw = request.args.get('limit')
+        try:
+            limit = max(1, min(2000, int(limit_raw))) if limit_raw else 500
+        except Exception:
+            limit = 500
+
+        upload_dir = app.config['UPLOAD_FOLDER']
+        os.makedirs(upload_dir, exist_ok=True)
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'ok': False, 'error': 'Falha ao conectar ao banco'}), 500
+        cur = conn.cursor(row_factory=dict_row)
+        cur.execute(
+            """
+            SELECT id_publicacao, nome_arquivo, titulo
+            FROM publicacao
+            WHERE nome_arquivo IS NOT NULL AND nome_arquivo <> ''
+            ORDER BY id_publicacao DESC
+            """
+        )
+        rows = cur.fetchall(); cur.close(); conn.close()
+        repaired = []
+        count = 0
+        for r in rows:
+            if count >= limit:
+                break
+            pid = int(r.get('id_publicacao') or 0)
+            fname = (r.get('nome_arquivo') or '').strip()
+            full = os.path.join(upload_dir, fname)
+            if os.path.exists(full):
+                continue
+            # tenta restaurar do banco
+            info = load_publicacao_file_bytes(pid)
+            if info and info.get('content'):
+                try:
+                    restored = restore_file_from_db(pid, fname, upload_dir)
+                    if restored and os.path.exists(restored):
+                        repaired.append({'id_publicacao': pid, 'filename': os.path.basename(restored), 'status': 'restored'})
+                        count += 1
+                        continue
+                except Exception:
+                    pass
+            # tenta localizar por sufixo
+            alt_by_suffix = find_file_by_suffix(upload_dir, fname)
+            if alt_by_suffix and os.path.exists(alt_by_suffix):
+                try:
+                    conn2 = get_db_connection(); cur2 = conn2.cursor()
+                    cur2.execute("UPDATE publicacao SET nome_arquivo=%s, arquivo=%s WHERE id_publicacao=%s", (os.path.basename(alt_by_suffix), alt_by_suffix, pid))
+                    conn2.commit(); cur2.close(); conn2.close()
+                except Exception:
+                    pass
+                repaired.append({'id_publicacao': pid, 'filename': os.path.basename(alt_by_suffix), 'status': 'linked'})
+                count += 1
+            else:
+                repaired.append({'id_publicacao': pid, 'filename': fname, 'status': 'no_bytes'})
+                count += 1
+        return jsonify({'ok': True, 'repaired': repaired, 'count': len(repaired)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 # Recebe arquivos (individuais, múltiplos ou zip) e grava em static/uploads
 @app.route('/sync_uploads', methods=['POST'])
 def sync_uploads():
@@ -4559,6 +4869,13 @@ def sync_uploads():
                             os.remove(preview_path)
                     except Exception:
                         pass
+                    # armazena bytes no banco para tolerância a reinicializações
+                    try:
+                        with open(target, 'rb') as f:
+                            content_bytes = f.read()
+                        save_publicacao_file_bytes(id_pub, row['nome_arquivo'], content_bytes, content_type=mimetypes.guess_type(target)[0])
+                    except Exception:
+                        pass
                     results.append({'filename': row['nome_arquivo'], 'written': True})
                 return jsonify({'ok': True, 'results': results})
             except Exception as e:
@@ -4583,7 +4900,17 @@ def sync_uploads():
                             results.append({'filename': base, 'written': False, 'skipped': True, 'reason': 'exists'})
                             continue
                         with zf.open(n) as src, open(target, 'wb') as dst:
-                            dst.write(src.read())
+                            data = src.read()
+                            dst.write(data)
+                        # tenta vincular a uma publicação e salvar bytes
+                        try:
+                            conn2 = get_db_connection(); cur2 = conn2.cursor(row_factory=dict_row)
+                            cur2.execute("SELECT id_publicacao FROM publicacao WHERE nome_arquivo=%s", (base,))
+                            rpub = cur2.fetchone(); cur2.close(); conn2.close()
+                            if rpub and rpub.get('id_publicacao'):
+                                save_publicacao_file_bytes(int(rpub['id_publicacao']), base, data, content_type=mimetypes.guess_type(target)[0])
+                        except Exception:
+                            pass
                         results.append({'filename': base, 'written': True})
                 return jsonify({'ok': True, 'results': results})
             except Exception as e:
@@ -4605,6 +4932,16 @@ def sync_uploads():
                     results.append({'filename': base, 'written': False, 'skipped': True, 'reason': 'exists'})
                     continue
                 f.save(target)
+                # salva bytes se houver publicação com esse nome_arquivo
+                try:
+                    conn2 = get_db_connection(); cur2 = conn2.cursor(row_factory=dict_row)
+                    cur2.execute("SELECT id_publicacao FROM publicacao WHERE nome_arquivo=%s", (base,))
+                    rpub = cur2.fetchone(); cur2.close(); conn2.close()
+                    if rpub and rpub.get('id_publicacao'):
+                        with open(target, 'rb') as fh:
+                            save_publicacao_file_bytes(int(rpub['id_publicacao']), base, fh.read(), content_type=mimetypes.guess_type(target)[0])
+                except Exception:
+                    pass
                 results.append({'filename': base, 'written': True})
             return jsonify({'ok': True, 'results': results})
 
